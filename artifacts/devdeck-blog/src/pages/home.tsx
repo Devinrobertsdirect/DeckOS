@@ -220,7 +220,7 @@ export default function Home() {
           <article className="prose prose-invert max-w-none">
             <div className="border-b border-border pb-8 mb-8">
               <div className="text-primary text-sm font-bold mb-4 tracking-widest">LOG ENTRY</div>
-              <h2 className="text-4xl font-bold text-foreground m-0 mb-4">Week 1 — Architecture Lock-In</h2>
+              <h2 className="text-4xl font-bold text-foreground m-0 mb-4">Week 1: Locking In the Architecture</h2>
               <div className="flex gap-4 text-sm text-muted-foreground font-mono">
                 <span>April 17, 2026</span>
                 <span>•</span>
@@ -232,19 +232,23 @@ export default function Home() {
             
             <div className="font-sans text-lg leading-relaxed text-foreground/90 space-y-6">
               <p>
-                For my Final Project, I'm building DeckOS — a custom software platform for a Raspberry Pi-powered cyberdeck I'm building from a hollowed-out hardcover copy of Thoreau's Walden. The goal is a portable, terminal-first computing environment that works offline, sips power, and treats every module — networking, system monitoring, AI, files — as a plug-in I can swap without touching the core.
+                Welcome to the first official log entry for my Capstone project. For the next several months I'll be building DeckOS, a custom operating system for a portable cyberdeck I'm putting together myself. The chassis is a hollowed out hardcover copy of Thoreau's Walden, the brain is a Raspberry Pi 4, and the screen is a 7 inch IPS panel mounted to the inside of the book cover. It looks like a notebook on a shelf, and opens like a laptop on a workbench.
               </p>
-              
+
               <p>
-                The problem I keep running into with off-the-shelf operating systems is that they assume infinite bandwidth, infinite battery, and a 1080p screen. Mine is a 7" IPS panel mounted to the inside of a book cover. The chassis is wood. The keyboard is a 60% Apple Magic. There is no room — physically or computationally — for a modern bloated desktop. So DeckOS is a deliberate exercise in subtraction: a custom UI shell layered over Raspberry Pi OS with a module loader, an event bus, and a strict five-tier hardware arbitration model so an AI prompt can never directly drive a servo motor.
+                Here's the problem I'm trying to solve. Modern operating systems assume you have unlimited internet, unlimited battery, and a full sized monitor. None of that is true on a cyberdeck. Standard Raspberry Pi OS will technically run on this hardware, but the desktop environment is heavy, the menus assume a mouse, and almost every "default" app expects a network connection. If I dropped a stock OS onto this build, half the screen would be wasted on window chrome and the other half would be waiting on a Wi-Fi handshake that never comes. That's a bad experience for the kind of field work, security research, and offline computing I'm targeting.
               </p>
-              
+
               <p>
-                This week I locked in the architecture. The core engine has five pieces — UI Engine, Module Loader, Command Processor, Data Manager, and the Arbitration Layer — and I drafted my Entity Relationship Diagram for the SQLite store (Users, Modules, Logs). I also stood up the developer surface for the project: a brand kit, this blog, and a live, interactive 3D preview of the deck hardware so I can show stakeholders what we're aiming at instead of just describing it.
+                DeckOS is my answer. It's a lightweight, terminal first interface that sits on top of Raspberry Pi OS and replaces the desktop entirely. Every feature (system monitor, network scanner, file browser, AI assistant, logs) is a self contained module that the core can load, unload, or swap out without restarting. The whole thing is keyboard driven, offline first, and built around a strict five layer architecture so that nothing dangerous (like an AI prompt) can ever talk directly to hardware. Safety lives in the arbitration layer, not in the AI.
               </p>
-              
+
               <p>
-                Next week: implementing the boot sequence and the first real module — the system monitor — so the dashboard isn't just a wireframe anymore.
+                This week I locked in that architecture and got the supporting work done so the rest of the project has somewhere to land. I finalized the five core components (UI Engine, Module Loader, Command Processor, Data Manager, and Arbitration Layer), drafted the Entity Relationship Diagram for the SQLite database (Users, Modules, Logs), and stood up the public face of the project: a brand kit, this blog, and a live interactive 3D preview of the cyberdeck hardware that's embedded right on this page. Drag it, spin it, click any component to see what it does. I wanted reviewers and future employers to be able to actually see what I'm building, not just read about it.
+              </p>
+
+              <p>
+                Next week I start the real work: implementing the boot sequence and shipping the first functional module, the system monitor. Once the dashboard is reading live CPU, RAM, and temperature off the Pi, this stops being a wireframe and starts being an operating system.
               </p>
             </div>
           </article>

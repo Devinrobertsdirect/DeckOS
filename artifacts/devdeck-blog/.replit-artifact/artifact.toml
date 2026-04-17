@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "DevDeck Blog"
+version = "1.0.0"
+id = "artifacts/devdeck-blog"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25236
+
+[services.development]
+run = "pnpm --filter @workspace/devdeck-blog run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/devdeck-blog", "run", "build" ]
+publicDir = "artifacts/devdeck-blog/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25236"
+BASE_PATH = "/"

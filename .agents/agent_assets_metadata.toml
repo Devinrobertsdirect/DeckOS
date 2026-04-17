@@ -1,0 +1,8 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "mAHS8nWAEE7ZZsNNNb8zp"
+uri = "file://artifacts/devdeck-blog/public/cyberdeck-hero.png"
+type = "image"
+title = "Cyberdeck in a book"

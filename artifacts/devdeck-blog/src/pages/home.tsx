@@ -215,7 +215,42 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Blog Post */}
+        {/* Blog Post: Week 0 — Intro */}
+        <section className="px-6 md:px-12 lg:px-24 max-w-4xl mx-auto w-full">
+          <article className="prose prose-invert max-w-none">
+            <div className="border-b border-border pb-8 mb-8">
+              <div className="text-primary text-sm font-bold mb-4 tracking-widest">LOG ENTRY</div>
+              <h2 className="text-4xl font-bold text-foreground m-0 mb-4">Week 0: Hello, I'm Devin</h2>
+              <div className="flex gap-4 text-sm text-muted-foreground font-mono">
+                <span>April 10, 2026</span>
+                <span>•</span>
+                <span>2 min read</span>
+                <span>•</span>
+                <span className="text-secondary">By Devin C. Roberts</span>
+              </div>
+            </div>
+
+            <div className="font-sans text-lg leading-relaxed text-foreground/90 space-y-6">
+              <p>
+                Hey, my name is Devin C. Roberts and I'm a Computer Science student at Full Sail University, graduating in 2026. This blog is going to follow my Capstone project from week zero all the way to the final build, and since this is the very first post, I figured I'd skip the technical stuff and just introduce myself.
+              </p>
+
+              <p>
+                I got into computers the way a lot of people do: I broke things, then I had to fix them. Somewhere along the way that turned into actually wanting to understand how the whole stack works, from the metal up. I went deeper into the AI side of things and earned my CPMAI certification because I wanted real, structured experience with how machine learning projects actually get planned and shipped, not just how to call an API. The two interests (low level systems and applied AI) keep colliding in my head, and Capstone is finally my excuse to mash them together into one project.
+              </p>
+
+              <p>
+                That project is DeckOS, a custom operating system for a portable cyberdeck I'm building by hand. I'll get into the technical details next week. For now I just want to set the goal: I want to graduate with a portfolio piece that proves I can take an idea from "scribble on a notebook" all the way to "running hardware in your hand," and do it well enough that an industry team would trust me on day one. That means clean architecture, real documentation, and weekly public progress (which is exactly what this blog is for).
+              </p>
+
+              <p>
+                Thanks for reading. If you want to see what I'm actually building, scroll up to the 3D model at the top of the page and click around. New post drops next week with the real problem statement and my plan of attack.
+              </p>
+            </div>
+          </article>
+        </section>
+
+        {/* Blog Post: Week 1 */}
         <section className="px-6 md:px-12 lg:px-24 max-w-4xl mx-auto w-full">
           <article className="prose prose-invert max-w-none">
             <div className="border-b border-border pb-8 mb-8">

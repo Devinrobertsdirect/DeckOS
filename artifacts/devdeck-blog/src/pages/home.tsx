@@ -89,8 +89,8 @@ export default function Home() {
               className="flex flex-col gap-2 mt-4 bg-card border border-border p-4 w-full max-w-md font-mono text-sm"
             >
               {!bootComplete ? (
-                bootLog.map((log, i) => (
-                  <div key={i} className={log.includes("Launching") ? "text-primary mt-2" : "text-muted-foreground"}>
+                bootLog.filter(Boolean).map((log, i) => (
+                  <div key={i} className={log?.includes("Launching") ? "text-primary mt-2" : "text-muted-foreground"}>
                     {log}
                   </div>
                 ))

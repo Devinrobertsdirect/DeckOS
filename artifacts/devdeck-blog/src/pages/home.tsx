@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Terminal, HardDrive, Cpu, Wifi, Activity, Code2, Play, CircleDot, ChevronRight, Layers, ArrowRight } from "lucide-react";
 
 const STARK_IFRAME_URL = `${import.meta.env.BASE_URL}stark-deck.html`;
+const WIREFRAME_IFRAME_URL = `${import.meta.env.BASE_URL}wireframe-3d.html`;
 
 export default function Home() {
   const [bootLog, setBootLog] = useState<string[]>([]);
@@ -173,6 +174,43 @@ export default function Home() {
           </div>
         </section>
 
+        {/* 3D UI Wireframe */}
+        <section className="px-6 md:px-12 lg:px-24 max-w-7xl mx-auto w-full">
+          <div className="flex flex-col gap-4 mb-8">
+            <h2 className="text-3xl font-bold text-foreground">UI wireframe (3D)</h2>
+            <p className="text-muted-foreground font-sans max-w-2xl">
+              The full DeckOS interface laid out in space. Five panes, no overlapping windows, all reachable by keyboard. Click any pane to inspect, toggle the data flow to see how user input routes through the system, or explode the layers to see how the screen is composed.
+            </p>
+            <div className="flex items-center gap-2 text-sm text-secondary bg-secondary/10 px-4 py-2 w-fit border border-secondary/20">
+              <Code2 className="w-4 h-4" /> drag to orbit · scroll to zoom · click panes to inspect
+            </div>
+          </div>
+
+          <div className="w-full bg-card border border-border relative">
+            <div className="absolute top-0 left-0 w-full h-8 bg-muted/30 border-b border-border flex items-center px-4 gap-2 z-10">
+              <div className="w-3 h-3 rounded-full bg-destructive/80"></div>
+              <div className="w-3 h-3 rounded-full bg-accent/80"></div>
+              <div className="w-3 h-3 rounded-full bg-primary/80"></div>
+              <span className="ml-4 text-xs text-muted-foreground font-mono">deckos-ui.wireframe</span>
+            </div>
+            <div className="pt-8">
+              <iframe
+                src={WIREFRAME_IFRAME_URL}
+                className="w-full h-[640px] border-none"
+                title="DeckOS UI Wireframe"
+              />
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-5 gap-3 mt-6 text-xs font-mono">
+            <div className="border border-border bg-card p-3"><span className="text-primary">▸ STATUS</span><div className="text-muted-foreground mt-1">CPU / RAM / temp / net</div></div>
+            <div className="border border-border bg-card p-3"><span className="text-secondary">▸ NAV</span><div className="text-muted-foreground mt-1">Module switcher (F-keys)</div></div>
+            <div className="border border-border bg-card p-3"><span className="text-accent">▸ MAIN</span><div className="text-muted-foreground mt-1">Active module render</div></div>
+            <div className="border border-border bg-card p-3"><span style={{color:'#ff44aa'}}>▸ SIDE</span><div className="text-muted-foreground mt-1">Quick actions in context</div></div>
+            <div className="border border-border bg-card p-3"><span style={{color:'#9966ff'}}>▸ TERM</span><div className="text-muted-foreground mt-1">Bash + live log stream</div></div>
+          </div>
+        </section>
+
         {/* Stack & Architecture */}
         <section className="px-6 md:px-12 lg:px-24 max-w-7xl mx-auto w-full">
           <h2 className="text-3xl font-bold mb-12 flex items-center gap-3">
@@ -215,14 +253,14 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Blog Post: Week 0 — Intro */}
+        {/* Blog Post: Pre Week — Intro */}
         <section className="px-6 md:px-12 lg:px-24 max-w-4xl mx-auto w-full">
           <article className="prose prose-invert max-w-none">
             <div className="border-b border-border pb-8 mb-8">
               <div className="text-primary text-sm font-bold mb-4 tracking-widest">LOG ENTRY</div>
-              <h2 className="text-4xl font-bold text-foreground m-0 mb-4">Week 0: Hello, I'm Devin</h2>
+              <h2 className="text-4xl font-bold text-foreground m-0 mb-4">Pre Week: Hello, I'm Devin</h2>
               <div className="flex gap-4 text-sm text-muted-foreground font-mono">
-                <span>April 10, 2026</span>
+                <span>April 3, 2026</span>
                 <span>•</span>
                 <span>2 min read</span>
                 <span>•</span>
@@ -250,12 +288,51 @@ export default function Home() {
           </article>
         </section>
 
-        {/* Blog Post: Week 1 */}
+        {/* Blog Post: Week 1 — Hardware & Stack Decisions */}
         <section className="px-6 md:px-12 lg:px-24 max-w-4xl mx-auto w-full">
           <article className="prose prose-invert max-w-none">
             <div className="border-b border-border pb-8 mb-8">
               <div className="text-primary text-sm font-bold mb-4 tracking-widest">LOG ENTRY</div>
-              <h2 className="text-4xl font-bold text-foreground m-0 mb-4">Week 1: Locking In the Architecture</h2>
+              <h2 className="text-4xl font-bold text-foreground m-0 mb-4">Week 1: Picking the Hardware and the Stack</h2>
+              <div className="flex gap-4 text-sm text-muted-foreground font-mono">
+                <span>April 10, 2026</span>
+                <span>•</span>
+                <span>3 min read</span>
+                <span>•</span>
+                <span className="text-secondary">By Devin C. Roberts</span>
+              </div>
+            </div>
+
+            <div className="font-sans text-lg leading-relaxed text-foreground/90 space-y-6">
+              <p>
+                Before I could write a single line of DeckOS, I had to commit to the hardware and the language stack underneath it. That sounds like a small decision, but it locks in everything else for the rest of the project. The wrong board limits what the OS can do, the wrong language stack adds weight where I cannot afford it, and the wrong screen size invalidates every wireframe I would draw next week. So this week was about making those calls and being able to defend them.
+              </p>
+
+              <p>
+                The first problem was the compute board. I went back and forth between the Raspberry Pi 4, the Pi 5, and a Latte Panda. The Latte Panda is more powerful but it runs hot, eats battery, and is overkill for a terminal-first OS. The Pi 5 is fast but power hungry and harder to source for a student budget. My strategy was to optimize for the actual use case (long battery life, totally silent, runs cool inside a sealed wooden book) rather than raw benchmarks. The Pi 4 won. It is the most documented, the most stable, and the easiest to flash custom images onto. If DeckOS ever needs more horsepower I can swap in a Pi 5 later because the OS is platform agnostic on purpose.
+              </p>
+
+              <p>
+                The second problem was the screen. A 7 inch IPS panel fits the inside of the book cover almost exactly, draws power straight off the Pi, and is bright enough to read outdoors. I considered a smaller e-ink panel for battery reasons but ruled it out because the refresh rate would kill the terminal feel I want. I want this thing to feel responsive, like a real shell, not like waiting on a Kindle.
+              </p>
+
+              <p>
+                The third problem was the language stack. The obvious answer for a Pi was Python, and I challenged that choice on purpose because "obvious" is not a reason. I looked at Rust (too heavy a learning curve to ship by deadline), Go (great, but the TUI ecosystem is thin), and Node (rejected, I do not want a JS runtime sitting on a battery powered cyberdeck). Python won because of the rich library for the UI, psutil for live system stats, and the offline LLM tooling around Ollama, which is all Python first. My strategy was to pick the stack that lets me ship the most modules in the time I have, not the stack that wins benchmarks.
+              </p>
+
+              <p>
+                With hardware and stack locked, next week I can finally start drawing the architecture for real. Five components, one event bus, and a strict arbitration layer between the AI and anything that can move motors. That is the plan, and now I have a real machine to put it on.
+              </p>
+            </div>
+          </article>
+        </section>
+
+        {/* Blog Post: Week 2 — Architecture */}
+        <section className="px-6 md:px-12 lg:px-24 max-w-4xl mx-auto w-full">
+          <article className="prose prose-invert max-w-none">
+            <div className="border-b border-border pb-8 mb-8">
+              <div className="text-primary text-sm font-bold mb-4 tracking-widest">LOG ENTRY</div>
+              <h2 className="text-4xl font-bold text-foreground m-0 mb-4">Week 2: Locking In the Architecture</h2>
               <div className="flex gap-4 text-sm text-muted-foreground font-mono">
                 <span>April 17, 2026</span>
                 <span>•</span>
@@ -267,7 +344,7 @@ export default function Home() {
             
             <div className="font-sans text-lg leading-relaxed text-foreground/90 space-y-6">
               <p>
-                Welcome to the first official log entry for my Capstone project. For the next several months I'll be building DeckOS, a custom operating system for a portable cyberdeck I'm putting together myself. The chassis is a hollowed out hardcover copy of Thoreau's Walden, the brain is a Raspberry Pi 4, and the screen is a 7 inch IPS panel mounted to the inside of the book cover. It looks like a notebook on a shelf, and opens like a laptop on a workbench.
+                With the hardware and the stack locked in last week, this week was about turning DeckOS from a list of components into an actual architecture. The chassis is a hollowed out hardcover copy of Thoreau's Walden, the brain is a Raspberry Pi 4, and the screen is a 7 inch IPS panel mounted to the inside of the book cover. It looks like a notebook on a shelf, and opens like a laptop on a workbench. Now I had to decide how the software inside it would actually be organized.
               </p>
 
               <p>
@@ -284,6 +361,45 @@ export default function Home() {
 
               <p>
                 Next week I start the real work: implementing the boot sequence and shipping the first functional module, the system monitor. Once the dashboard is reading live CPU, RAM, and temperature off the Pi, this stops being a wireframe and starts being an operating system.
+              </p>
+            </div>
+          </article>
+        </section>
+
+        {/* Blog Post: Week 3 */}
+        <section className="px-6 md:px-12 lg:px-24 max-w-4xl mx-auto w-full">
+          <article className="prose prose-invert max-w-none">
+            <div className="border-b border-border pb-8 mb-8">
+              <div className="text-primary text-sm font-bold mb-4 tracking-widest">LOG ENTRY</div>
+              <h2 className="text-4xl font-bold text-foreground m-0 mb-4">Week 3: Pitch, Jira, and the Final Design Doc</h2>
+              <div className="flex gap-4 text-sm text-muted-foreground font-mono">
+                <span>April 24, 2026</span>
+                <span>•</span>
+                <span>4 min read</span>
+                <span>•</span>
+                <span className="text-secondary">By Devin C. Roberts</span>
+              </div>
+            </div>
+
+            <div className="font-sans text-lg leading-relaxed text-foreground/90 space-y-6">
+              <p>
+                This week was almost entirely paperwork, and that is exactly the problem I want to talk about. The temptation on a hardware project like DeckOS is to spend every hour soldering, flashing images, and writing Python. The pitch, the project board, and the design document feel like overhead. They are not. They are the thing that makes the technical work survive contact with reality, and this week proved that to me harder than I expected.
+              </p>
+
+              <p>
+                The first issue I ran into was the pitch deck. I sat down to write a five minute talk explaining DeckOS to a non technical audience and immediately realized I could not summarize it. I had a hundred cool details (the BioAmp neural pulse, the five layer arbitration model, the offline LLM) and zero through line. My strategy for fixing it was brutal subtraction. I forced myself into a one sentence problem statement ("modern OSes assume infinite internet, infinite battery, and a full sized monitor, and a cyberdeck has none of those") and rebuilt every slide to support that one sentence. If a slide did not move that idea forward, it got cut. The deck went from twenty slides to nine and got noticeably stronger.
+              </p>
+
+              <p>
+                The second issue was Jira. I had been tracking work in a notes app, which works great until you have twenty plus user stories, three release tiers (MVP, Alpha, Beta), and dependencies between them. By Tuesday I could not tell you what was actually next. So I rebuilt the backlog properly. Every requirement from the spec became a Jira story written in "the user will be able to..." form, tagged with its release tier, estimated, and linked to the module it lives in. Now I can open the board and immediately see what is unblocked, what is in progress, and what is at risk for the MVP cutoff. The fix was not Jira itself, the fix was committing to one source of truth and deleting every other to-do list I had floating around.
+              </p>
+
+              <p>
+                The third issue was the final design doc. The rubric demanded twenty plus user stories, four user segments, expanded use cases, and a full ERD with an AI history table. My draft had placeholders and three stories. The strategy here was to stop treating the design doc as documentation and start treating it as the contract. I wrote out all twenty one stories first, then let the architecture follow. Once the stories were real, the missing pieces (the AI_History table, the offline mode toggle, the macro JSON loader) became obvious instead of theoretical.
+              </p>
+
+              <p>
+                I also shipped a 3D wireframe of the UI on this blog so reviewers can actually see the four pane layout in space instead of squinting at a flat mockup. Click any pane to inspect it, hit "data flow" to see how input routes through the system. Next week I get back to code, with a much clearer picture of what code to write.
               </p>
             </div>
           </article>

@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>DeckOS — 3D UI Wireframe</title>
+<style>
+html,body{background:#0a0a0f;color:#cfd0e0;font-family:'JetBrains Mono','Fira Code',ui-monospace,Menlo,monospace;padding:8px;margin:0}
+*{box-sizing:border-box}
+#cv{width:100%;height:540px;display:block;cursor:grab;border-radius:12px;background:#0a0a0f}
+#cv:active{cursor:grabbing}
+#hud{display:flex;gap:6px;flex-wrap:wrap;padding:8px 0 4px}
+.btn{font-size:11px;padding:4px 11px;border-radius:16px;border:1px solid;cursor:pointer;background:transparent;color:inherit;transition:opacity .15s}
+.btn:hover{opacity:.7}
+#panel{min-height:58px;padding:10px 14px;border-radius:8px;background:#111118;border:1px solid #252535;margin-top:5px;font-size:12px;color:#b0b0c8;display:flex;align-items:center;gap:10px}
+#pdot{width:11px;height:11px;border-radius:50%;background:#333;flex-shrink:0}
+#ptxt{line-height:1.55}
+#leg{display:flex;flex-wrap:wrap;gap:7px;margin-top:7px}
+.li{display:flex;align-items:center;gap:4px;font-size:10px;color:#777}
+.ls{width:9px;height:9px;border-radius:2px}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="hud">
+  <button class="btn" style="border-color:#5577ff;color:#8899ff" onclick="toggleExplode()">Explode panes</button>
+  <button class="btn" style="border-color:#ff7755;color:#ffaa88" onclick="toggleFlow()">Data flow</button>
+  <button class="btn" style="border-color:#44cc88;color:#66ddaa" onclick="resetCam()">Reset</button>
+  <button class="btn" style="border-color:#888;color:#aaa" onclick="autoSpin=!autoSpin">Spin</button>
+</div>
+<div id="panel"><div id="pdot"></div><div id="ptxt">Drag to orbit · scroll to zoom · click any pane to inspect · 4-pane keyboard-driven layout, no overlapping windows</div></div>
+<div id="leg">
+  <div class="li"><div class="ls" style="background:#00ff9c"></div>Status Bar</div>
+  <div class="li"><div class="ls" style="background:#00d9ff"></div>Nav Panel</div>
+  <div class="li"><div class="ls" style="background:#ffaa33"></div>Main Workspace</div>
+  <div class="li"><div class="ls" style="background:#ff44aa"></div>Side Panel</div>
+  <div class="li"><div class="ls" style="background:#9966ff"></div>Terminal</div>
+  <div class="li"><div class="ls" style="background:#666"></div>Frame</div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const cv=document.getElementById('cv');
+const W=cv.offsetWidth,H=540;
+cv.width=W;cv.height=H;
+
+const renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true});
+renderer.setSize(W,H);renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x0a0a0f);
+scene.fog=new THREE.FogExp2(0x0a0a0f,0.02);
+
+const cam=new THREE.PerspectiveCamera(40,W/H,0.1,200);
+cam.position.set(0,5,18);cam.lookAt(0,0,0);
+
+scene.add(new THREE.AmbientLight(0xffffff,0.55));
+const key=new THREE.DirectionalLight(0xffffff,0.9);key.position.set(6,10,8);scene.add(key);
+const fill=new THREE.DirectionalLight(0x6688ff,0.35);fill.position.set(-6,2,-4);scene.add(fill);
+const rim=new THREE.PointLight(0x00ff9c,0.6,28);rim.position.set(0,4,-6);scene.add(rim);
+
+function flatMat(c,o=0.92){return new THREE.MeshStandardMaterial({color:c,roughness:0.55,metalness:0.05,transparent:o<1,opacity:o});}
+function lineMat(c){return new THREE.LineBasicMaterial({color:c,transparent:true,opacity:0.85});}
+
+// Build a wireframe pane: filled rectangle + outlined edge + small grid texture
+function makePane(w,h,color,label){
+  const g=new THREE.Group();
+  // back plate (slightly darker)
+  const back=new THREE.Mesh(new THREE.PlaneGeometry(w,h),flatMat(0x111118,0.95));
+  g.add(back);
+  // accent fill
+  const fill=new THREE.Mesh(new THREE.PlaneGeometry(w*0.985,h*0.97),new THREE.MeshBasicMaterial({color,transparent:true,opacity:0.12}));
+  fill.position.z=0.01;g.add(fill);
+  // outline
+  const edges=new THREE.LineSegments(
+    new THREE.EdgesGeometry(new THREE.PlaneGeometry(w,h)),
+    new THREE.LineBasicMaterial({color,linewidth:2})
+  );
+  edges.position.z=0.02;g.add(edges);
+  // inner grid lines (rows)
+  const rows=Math.max(2,Math.floor(h*1.6));
+  for(let i=1;i<rows;i++){
+    const y=-h/2+(h/rows)*i;
+    const pts=[new THREE.Vector3(-w/2*0.94,y,0.03),new THREE.Vector3(w/2*0.94,y,0.03)];
+    const ln=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),lineMat(color));
+    ln.material.opacity=0.25;
+    g.add(ln);
+  }
+  // label bar
+  const labelBar=new THREE.Mesh(new THREE.PlaneGeometry(w,0.45),new THREE.MeshBasicMaterial({color,transparent:true,opacity:0.85}));
+  labelBar.position.set(0,h/2-0.225,0.04);
+  g.add(labelBar);
+  // label text via canvas texture
+  const c=document.createElement('canvas');c.width=512;c.height=64;
+  const ctx=c.getContext('2d');
+  ctx.fillStyle='#0a0a0f';ctx.fillRect(0,0,c.width,c.height);
+  ctx.fillStyle='#ffffff';ctx.font='bold 34px JetBrains Mono, monospace';
+  ctx.textAlign='left';ctx.textBaseline='middle';
+  ctx.fillText('▸ '+label.toUpperCase(),16,c.height/2);
+  const tex=new THREE.CanvasTexture(c);tex.minFilter=THREE.LinearFilter;
+  const text=new THREE.Mesh(new THREE.PlaneGeometry(w*0.95,0.4),new THREE.MeshBasicMaterial({map:tex,transparent:true}));
+  text.position.set(0,h/2-0.225,0.05);
+  g.add(text);
+  g.userData.color=color;
+  return g;
+}
+
+const root=new THREE.Group();scene.add(root);
+
+// Outer chassis frame (the 7" screen / book lid)
+const FW=14,FH=8.4;
+const chassis=new THREE.LineSegments(
+  new THREE.EdgesGeometry(new THREE.BoxGeometry(FW+0.6,FH+0.6,0.25)),
+  new THREE.LineBasicMaterial({color:0x666666})
+);
+chassis.position.z=-0.4;root.add(chassis);
+
+// Layout (proportional to spec: top status bar, left nav, center workspace, right side panel, bottom-left terminal)
+// 12-col grid, status bar 1 row, then 6 rows split: workspace 4 rows on right; left col holds nav (top) + terminal (bottom)
+const STATUS_H=0.7;
+const BODY_H=FH-STATUS_H-0.1;
+const NAV_W=2.6;
+const SIDE_W=2.8;
+const MAIN_W=FW-NAV_W-SIDE_W-0.3;
+
+// Status bar (top, full width)
+const status=makePane(FW-0.1,STATUS_H,0x00ff9c,'STATUS BAR  |  CPU 12%   RAM 1.4G   TEMP 42°  ONLINE');
+status.position.set(0, FH/2-STATUS_H/2-0.05, 0);
+root.add(status);
+
+// Nav panel (left, upper portion)
+const NAV_H=BODY_H*0.62;
+const nav=makePane(NAV_W,NAV_H,0x00d9ff,'NAV');
+nav.position.set(-FW/2+NAV_W/2+0.05, FH/2-STATUS_H-0.1-NAV_H/2, 0);
+root.add(nav);
+
+// Terminal (left, lower portion)
+const TERM_H=BODY_H-NAV_H-0.1;
+const term=makePane(NAV_W,TERM_H,0x9966ff,'TERMINAL');
+term.position.set(-FW/2+NAV_W/2+0.05, -FH/2+TERM_H/2+0.05, 0);
+root.add(term);
+
+// Main workspace (center)
+const main=makePane(MAIN_W,BODY_H,0xffaa33,'MAIN WORKSPACE');
+main.position.set(-FW/2+NAV_W+0.15+MAIN_W/2, -STATUS_H/2-0.05+0.05, 0);
+root.add(main);
+
+// Side panel (right)
+const side=makePane(SIDE_W,BODY_H,0xff44aa,'SIDE');
+side.position.set(FW/2-SIDE_W/2-0.05, -STATUS_H/2-0.05+0.05, 0);
+root.add(side);
+
+const panes=[
+  {mesh:status,name:'Status Bar',color:'#00ff9c',desc:'Top persistent bar. Real-time CPU, RAM, temperature, network state, and clock pulled live from psutil.'},
+  {mesh:nav,name:'Nav Panel',color:'#00d9ff',desc:'Left sidebar. Module list (Dashboard, Network, Files, AI, Logs, Settings). Pure keyboard navigation with arrows + ENTER, F-keys jump direct.'},
+  {mesh:main,name:'Main Workspace',color:'#ffaa33',desc:'Center pane. Renders the active module: dashboard widgets, nmap results, file tree, AI chat, etc. Built with the rich Python library.'},
+  {mesh:side,name:'Side Panel',color:'#ff44aa',desc:'Right context panel. Quick actions for the focused module (Restart Network, Toggle Offline, Export Log). Updates dynamically.'},
+  {mesh:term,name:'Terminal',color:'#9966ff',desc:'Bottom-left integrated bash terminal and live log stream. CTRL+T to focus. Standard shell commands run in-place.'},
+];
+
+// Store base positions for explode toggle
+panes.forEach(p=>{p.base=p.mesh.position.clone();});
+
+// Data-flow arrows (Status -> Main, Nav -> Main, Main -> Side, Term -> Main)
+let flowGroup=new THREE.Group();flowGroup.visible=false;scene.add(flowGroup);
+function arrow(from,to,color){
+  const dir=new THREE.Vector3().subVectors(to,from);
+  const len=dir.length();
+  const a=new THREE.ArrowHelper(dir.clone().normalize(),from,len,color,0.35,0.18);
+  flowGroup.add(a);
+}
+function rebuildFlow(){
+  while(flowGroup.children.length)flowGroup.remove(flowGroup.children[0]);
+  const z=0.4;
+  arrow(nav.position.clone().setZ(z), main.position.clone().setZ(z),0x00d9ff);
+  arrow(main.position.clone().setZ(z), side.position.clone().setZ(z),0xffaa33);
+  arrow(term.position.clone().setZ(z), main.position.clone().setZ(z),0x9966ff);
+  arrow(status.position.clone().setZ(z), main.position.clone().setZ(z),0x00ff9c);
+}
+rebuildFlow();
+
+// Interaction
+const raycaster=new THREE.Raycaster();
+const mouse=new THREE.Vector2();
+let isDown=false,lastX=0,lastY=0;
+let yaw=0.2, pitch=-0.15, dist=18;
+let autoSpin=false;
+let exploded=false;
+
+function updateCam(){
+  cam.position.x=Math.sin(yaw)*Math.cos(pitch)*dist;
+  cam.position.y=Math.sin(pitch)*dist+1.5;
+  cam.position.z=Math.cos(yaw)*Math.cos(pitch)*dist;
+  cam.lookAt(0,0,0);
+}
+updateCam();
+
+cv.addEventListener('mousedown',e=>{isDown=true;lastX=e.clientX;lastY=e.clientY;});
+window.addEventListener('mouseup',()=>isDown=false);
+window.addEventListener('mousemove',e=>{
+  if(!isDown)return;
+  yaw-=(e.clientX-lastX)*0.006;
+  pitch=Math.max(-1.2,Math.min(1.2,pitch+(e.clientY-lastY)*0.006));
+  lastX=e.clientX;lastY=e.clientY;
+  updateCam();
+});
+cv.addEventListener('wheel',e=>{e.preventDefault();dist=Math.max(8,Math.min(40,dist+e.deltaY*0.015));updateCam();},{passive:false});
+cv.addEventListener('click',e=>{
+  const r=cv.getBoundingClientRect();
+  mouse.x=((e.clientX-r.left)/r.width)*2-1;
+  mouse.y=-((e.clientY-r.top)/r.height)*2+1;
+  raycaster.setFromCamera(mouse,cam);
+  for(const p of panes){
+    const hits=raycaster.intersectObject(p.mesh,true);
+    if(hits.length){
+      document.getElementById('pdot').style.background=p.color;
+      document.getElementById('ptxt').innerHTML='<b style="color:'+p.color+'">'+p.name+'</b> — '+p.desc;
+      // pulse
+      p.mesh.scale.set(1.06,1.06,1.06);
+      setTimeout(()=>p.mesh.scale.set(1,1,1),180);
+      return;
+    }
+  }
+});
+
+function toggleExplode(){
+  exploded=!exploded;
+  panes.forEach(p=>{
+    const target=exploded?p.base.clone().multiplyScalar(1.0).setZ(p.base.z + (Math.random()*1.2+0.8)) :p.base.clone();
+    // animate
+    const start=p.mesh.position.clone();
+    const t0=performance.now();
+    function step(){
+      const k=Math.min(1,(performance.now()-t0)/450);
+      const e=k<0.5?2*k*k:1-Math.pow(-2*k+2,2)/2;
+      p.mesh.position.lerpVectors(start,target,e);
+      if(k<1)requestAnimationFrame(step); else rebuildFlow();
+    }
+    step();
+  });
+}
+function toggleFlow(){flowGroup.visible=!flowGroup.visible;}
+function resetCam(){yaw=0.2;pitch=-0.15;dist=18;updateCam();}
+
+window.toggleExplode=toggleExplode;
+window.toggleFlow=toggleFlow;
+window.resetCam=resetCam;
+
+function tick(){
+  if(autoSpin){yaw+=0.003;updateCam();}
+  // subtle pulse on status bar
+  const t=performance.now()*0.002;
+  status.children[1].material.opacity=0.12+Math.sin(t)*0.05;
+  renderer.render(scene,cam);
+  requestAnimationFrame(tick);
+}
+tick();
+
+window.addEventListener('resize',()=>{
+  const nw=cv.parentElement.clientWidth-16;
+  cam.aspect=nw/H;cam.updateProjectionMatrix();
+  renderer.setSize(nw,H);
+});
+</script>
+</body>
+</html>

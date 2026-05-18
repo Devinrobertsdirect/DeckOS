@@ -1,0 +1,477 @@
+Cyber Deck Capstone
+
+
+
+<TODO: Application Logo>
+
+Devin C Roberts, CPMAI
+dcroberts1@student.fullsail.edu
+Contents
+Introduction
+Purpose	
+Goal	
+Definitions	
+Overall Description
+Product Perspective		
+User Interface Hardware	
+Hardware interfaces & Memory Constraints	
+Software interfaces	
+Library Dependencies	
+3rd Party Data and APIs	
+	
+Specific Requirements
+MVP
+Alpha
+Beta	
+Use Cases
+User characteristics
+User interface	
+Development Environment	
+Developer Tools	
+Content-Generation Tools	
+Data Tools	
+3rd-Party Dependencies and APIs	
+System Architecture	
+ERD Class Diagram	
+Production Plans	
+Code Review Plan
+Integration Plan
+Testing Plans
+Folder Hierarchy	
+
+
+Introduction
+Purpose:
+DeckOS is a custom-built software platform designed for a Raspberry Pi-powered cyberdeck, combining a terminal-first interface with modular applications such as networking tools, system monitoring, AI utilities, and offline data access. The goal is to create a portable, self-contained computing environment optimized for efficiency, control, and extensibility.
+This document defines the architecture, features, and development strategy for DeckOS. It is intended for developers, testers, and collaborators working on the project.
+The system emphasizes low-resource efficiency, offline capability, and modular extensibility, making it suitable for cybersecurity experimentation, field computing, and personal productivity.
+
+Goal: What problem is this solving?
+Modern operating systems are bloated, internet-dependent, and not optimized for portable embedded systems. DeckOS solves this by providing:
+A lightweight, fast UI
+A modular tool system
+Offline-first functionality
+A custom-tailored cyberdeck experience
+
+
+Existing Solution:
+Based on:
+Raspberry Pi OS (Linux-based)
+Custom UI layer on top (Python / Electron / Qt depending on build direction)
+
+
+Definitions:
+Cyberdeck: A portable, custom-built computer system with specialized functions
+Module: A self-contained feature or app within DeckOS
+Offline-first: Works without internet access
+UI Shell: The main interface layer replacing traditional desktop environments
+
+Overall Description
+Product Perspective
+DeckOS is a custom shell + application layer running on top of a Linux-based OS. It replaces the traditional desktop with a cyberpunk-style control interface.
+User Interface Hardware
+Small HDMI display (5–10 inches)
+Keyboard (mechanical or compact)
+Optional:
+Rotary encoder / knobs
+Touchscreen
+External antenna modules
+Hardware Interfaces & Memory Constraints
+Device: Raspberry Pi 4 / 5
+RAM: 4GB–8GB
+Storage: 32GB–256GB SD or SSD
+Constraints:
+Must run under low CPU usage
+Avoid heavy frameworks unless optimized
+Software Interfaces
+OS: Raspberry Pi OS (Debian-based)
+Python 3.11+
+Bash shell integration
+Library Dependencies
+Python:
+rich (UI rendering)
+psutil (system monitoring)
+flask or fastapi (local services)
+Optional:
+Electron (if GUI-heavy)
+PyQt / Tkinter (light GUI alternative)
+Database
+SQLite (local storage)
+JSON configs for modules
+3rd Party Data and APIs
+OpenAI API (AI assistant module)
+Optional:
+Weather API
+Network scanning tools (nmap)
+
+
+Specific Requirements
+Milestones
+<TODO List your A,B, & C features in this section below. Make sure there are around 20 of these. They need to be in User Story format. ”The User will be able to do X” > 
+Minimum Viable Product (A Features)
+List essential functionality here. This can be a vertical slice of your application or game. This should be the minimal amount necessary to show proof of concept. This will be done in Month 2 (Software Architecture) of Capstone.
+Alpha (B Features)
+List alpha-related functionality here. This will be done in Month 3 (Project and Portfolio VI) of Capstone.
+Beta  (C Feature)
+		List beta level functionality here. This will be done in Month 4 (Software Integration) of Capstone
+Version 2.0
+		Features you would like to do if you have time but will probably get done after you graduate and are not part of the initial product planning. This should not include any essential functionality or anything you would like to be assessed on in Capstone. (It’s also ok for this section to be blank).
+
+User Experience
+
+Use Cases
+<TODO USER STORIES: Describe how the user will travel through your application/game. Be sure to include flow diagrams. This should be at least over 2 pages in length! See example from an example Chess Game Design Doc below: >
+
+
+
+User characteristics
+	<TODO Describe your ideal user. If your user is “everybody” be sure to identify at least 4 ideal users (user segmentation) to identify the different groups you are targeting..> 
+User interface
+<TODO feel free to use screenshots from other applications to describe the plan for your user interface. Be sure to include text explaining how each screenshot is relevant! A fully fleshed wireframe will be done at a later time. This should take up SEVERAL pages of this document.> 
+
+Development Environment
+
+Developer Tools
+VS Code
+Python 3.11
+Git
+
+Content Generation Tools
+Figma (UI design)
+Photoshop (optional)
+
+Data Tools
+SQLite
+JSON config files
+
+3rd Party Dependencies
+Raspberry Pi OS
+OpenAI API (optional)
+
+
+System Architecture
+Architecture Style
+Modular layered system:
+
+[ Hardware Layer ]
+↓
+[ Linux OS ]
+↓
+[ DeckOS Core ]
+↓
+[ Module Manager ]
+↓
+[ Individual Modules ] 
+Data Tools:
+Core Components
+UI Engine
+Module Loader
+Command Processor
+Data Manager
+Ubantu
+Raspberri Pi Lite
+
+3rd Party Dependencies and APIs:
+Core Components
+Ollama
+Weather Api
+GPS API
+Wikipedia Downloaded File
+Openclaw or Claude Desktop
+				   
+Entity Relational Diagram(TD)
+ERD (Simplified)
+Tables:
+Users
+id
+settings
+Modules
+id
+name
+enabled
+Logs
+id
+timestamp
+action
+5. Product Plans (UI)
+5.1. STATUS BAR (Top Strip)
+Height: ~5–8% of screen
+ Purpose: Always-visible system state
+Content:
+Time
+Battery / Power
+CPU / RAM / Temp
+Network status (IP, WiFi)
+Mode indicator (ONLINE / OFFLINE)
+Example:
+[DECKOS] | CPU: 32% | RAM: 2.1GB | TEMP: 61°C | WIFI: Connected | 14:22
+
+5.2. NAV PANEL (Left Sidebar)
+Width: ~20–25%
+ Purpose: Module navigation
+Style:
+Vertical list
+Highlighted selection
+Keyboard navigation (↑ ↓ ENTER)
+Modules Example:
+> Dashboard
+ Terminal
+ Network
+ Files
+ AI Assistant
+ Logs
+ Settings
+
+5.3. MAIN WORKSPACE (Center)
+Purpose: Active module display
+ This is where 80% of interaction happens.
+Dynamic Based on Module:
+Dashboard Mode:
+[ SYSTEM OVERVIEW ]
+
+CPU Usage: ███████░░ 72%
+RAM Usage: █████░░░░ 50%
+Disk:      ███░░░░░░ 30%
+
+Active Processes:
+- python main.py
+- network scan
+- ssh session
+Network Scanner:
+[ NETWORK SCAN ]
+
+Scanning...
+192.168.1.1   Router
+192.168.1.12  Laptop
+192.168.1.45  Unknown Device
+
+5.4. TERMINAL / LOG STREAM (Bottom Left)
+Purpose: Real-time feedback + command execution
+Behavior:
+Always visible
+Scrolls live logs
+Accepts commands
+> scan network
+[INFO] Starting scan...
+[INFO] Device found: 192.168.1.12
+
+E. SIDE PANEL (Bottom Right)
+Purpose: Context-sensitive tools
+Changes based on module.
+Examples:
+Dashboard:
+[ QUICK ACTIONS ]
+- Restart Network
+- Clear Logs
+- Run Diagnostics
+AI Assistant:
+[ AI CONTEXT ]
+Mode: Offline
+Last Prompt: "Scan network"
+
+6. Interaction Model (Important)
+Keyboard-Driven System
+No mouse required.
+Controls:
+↑ ↓ → Navigate menus
+ENTER → Select
+TAB → Switch panels
+CTRL + T → Focus terminal
+ESC → Go back
+F1–F5 → Quick module switching
+
+6.1. Visual Style (Cyberdeck Feel)
+Color System
+Background: #0A0F14 (deep black-blue)
+Primary: Neon green (#00FF9C)
+Secondary: Cyan (#00D4FF)
+Warning: Amber (#FFB000)
+Error: Red (#FF4C4C)
+
+Typography
+Monospace font ONLY
+Examples:
+JetBrains Mono
+Fira Code
+
+UI Effects
+Subtle scanlines (optional)
+Glow on active elements
+Blinking cursor
+Minimal animations (don’t waste CPU)
+
+6.2. UI States
+Boot Screen
+DECKOS v1.0
+Initializing modules...
+[ OK ] Core
+[ OK ] Network
+[ OK ] UI Engine
+
+Launching Interface...
+
+Offline Mode
+Disable API features
+Highlight in status bar:
+[ OFFLINE MODE ENABLED ]
+Error State
+[ ERROR ]
+Network module failed to initialize
+Press ENTER to retry
+6.3 Module UI Standards (IMPORTANT)
+Every module MUST follow:
+Title header
+Clear output area
+Input or actions
+Return/back option
+Template:
+[ MODULE NAME ]
+
+Content / Data Here
+
+[ Commands ]
+- Action 1
+- Action 2
+
+Production Plans
+Code Review Plan
+Requisites for Review
+All functionality is complete and working
+Has been tested on end device
+Needs no further revision
+Meets all coding standard requirements 
+Functions are properly commented
+You will need to test as a team BEFORE Build Reviews.
+All completed work needs to be present on the Development branch unless there is a good reason for otherwise.
+Integration Plan
+Source Control
+Git Workflow
+main → production
+dev → active development
+feature/* → new features
+Merge Rules:
+Feature → Dev after testing
+Dev → Main after milestone completion
+ 
+
+Testing Plans
+Weekly Code Reviews
+Manual hardware testing required
+Weekly team testing sessions
+Bug tracking via Jira or GitHub Issues
+ 
+Bug Database
+Maintained and updated by the team members
+Software
+Jira
+ 
+Outside Testing
+Month 4 of Capstone
+5 Testers selected
+Crosstesting will be expected on a monthly basis with other teams in CS and GD
+A Testing Report Compiled 
+Scenarios planned
+Findings
+Surprises
+Planned Solutions
+
+
+Folder Hierarchy 
+(AI supported formatting)
+
+/deckos
+│
+├── main.py                  # Entry point (boots UI + system)
+├── boot/
+│   ├── bootloader.py        # Startup sequence logic
+│   ├── splash.py            # Boot screen UI
+│   └── init_checks.py       # Hardware + system checks
+│
+├── core/                    # Core system engine (DO NOT TOUCH LIGHTLY)
+│   ├── app.py               # Main app controller
+│   ├── router.py            # Handles navigation between modules
+│   ├── state_manager.py     # Global app state
+│   ├── event_bus.py         # Inter-module communication
+│   └── config_loader.py     # Loads system configs
+│
+├── ui/                      # UI Layer (Textual / Rich components)
+│   ├── layout.py            # Main grid layout (panes)
+│   ├── theme.py             # Colors, fonts, styles
+│   ├── components/          # Reusable UI pieces
+│   │   ├── header.py
+│   │   ├── sidebar.py
+│   │   ├── terminal.py
+│   │   ├── panel.py
+│   │   └── widgets.py
+│   │
+│   └── screens/             # Full screen views
+│       ├── dashboard.py
+│       ├── module_view.py
+│       └── error_screen.py
+│
+├── modules/                 # Plug-and-play feature modules
+│   ├── __init__.py
+│   │
+│   ├── dashboard/
+│   │   ├── module.py
+│   │   ├── ui.py
+│   │   └── logic.py
+│   │
+│   ├── terminal/
+│   │   ├── module.py
+│   │   ├── executor.py      # Runs shell commands
+│   │   └── parser.py
+│   │
+│   ├── network/
+│   │   ├── module.py
+│   │   ├── scanner.py       # nmap / network logic
+│   │   └── wifi.py
+│   │
+│   ├── files/
+│   │   ├── module.py
+│   │   └── explorer.py
+│   │
+│   ├── ai/
+│   │   ├── module.py
+│   │   ├── client.py        # API interaction
+│   │   └── prompts.py
+│   │
+│   └── logs/
+│       ├── module.py
+│       └── viewer.py
+│
+├── services/                # Background services
+│   ├── system_monitor.py    # CPU, RAM, temp tracking
+│   ├── network_service.py
+│   ├── logger.py
+│   └── scheduler.py
+│
+├── data/                    # Persistent data
+│   ├── deckos.db            # SQLite database
+│   ├── configs/
+│   │   ├── system.json
+│   │   └── user.json
+│   │
+│   └── cache/
+│
+├── logs/                    # Runtime logs
+│   ├── system.log
+│   ├── errors.log
+│   └── module_logs/
+│
+├── scripts/                 # Utility + automation scripts
+│   ├── install.sh
+│   ├── update.sh
+│   └── run_dev.sh
+│
+├── tests/                   # Testing
+│   ├── test_core.py
+│   ├── test_modules.py
+│   └── test_ui.py
+│
+├── assets/                  # Static assets
+│   ├── fonts/
+│   ├── icons/
+│   └── ascii/
+│
+└── requirements.txt         # Python dependencies

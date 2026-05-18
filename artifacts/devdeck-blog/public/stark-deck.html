@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>S.T.A.R.K. Deck — Interactive Hardware Preview</title>
+<style>html,body{background:#0a0a0f;color:#cfd0e0;font-family:'JetBrains Mono','Fira Code',ui-monospace,Menlo,monospace;padding:8px}</style>
+</head>
+<body>
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+#cv{width:100%;height:540px;display:block;cursor:grab;border-radius:12px;background:#0a0a0f}
+#cv:active{cursor:grabbing}
+#hud{display:flex;gap:6px;flex-wrap:wrap;padding:8px 0 4px}
+.btn{font-size:11px;padding:4px 11px;border-radius:16px;border:1px solid;cursor:pointer;background:transparent;color:inherit;transition:opacity .15s}
+.btn:hover{opacity:.7}
+#panel{min-height:58px;padding:10px 14px;border-radius:8px;background:#111118;border:1px solid #252535;margin-top:5px;font-size:12px;color:#b0b0c8;display:flex;align-items:center;gap:10px}
+#pdot{width:11px;height:11px;border-radius:50%;background:#333;flex-shrink:0}
+#ptxt{line-height:1.55}
+#leg{display:flex;flex-wrap:wrap;gap:7px;margin-top:7px}
+.li{display:flex;align-items:center;gap:4px;font-size:10px;color:#777}
+.ls{width:9px;height:9px;border-radius:2px}
+</style>
+<canvas id="cv"></canvas>
+<div id="hud">
+  <button class="btn" style="border-color:#5577ff;color:#8899ff" onclick="toggleLid()">Open / close lid</button>
+  <button class="btn" style="border-color:#ff7755;color:#ffaa88" onclick="toggleExplode()">Explode view</button>
+  <button class="btn" style="border-color:#ff44aa;color:#ff88cc" onclick="toggleNeural()">Neural pulse</button>
+  <button class="btn" style="border-color:#44cc88;color:#66ddaa" onclick="resetCam()">Reset</button>
+  <button class="btn" style="border-color:#888;color:#aaa" onclick="autoSpin=!autoSpin">Spin</button>
+</div>
+<div id="panel"><div id="pdot"></div><div id="ptxt">Drag to orbit · scroll to zoom · click any component to inspect · BioAmp → Gripper neural link ready</div></div>
+<div id="leg">
+  <div class="li"><div class="ls" style="background:#5566ee"></div>Compute (Pi4)</div>
+  <div class="li"><div class="ls" style="background:#ee8822"></div>Arbitration (CAL)</div>
+  <div class="li"><div class="ls" style="background:#22bb66"></div>Control/IoT</div>
+  <div class="li"><div class="ls" style="background:#ee3344"></div>Radio/Edge</div>
+  <div class="li"><div class="ls" style="background:#9933ee"></div>Power (BMS+cells)</div>
+  <div class="li"><div class="ls" style="background:#33bbee"></div>Interface</div>
+  <div class="li"><div class="ls" style="background:#ee44aa"></div>BioAmp/Neural</div>
+  <div class="li"><div class="ls" style="background:#eeaa33"></div>Robotics</div>
+  <div class="li"><div class="ls" style="background:#664422"></div>Chassis/Book</div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const cv=document.getElementById('cv');
+const W=cv.offsetWidth,H=540;
+cv.width=W;cv.height=H;
+
+const renderer=new THREE.WebGLRenderer({canvas:cv,antialias:true});
+renderer.setSize(W,H);renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x0a0a0f);
+scene.fog=new THREE.FogExp2(0x0a0a0f,0.045);
+
+const cam=new THREE.PerspectiveCamera(40,W/H,0.1,80);
+cam.position.set(0,6,13);cam.lookAt(0,0,0);
+
+scene.add(new THREE.AmbientLight(0xffffff,0.3));
+const sun=new THREE.DirectionalLight(0xffffff,1.1);sun.position.set(5,9,7);sun.castShadow=true;scene.add(sun);
+const fill=new THREE.DirectionalLight(0x6688ff,0.4);fill.position.set(-5,2,-5);scene.add(fill);
+const rim=new THREE.PointLight(0xff6633,0.5,18);rim.position.set(0,5,-5);scene.add(rim);
+const neural=new THREE.PointLight(0xff44aa,0,12);neural.position.set(-3,1,2);scene.add(neural);
+
+function mat(c,r=0.6,m=0.1,o=1){const x=new THREE.MeshStandardMaterial({color:c,roughness:r,metalness:m});if(o<1){x.transparent=true;x.opacity=o;}return x;}
+
+const root=new THREE.Group();scene.add(root);
+
+// BOOK DIMENSIONS: 11" wide (spine at back) x 8.5" deep x 2" tall walls
+// Scale: 1 unit = ~1 inch. Book: 11 x 8.5 x 2.2 total
+const BW=11,BD=8.5,BH=2.2,WALL=0.18;
+
+// Bottom cover (back of book = spine side at back)
+const botCover=new THREE.Mesh(new THREE.BoxGeometry(BW,0.15,BD),mat(0x2a1a08,0.9));
+botCover.position.set(0,-BH/2+0.075,0);botCover.castShadow=true;
+botCover.userData={name:'Thoreau hardcover chassis',color:'#aa7744',desc:'"Go Confidently..." — Thoreau hardcover book hollowed as chassis. 11×8.5 inch internal cavity, 2-inch wooden walls. Landscape/laptop orientation. Spine at rear.'};
+root.add(botCover);
+
+// Wooden walls (sides of the cavity)
+[[BW/2-WALL/2,0,0,WALL,BH,BD],[-(BW/2-WALL/2),0,0,WALL,BH,BD],
+ [0,0,BD/2-WALL/2,BW,BH,WALL],[0,0,-(BD/2-WALL/2),BW,BH,WALL]
+].forEach(([x,y,z,w,h,d])=>{
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat(0x5c3a18,0.85));
+  m.position.set(x,y,z);root.add(m);
+});
+
+// Lid group (opens upward like laptop, spine at z=-BD/2)
+const lidGroup=new THREE.Group();
+lidGroup.position.set(0,BH/2,-BD/2);
+
+const lid=new THREE.Mesh(new THREE.BoxGeometry(BW,0.14,BD),mat(0x2a1a08,0.9));
+lid.position.set(0,0.07,BD/2);lid.castShadow=true;
+lid.userData={name:'Front cover (lid)',color:'#aa7744',desc:'Thoreau cover opens like a laptop. Screen mounted to inside face. Neodymium magnets hold it closed. Friction hinges salvaged from dead laptop hold angle.'};
+lidGroup.add(lid);
+
+// Screen on inside of lid
+const screenBg=new THREE.Mesh(new THREE.BoxGeometry(6.8,0.05,4.8),mat(0x111122,0.2,0.4));
+screenBg.position.set(0,-0.1,BD/2);lidGroup.add(screenBg);
+const screenFace=new THREE.Mesh(new THREE.BoxGeometry(6.5,0.04,4.5),mat(0x1a3a6a,0.05,0.3));
+screenFace.position.set(0,-0.15,BD/2);
+screenFace.userData={name:'7" IPS touchscreen',color:'#33bbee',desc:'1024×600 IPS panel. HDMI + USB touch. Mounted to inside of lid. Flat flex cable routes through spine channel. Hinges 0–180°.'};
+lidGroup.add(screenFace);
+
+// OLED on front outside wall of lid
+const oledOuter=new THREE.Mesh(new THREE.BoxGeometry(1.6,0.06,0.6),mat(0x111122,0.2,0.5));
+oledOuter.position.set(-1.5,-0.05,0.02);
+oledOuter.userData={name:'OLED display (front-facing)',color:'#33bbee',desc:'128×64 OLED on outer front wall of book. Faces user when closed. Shows: battery %, IP address, radio status, current mode. Visible without opening the deck.'};
+lidGroup.add(oledOuter);
+
+root.add(lidGroup);
+
+// === INTERIOR COMPONENTS (bottom cavity) ===
+const bay=new THREE.Group();
+
+// Pi 4 — left side of cavity, back half
+const pi=new THREE.Mesh(new THREE.BoxGeometry(3.2,0.2,2.2),mat(0x112211,0.6,0.2));
+pi.position.set(-3.2,0.1,-1.5);
+pi.userData={name:'Raspberry Pi 4',color:'#5566ee',desc:'STRATUM I · cerebrum. 4GB RAM. Runs: Ollama (Mistral 7B), Docker, Home Assistant, Node-RED, Whisper STT, ChromaDB. Connected to: BioAmp serial, CAL, MQTT broker.'};
+bay.add(pi);
+const piChip=new THREE.Mesh(new THREE.BoxGeometry(0.55,0.22,0.55),mat(0x223344,0.3,0.7));
+piChip.position.set(-3.2,0.32,-1.5);bay.add(piChip);
+const piPorts=new THREE.Mesh(new THREE.BoxGeometry(0.4,0.15,0.8),mat(0x444444,0.4,0.5));
+piPorts.position.set(-4.3,0.15,-1.2);bay.add(piPorts);
+
+// Arduino Nano (CAL) — next to Pi
+const ard=new THREE.Mesh(new THREE.BoxGeometry(0.7,0.15,1.8),mat(0x112211,0.6,0.2));
+ard.position.set(-1.8,0.1,-1.5);
+ard.userData={name:'Arduino Nano — Command Arbitration Layer',color:'#ee8822',desc:'STRATUM II · custos. Reads BioAmp serial. Runs safety/schema validation. Controls servo gripper directly at reflex speed (100Hz). Sends approved commands to Pi via serial. No AI touches hardware without passing here.'};
+bay.add(ard);
+const ardChip=new THREE.Mesh(new THREE.BoxGeometry(0.3,0.18,0.3),mat(0xee8822,0.3,0.4));
+ardChip.position.set(-1.8,0.26,-1.5);bay.add(ardChip);
+
+// BioAmp EXG Pill — the neural interface star
+const bioamp=new THREE.Mesh(new THREE.BoxGeometry(0.9,0.12,0.55),mat(0x111111,0.4,0.2));
+bioamp.position.set(-1.8,0.1,-0.3);
+bioamp.userData={name:'BioAmp EXG Pill (Upside Down Labs)',color:'#ff44aa',desc:'THE neural interface. Reads EMG/EEG from electrodes on arm/scalp. Out → Arduino A0. Threshold flex → gripper actuation via CAL. Extreme spike → Ollama AI logs "Stress Event". Makes S.T.A.R.K. genuinely sentient.'};
+bay.add(bioamp);
+// Glow halo for bioamp
+const bioGeo=new THREE.RingGeometry(0.55,0.65,20);
+const bioRing=new THREE.Mesh(bioGeo,mat(0xff44aa,0.5,0,0.4));
+bioRing.rotation.x=-Math.PI/2;bioRing.position.set(-1.8,0.22,-0.3);bay.add(bioRing);
+
+// ESP32 nodes
+const esp=new THREE.Mesh(new THREE.BoxGeometry(1.1,0.12,0.7),mat(0x112211,0.6,0.2));
+esp.position.set(-0.4,0.1,-2.8);
+esp.userData={name:'ESP32 mesh node',color:'#22bb66',desc:'STRATUM III · edge. WiFi + BT mesh extension. PWM proxy for ground robot. Connects to: LoRa, nRF24, MQTT over WiFi. Primary edge controller.'};
+bay.add(esp);
+
+// Zigbee USB
+const zig=new THREE.Mesh(new THREE.BoxGeometry(0.8,0.14,0.3),mat(0x222222,0.5,0.3));
+zig.position.set(0.9,0.1,-2.8);
+zig.userData={name:'Zigbee2MQTT USB coordinator',color:'#22bb66',desc:'STRATUM III · USB stick. Plugs into Pi. Bridges Zigbee smart home devices → Home Assistant → MQTT bus. All local, no cloud.'};
+bay.add(zig);
+
+// LoRa
+const lora=new THREE.Mesh(new THREE.BoxGeometry(1.1,0.12,0.8),mat(0x112211,0.6,0.2));
+lora.position.set(-0.4,0.1,-1.5);
+lora.userData={name:'LoRa SX1276 915MHz',color:'#ee3344',desc:'STRATUM IV · tertiarius. 10km LOS range. Telemetry only — no command passing from lower tiers. Connects to SMA jack on spine edge. Antenna routes out through book spine.'};
+bay.add(lora);
+
+const nrf=new THREE.Mesh(new THREE.BoxGeometry(0.8,0.1,0.7),mat(0x112211,0.6,0.2));
+nrf.position.set(0.9,0.1,-1.5);
+nrf.userData={name:'nRF24L01 radio module',color:'#ee3344',desc:'STRATUM IV · robotics-only bus. Low latency. Controls: ground robot, drone uplink. Never bridges to WiFi tier. Isolated from MQTT.'};
+bay.add(nrf);
+
+// RTL-SDR
+const sdr=new THREE.Mesh(new THREE.BoxGeometry(1.2,0.15,0.45),mat(0x333333,0.5,0.3));
+sdr.position.set(2.5,0.1,-2.6);
+sdr.userData={name:'RTL-SDR dongle',color:'#ee3344',desc:'STRATUM IV · passive intel only. No TX. Scans FM, ADS-B aircraft, weather sats, trunked radio. USB → Pi. Read-only intelligence layer.'};
+bay.add(sdr);
+
+// BMS + cells
+const bms=new THREE.Mesh(new THREE.BoxGeometry(1.8,0.18,1.1),mat(0x112211,0.6,0.2));
+bms.position.set(3.0,0.1,-2.0);
+bms.userData={name:'Commercial BMS (4S)',color:'#9933ee',desc:'STRATUM V · fons vitae. NOT Arduino-controlled. Commercial BMS IC handles thermal runaway, cell balancing, overcurrent. Arduino reads fuel gauge only.'};
+bay.add(bms);
+
+for(let i=0;i<4;i++){
+  const cell=new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.2,1.4,12),mat(0x336699,0.5,0.4));
+  cell.rotation.z=Math.PI/2;
+  cell.position.set(2.2+(i%2)*0.5,0.0,-0.5+Math.floor(i/2)*0.55);
+  cell.userData={name:`18650 cell ${i+1} of 4`,color:'#9933ee',desc:'STRATUM V · 4S configuration. Brand new cells. Managed by commercial BMS. Arduino Nano reads MAX17043 fuel gauge IC → OLED battery display.'};
+  bay.add(cell);
+}
+
+// USB hub / IO strip along front wall
+const usb=new THREE.Mesh(new THREE.BoxGeometry(4.0,0.14,0.5),mat(0x1a1a2a,0.5,0.3));
+usb.position.set(-0.5,0.1,3.5);
+usb.userData={name:'USB hub + I/O strip',color:'#33bbee',desc:'USB-A ×3 · USB-C charge · 3.5mm audio+mic · Ethernet. Mounted flush with front wall. SMA antenna jack for LoRa/SDR on spine wall (rear).'};
+bay.add(usb);
+
+// Keyboard
+const kb=new THREE.Mesh(new THREE.BoxGeometry(7.2,0.2,2.8),mat(0xeeeeee,0.7,0.05));
+kb.position.set(0.2,0.12,1.8);
+kb.userData={name:'Apple Magic Keyboard (60%)',color:'#33bbee',desc:'10.98 inch · your existing keyboard. Sits parallel to spine. Fills lower half of the cavity. White, minimal, sits cleanly in the routed recess.'};
+bay.add(kb);
+// Key rows hint
+for(let r=0;r<4;r++) for(let c=0;c<14;c++){
+  const k=new THREE.Mesh(new THREE.BoxGeometry(0.42,0.06,0.35),mat(0xdddddd,0.8));
+  k.position.set(-3.0+c*0.46,-0.06+0.12,0.9+r*0.45);
+  bay.add(k);
+}
+
+// Robotic gripper pod — mounts to side wall
+const gBase=new THREE.Group();
+gBase.position.set(4.8,0.6,-0.5);
+const gbody=new THREE.Mesh(new THREE.BoxGeometry(0.7,1.0,0.7),mat(0x1144aa,0.6,0.2));
+gbody.userData={name:'Robotic gripper (3D printed)',color:'#eeaa33',desc:'3D printed with your blue PLA filament. Servo-actuated gear claw. Controlled by: BioAmp EMG → Arduino A0 → threshold → servo D6 → gripper. Flex arm = close gripper. The neural-robotics link.'};
+gBase.add(gbody);
+// Claw fingers
+[[-0.15,0],[0.15,0]].forEach(([ox,oy])=>{
+  const f=new THREE.Mesh(new THREE.BoxGeometry(0.12,0.5,0.12),mat(0x0a0a0a,0.7));
+  f.position.set(ox,-0.8,0);gBase.add(f);
+});
+const servo=new THREE.Mesh(new THREE.BoxGeometry(0.4,0.3,0.4),mat(0x333333,0.5,0.3));
+servo.position.set(0,0.5,0);
+servo.userData={name:'Servo motor (gripper)',color:'#eeaa33',desc:'SG90/MG90 servo. Signal wire → Arduino D6. Gets open/close command from CAL when EMG threshold exceeded. Gear mechanism visible in your photos.'};
+gBase.add(servo);
+root.add(gBase);
+
+// Sensor pod — HC-SR04 eyes
+const sPod=new THREE.Group();sPod.position.set(4.8,0.5,1.5);
+const sbody=new THREE.Mesh(new THREE.BoxGeometry(0.9,0.7,0.65),mat(0x0a0a0a,0.7));
+sbody.userData={name:'Sensor pod (3D printed)',color:'#eeaa33',desc:'3D printed sensor housing. Dual HC-SR04 ultrasonic sensors (the two "eyes"). Distance data → ESP32 → MQTT → Pi. Feeds YOLOv8 CV pipeline for obstacle avoidance.'};
+sPod.add(sbody);
+// HC-SR04 "eyes"
+[-0.22,0.22].forEach(x=>{
+  const eye=new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,0.1,12),mat(0x888888,0.3,0.5));
+  eye.rotation.x=Math.PI/2;eye.position.set(x,0,0.38);sPod.add(eye);
+  const eyeInner=new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.07,0.05,12),mat(0x223355,0.2,0.3));
+  eyeInner.rotation.x=Math.PI/2;eyeInner.position.set(x,0,0.42);sPod.add(eyeInner);
+});
+root.add(sPod);
+
+// Neural link wire from BioAmp to Arduino
+const curve=new THREE.CatmullRomCurve3([
+  new THREE.Vector3(-1.8,0.22,-0.3),
+  new THREE.Vector3(-1.8,0.5,0),
+  new THREE.Vector3(-1.8,0.5,-1.0),
+  new THREE.Vector3(-1.8,0.22,-1.5)
+]);
+const wirePts=curve.getPoints(20);
+const wireGeo=new THREE.BufferGeometry().setFromPoints(wirePts);
+const wire=new THREE.Line(wireGeo,new THREE.LineBasicMaterial({color:0xff44aa}));
+bay.add(wire);
+
+// Gripper servo wire to Arduino
+const gCurve=new THREE.CatmullRomCurve3([
+  new THREE.Vector3(-1.8,0.3,-1.5),
+  new THREE.Vector3(2.0,1.2,-0.5),
+  new THREE.Vector3(4.5,0.9,-0.5)
+]);
+const gwpts=gCurve.getPoints(24);
+const gwGeo=new THREE.BufferGeometry().setFromPoints(gwpts);
+const gwire=new THREE.Line(gwGeo,new THREE.LineBasicMaterial({color:0xee8822}));
+root.add(gwire);
+
+// Cable chase spine
+const cc=new THREE.Mesh(new THREE.BoxGeometry(0.3,0.5,BD-0.5),mat(0x115533,0.8,0,0.5));
+cc.position.set(-5.0,0.25,0);
+cc.userData={name:'Spine cable chase',color:'#22bb66',desc:'Wiring conduit along the spine (rear) wall. HDMI flat flex, USB ribbons, power traces all route here. Never cut the spine — preserve structural integrity for hinge mounting.'};
+bay.add(cc);
+
+root.add(bay);
+
+// Ground plane
+const gnd=new THREE.Mesh(new THREE.PlaneGeometry(50,50),mat(0x060608,1,0,0.8));
+gnd.rotation.x=-Math.PI/2;gnd.position.y=-BH/2-0.08;gnd.receiveShadow=true;scene.add(gnd);
+scene.add(new THREE.GridHelper(30,30,0x1a1a2a,0x111118));
+
+// State
+let lidOpen=false,exploded=false,autoSpin=false,neuralOn=false;
+let lidAngle=0,targetLid=0,explodeT=0,targetExplode=0;
+let rotY=0.3,rotX=0.22,isDrag=false,lx=0,ly=0;
+let spinT=0,neuralT=0;
+
+function toggleLid(){lidOpen=!lidOpen;targetLid=lidOpen?1:0;}
+function toggleExplode(){exploded=!exploded;targetExplode=exploded?1:0;}
+function toggleNeural(){neuralOn=!neuralOn;}
+function resetCam(){cam.position.set(0,6,13);cam.lookAt(0,0,0);rotY=0.3;rotX=0.22;}
+
+cv.addEventListener('mousedown',e=>{isDrag=true;lx=e.clientX;ly=e.clientY;});
+cv.addEventListener('mouseup',e=>{
+  if(!isDrag)return;isDrag=false;
+  const dx=e.clientX-lx,dy=e.clientY-ly;
+  if(Math.abs(dx)<4&&Math.abs(dy)<4)doClick(e);
+});
+cv.addEventListener('mousemove',e=>{
+  if(!isDrag)return;
+  rotY+=(e.clientX-lx)*0.009;rotX+=(e.clientY-ly)*0.007;
+  rotX=Math.max(-0.4,Math.min(1.1,rotX));lx=e.clientX;ly=e.clientY;
+});
+cv.addEventListener('wheel',e=>{cam.position.multiplyScalar(1+e.deltaY*0.001);e.preventDefault();},{passive:false});
+cv.addEventListener('touchstart',e=>{isDrag=true;lx=e.touches[0].clientX;ly=e.touches[0].clientY;},{passive:true});
+cv.addEventListener('touchmove',e=>{
+  if(!isDrag)return;
+  rotY+=(e.touches[0].clientX-lx)*0.011;rotX+=(e.touches[0].clientY-ly)*0.009;
+  rotX=Math.max(-0.4,Math.min(1.1,rotX));lx=e.touches[0].clientX;ly=e.touches[0].clientY;e.preventDefault();
+},{passive:false});
+cv.addEventListener('touchend',()=>{isDrag=false;});
+
+const ray=new THREE.Raycaster();const mouse=new THREE.Vector2();
+const allMeshes=[];scene.traverse(o=>{if(o.isMesh)allMeshes.push(o);});
+
+function doClick(e){
+  const r=cv.getBoundingClientRect();
+  mouse.x=((e.clientX-r.left)/r.width)*2-1;
+  mouse.y=-((e.clientY-r.top)/r.height)*2+1;
+  ray.setFromCamera(mouse,cam);
+  const hits=ray.intersectObjects(allMeshes);
+  if(!hits.length)return;
+  let obj=hits[0].object;
+  while(obj&&!obj.userData.name)obj=obj.parent;
+  if(obj&&obj.userData.name){
+    document.getElementById('pdot').style.background=obj.userData.color||'#888';
+    document.getElementById('ptxt').innerHTML=`<strong style="color:#eee;font-size:13px">${obj.userData.name}</strong><br><span style="color:#999;font-size:11px">${obj.userData.desc}</span>`;
+  }
+}
+
+function lerp(a,b,t){return a+(b-a)*t;}
+
+function animate(){
+  requestAnimationFrame(animate);
+  const dt=0.016;
+  if(autoSpin){spinT+=0.007;rotY=spinT;}
+
+  lidAngle=lerp(lidAngle,targetLid,0.055);
+  explodeT=lerp(explodeT,targetExplode,0.055);
+  neuralT=neuralOn?neuralT+dt*3:neuralT*0.9;
+
+  // Lid opens backward (spine at back = hinge at z = -BD/2)
+  lidGroup.rotation.x=-lidAngle*Math.PI*0.85;
+  lidGroup.position.y=BH/2+Math.sin(lidAngle*Math.PI*0.85)*0.4;
+
+  // Explode
+  bay.position.y=explodeT*1.8;
+  gBase.position.y=0.6+explodeT*2.2;
+  sPod.position.y=0.5+explodeT*1.4;
+
+  // Neural pulse
+  neural.intensity=neuralOn?2.5+Math.sin(neuralT*4)*1.5:0;
+  bioRing.material.opacity=neuralOn?0.3+Math.sin(neuralT*5)*0.25:0.15;
+  bioRing.scale.set(1+Math.sin(neuralT*4)*0.15,1,1+Math.sin(neuralT*4)*0.15);
+
+  root.rotation.y=rotY;
+  root.rotation.x=rotX-0.22;
+
+  renderer.render(scene,cam);
+}
+animate();
+</script>
+</body>
+</html>

@@ -518,6 +518,115 @@ export default function Home() {
           </article>
         </section>
 
+        {/* Blog Post: Month 2 Week 4 — OpenClaw Complete */}
+        <section className="px-6 md:px-12 lg:px-24 max-w-4xl mx-auto w-full">
+          <article className="prose prose-invert max-w-none">
+            <div className="border-b border-border pb-8 mb-8">
+              <div className="text-primary text-sm font-bold mb-4 tracking-widest">LOG ENTRY</div>
+              <h2 className="text-4xl font-bold text-foreground m-0 mb-4">Month 2, Week 4: Closing the Loop on OpenClaw</h2>
+              <div className="flex gap-4 text-sm text-muted-foreground font-mono">
+                <span>May 22, 2026</span>
+                <span>•</span>
+                <span>4 min read</span>
+                <span>•</span>
+                <span className="text-secondary">By Devin C. Roberts</span>
+              </div>
+            </div>
+
+            <div className="font-sans text-lg leading-relaxed text-foreground/90 space-y-6">
+              <p>
+                Month two ends this week. The MVP milestone I set back in April was a functional core engine with a safe AI layer, and by Friday I can honestly say that milestone is met. The OpenClaw permission scoping system is done, the audit log is running in production on the Pi, and I spent the final two days stress-testing the AI interface by intentionally trying to break it with adversarial prompts. It held.
+              </p>
+
+              <p>
+                The permission scoping system works like this: before a user starts a session, they declare an intent scope. Right now the three scopes are READ (AI can query state and display information, nothing else), EXECUTE (AI can run pre-approved module commands), and ADMIN (AI can write configs and call arbitration handlers). Each scope is a whitelist of arbitration handler IDs. If the AI output resolves to a handler that is not on the whitelist for the active scope, the call is rejected at the arbitration boundary and the rejection is logged. The AI is never told why a command failed, it just sees a generic "action unavailable" response. This prevents the model from learning the exact permission boundaries through trial and error.
+              </p>
+
+              <p>
+                The stress test results were better than I expected in most areas and humbling in one. Every injection attempt I could think of was caught cleanly. Commands that looked like valid DeckOS syntax but targeted handlers outside the active scope were blocked. Hallucinated commands (the model inventing handler names that do not exist) hit the schema validator and never reached arbitration. The one area that surprised me was the intent classifier. On two occasions with carefully constructed prompts, the classifier scored a write operation as low-risk and it executed without the manual confirmation step. I tightened the threshold and both cases now queue for confirmation, but it is a reminder that the classifier is the softest part of the security model.
+              </p>
+
+              <p>
+                With the software security layer in a stable state, I can start thinking about the next major milestone: physical expansion. Month three is about Alpha features — network tools, the file explorer, and the first hardware peripherals beyond the Pi and the screen. I have been looking at projectors and GPIO-connected devices as the first real IoT surface for DeckOS. Next week I start laying the groundwork for that, and the architecture will need to grow to match it.
+              </p>
+            </div>
+          </article>
+        </section>
+
+        {/* Blog Post: Month 3 Week 1 — Alpha Begins */}
+        <section className="px-6 md:px-12 lg:px-24 max-w-4xl mx-auto w-full">
+          <article className="prose prose-invert max-w-none">
+            <div className="border-b border-border pb-8 mb-8">
+              <div className="text-primary text-sm font-bold mb-4 tracking-widest">LOG ENTRY</div>
+              <h2 className="text-4xl font-bold text-foreground m-0 mb-4">Month 3, Week 1: Alpha Begins — Network Tools and the Hardware Surface Expands</h2>
+              <div className="flex gap-4 text-sm text-muted-foreground font-mono">
+                <span>May 29, 2026</span>
+                <span>•</span>
+                <span>4 min read</span>
+                <span>•</span>
+                <span className="text-secondary">By Devin C. Roberts</span>
+              </div>
+            </div>
+
+            <div className="font-sans text-lg leading-relaxed text-foreground/90 space-y-6">
+              <p>
+                Month three is the Alpha tier, which on the Jira board means network tools, the file explorer, and the first real hardware expansion beyond the core Pi setup. This week I shipped the network scanner module and started pulling the pieces together for what I am calling the physical integration sprint: getting DeckOS to talk to devices in the room, not just components inside the chassis.
+              </p>
+
+              <p>
+                The network scanner was the cleanest module I have written so far. It uses Python's scapy and nmap bindings to run a local subnet sweep on demand, display discovered hosts with their MAC addresses and open ports, and flag anything that changed since the last scan. The whole thing renders in the MAIN pane with a live count and scrollable host list. Keyboard shortcut to trigger a scan, another to drill into a host. It fits the DeckOS interaction model exactly and it took about two days to go from nothing to stable. The architecture work from month one is starting to pay off in exactly the way I hoped.
+              </p>
+
+              <p>
+                The bigger shift this week was starting to think seriously about the hardware expansion. Up until now DeckOS has been a self-contained system: one Pi, one screen, one keyboard. But the Alpha spec I wrote back in week three includes peripheral support, and the first peripherals I am targeting are a projector (for presenting from the deck directly) and a set of GPIO-connected sensors that would make DeckOS a first-class IoT hub. This is where the project gets genuinely interesting to me as an engineering problem, because IoT integration forces the arbitration layer to handle a whole new class of devices, and the security model has to extend outward into the physical world.
+              </p>
+
+              <p>
+                I spent Thursday and Friday doing hardware research and component ordering. The projector integration will likely go over HDMI with a software mirror mode built into the display module. The GPIO sensors are more involved: I need to extend the arbitration layer to register physical devices as first-class actors, define read and write permissions for each pin, and make sure the AI tier cannot toggle a relay or drive a motor without an explicit user confirmation regardless of what model is running. The groundwork for that work starts next week, and I expect it to surface some interesting design questions about how DeckOS thinks about physical versus virtual state.
+              </p>
+            </div>
+          </article>
+        </section>
+
+        {/* Blog Post: Month 3 Week 2 — Physical Integration */}
+        <section className="px-6 md:px-12 lg:px-24 max-w-4xl mx-auto w-full">
+          <article className="prose prose-invert max-w-none">
+            <div className="border-b border-border pb-8 mb-8">
+              <div className="text-primary text-sm font-bold mb-4 tracking-widest">LOG ENTRY</div>
+              <h2 className="text-4xl font-bold text-foreground m-0 mb-4">Month 3, Week 2: Plugging Into the Physical World</h2>
+              <div className="flex gap-4 text-sm text-muted-foreground font-mono">
+                <span>June 5, 2026</span>
+                <span>•</span>
+                <span>5 min read</span>
+                <span>•</span>
+                <span className="text-secondary">By Devin C. Roberts</span>
+              </div>
+            </div>
+
+            <div className="font-sans text-lg leading-relaxed text-foreground/90 space-y-6">
+              <p>
+                This week DeckOS stopped being a closed box and started talking to the room around it. I got the projector working as a DeckOS output device, wired the first GPIO sensors into the arbitration layer, and laid the foundation for what is going to become the IoT hub module. It was the most physically hands-on week of the project so far, and it exposed some real gaps in the architecture that I had not anticipated when this was purely a software problem.
+              </p>
+
+              <p>
+                The projector integration was the first thing I tackled and it turned out to be both simpler and trickier than I expected. Simple because the Pi's HDMI output already handles dual-display; I just needed DeckOS to detect a second display at boot and offer a mirror or extend mode from the display module. Tricky because the projector I am working with introduces about 40ms of extra latency on the HDMI signal, which makes the DeckOS status bar clock and some of the animation timings look slightly off when you are watching the projected output while also looking at the primary screen. I ended up adding a display profile flag to the config that disables frame animations when a projector is detected. The projected output is now a clean, no-flicker view of whatever module is in the MAIN pane. Presenting directly from the deck works.
+              </p>
+
+              <p>
+                The GPIO work was the more technically interesting problem. I registered four physical pins in the arbitration layer as named devices: a temperature and humidity sensor on a DHT22, an LED indicator strip, a piezo buzzer, and a passive infrared motion sensor. Each one gets its own handler ID, a declared type (INPUT or OUTPUT), and a permission level. The DHT22 and the PIR sensor are INPUT devices, which means the AI tier can read their state in any session scope. The LED strip and the buzzer are OUTPUT devices, which means they sit behind the EXECUTE permission scope and require a confirmed user intent before the AI can trigger them.
+              </p>
+
+              <p>
+                Wiring this up forced me to make a design decision I had been deferring: how does DeckOS represent physical state in its internal data model? Virtual state (which module is active, what the user typed, what the AI output was) has a clean answer — it lives in SQLite. Physical state is trickier because a sensor reading is continuous and stale the moment it is written, and an output device has a real-world side effect that cannot be rolled back if the user changes their mind. I ended up adding a PhysicalDevice table to the database with last-read value, timestamp, and a dirty flag that marks whenever the stored value is more than 30 seconds old. The AI tier always sees the cached value with a freshness indicator, not a live poll. This keeps the cognitive loop from hammering the GPIO bus on every inference call and makes the data model honest about what it actually knows.
+              </p>
+
+              <p>
+                By end of week, DeckOS is projecting onto a wall, reading ambient temperature, and lighting up an LED strip when the motion sensor trips. None of this is polished yet, but all of it is working through the same arbitration and permission model that governs the purely software modules. The IoT surface is now part of the same architecture, not bolted on the side. Next week I formalize the IoT hub module UI and start thinking about how to expose device state to the user in a way that fits the DeckOS interaction model.
+              </p>
+            </div>
+          </article>
+        </section>
+
         {/* Roadmap */}
         <section className="px-6 md:px-12 lg:px-24 max-w-7xl mx-auto w-full">
           <h2 className="text-3xl font-bold mb-12">Deployment Timeline</h2>

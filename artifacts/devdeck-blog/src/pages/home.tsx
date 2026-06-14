@@ -627,6 +627,53 @@ export default function Home() {
           </article>
         </section>
 
+        {/* Blog Post: Month 3 Week 3 — Full IoT Device Week */}
+        <section className="px-6 md:px-12 lg:px-24 max-w-4xl mx-auto w-full">
+          <article className="prose prose-invert max-w-none">
+            <div className="border-b border-border pb-8 mb-8">
+              <div className="text-primary text-sm font-bold mb-4 tracking-widest">LOG ENTRY</div>
+              <h2 className="text-4xl font-bold text-foreground m-0 mb-4">Month 3, Week 3: We Built Hardware All Week</h2>
+              <div className="flex gap-4 text-sm text-muted-foreground font-mono">
+                <span>June 14, 2026</span>
+                <span>•</span>
+                <span>5 min read</span>
+                <span>•</span>
+                <span className="text-secondary">By Devin C. Roberts</span>
+              </div>
+            </div>
+
+            <div className="font-sans text-lg leading-relaxed text-foreground/90 space-y-6">
+              <p>
+                This was a zero-code week. No Python, no TypeScript, no commits to the DeckOS repo. Just hardware on the table from Monday to Saturday. We built and wired IoT devices from scratch, tested everything that touched the Pi, and by the end of the week the physical surface of DeckOS had grown from four GPIO pins to something that actually looks like a system.
+              </p>
+
+              <p>
+                The neuroscience kit was the first thing we got into. I have been reading about BioAmp hardware for months and this week we actually got electrodes on skin and watched the signal come in live. The kit reads EMG from muscle surface and EEG from forehead placement depending on how you set up the electrodes. We ran both. The EMG signal off the forearm is clean enough that you can see individual muscle contractions as distinct spikes. The EEG signal is noisier but the alpha rhythm shows up clearly when you close your eyes and relax. Getting this to talk to the Pi required setting up a serial read loop that pulls ADC samples at around 500 Hz and feeds them into a ring buffer. The processing side of that is now sitting in the DeckOS signal library waiting for the UI layer to catch up with it.
+              </p>
+
+              <p>
+                Range and distance sensors were next. We tested both HC-SR04 ultrasonic and a VL53L0X time-of-flight sensor. The ultrasonic is simpler to wire and good enough for room-scale detection, roughly accurate to a couple centimeters at distances up to two or three meters. The ToF sensor is more precise and way faster at close range but has a narrower field of view. We ended up registering both in the arbitration layer as separate INPUT devices so DeckOS can pick the right one depending on what the active module needs. The ultrasonic handles broad presence detection. The ToF handles precise close-range measurement. They serve different use cases and both are now live.
+              </p>
+
+              <p>
+                The projector work this week went deeper than last week. Last week I got mirror mode working. This week we actually ran a full presentation session with DeckOS as the source, projecting the main pane onto a wall while using the 7-inch screen as the control surface. That workflow actually holds up. The display profile flag I added last week did its job and the output was clean. The more interesting thing we discovered is that the projector can act as a secondary output for IoT device dashboards, showing live sensor readings in a room without anyone needing to look at the cyberdeck directly. That is a use case I had not thought about before this week and it opens up some interesting directions for the IoT hub UI.
+              </p>
+
+              <p>
+                Cameras were the fourth thing we wired up. We tested a standard Pi Camera Module V2 and a USB webcam. The Pi camera connects over the CSI ribbon cable and shows up as a V4L2 device once you enable it in raspi-config. The USB webcam is plug and play. Both feed into OpenCV running on the Pi without much setup. We did a basic motion detection pass using frame differencing and got it publishing motion events to the DeckOS event bus within a couple hours. The interesting part is that camera output and PIR output now both generate the same event type on the bus, so any module listening for a motion event does not need to know whether the trigger came from a sensor or a camera. The arbitration layer just routes it the same way.
+              </p>
+
+              <p>
+                Controllers were the last thing on the list. We tested a standard USB gamepad and a Bluetooth controller connecting to the Pi. The gamepad shows up as a joystick device and Python's inputs library reads it without any driver work. We mapped the buttons to DeckOS module navigation shortcuts so you can flip between modules without touching the keyboard. It works and it is genuinely more comfortable than F-key navigation when the deck is sitting on a table across from you. The Bluetooth controller took longer to pair and had some latency that made it feel wrong for anything real-time, so for now the USB gamepad is the one we are actually keeping in the setup.
+              </p>
+
+              <p>
+                By Saturday we had seven physical devices registered in the arbitration layer and talking to DeckOS: the BioAmp neuroscience kit, HC-SR04, VL53L0X, Pi Camera, USB webcam, LED strip, and gamepad. The piezo buzzer and DHT22 from last week are still active too. None of the UI for this is done yet. The IoT hub module is still a placeholder pane. But the data is flowing, the arbitration layer is handling it, and the architecture is proving out the way I designed it. Everything talks to DeckOS the same way regardless of what the physical device actually is. That is the thing I wanted to prove this month and this week proved it.
+              </p>
+            </div>
+          </article>
+        </section>
+
         {/* Roadmap */}
         <section className="px-6 md:px-12 lg:px-24 max-w-7xl mx-auto w-full">
           <h2 className="text-3xl font-bold mb-12">Deployment Timeline</h2>

@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    name: Typecheck & build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "10"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+
+      # --no-frozen-lockfile because pnpm-lock.yaml predates the deck-cli
+      # workspace package; regenerate on Linux to re-enable frozen installs.
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Typecheck — API server
+        run: pnpm --filter @workspace/api-server run typecheck
+
+      - name: Typecheck — frontend
+        run: pnpm --filter @workspace/devdeck-blog run typecheck
+
+      - name: Typecheck — CLI
+        run: pnpm --filter deckos run typecheck
+
+      - name: Build CLI
+        run: pnpm --filter deckos run build
+
+      - name: Upload CLI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deckos-cli
+          path: artifacts/deck-cli/dist/index.mjs
+          retention-days: 7

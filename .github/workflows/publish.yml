@@ -1,0 +1,38 @@
+name: Publish CLI to npm
+
+# Triggers when you push a version tag: git tag v0.1.0 && git push --tags
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  publish:
+    name: Build & publish deckos
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "10"
+
+      # registry-url wires up NODE_AUTH_TOKEN for npm publish
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build CLI
+        run: pnpm --filter deckos run build
+
+      - name: Publish to npm
+        working-directory: artifacts/deck-cli
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

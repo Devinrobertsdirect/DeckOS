@@ -4,6 +4,14 @@
   "description": "DeckOS — local AI that runs your system. One command to install and launch.",
   "license": "MIT",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Devinrobertsdirect/DeckOS.git"
+  },
+  "homepage": "https://github.com/Devinrobertsdirect/DeckOS#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "bin": {
     "deckos": "./dist/index.mjs"
   },

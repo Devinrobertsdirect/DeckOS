@@ -1,13 +1,39 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { motion } from "framer-motion";
-import { Terminal, HardDrive, Cpu, Wifi, Activity, Code2, Play, CircleDot, ChevronRight, Layers, ArrowRight } from "lucide-react";
+import { Terminal, HardDrive, Cpu, Wifi, Activity, Code2, Play, CircleDot, ChevronRight, Layers } from "lucide-react";
 
 const STARK_IFRAME_URL = `${import.meta.env.BASE_URL}stark-deck.html`;
 const WIREFRAME_IFRAME_URL = `${import.meta.env.BASE_URL}wireframe-3d.html`;
+const HERO_IMAGE_URL = `${import.meta.env.BASE_URL}cyberdeck-hero.png`;
+
+function HoverRow({ hoverStyle, children }: { hoverStyle: CSSProperties; children: React.ReactNode }) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <div
+      className="border border-border p-4 flex flex-col md:flex-row md:items-center gap-4 transition-colors group cursor-default"
+      style={hovered ? hoverStyle : undefined}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      {children}
+    </div>
+  );
+}
+
+function useClockTime(): string {
+  const fmt = () => new Date().toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit" });
+  const [time, setTime] = useState(fmt);
+  useEffect(() => {
+    const id = setInterval(() => setTime(fmt()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  return time;
+}
 
 export default function Home() {
   const [bootLog, setBootLog] = useState<string[]>([]);
   const [bootComplete, setBootComplete] = useState(false);
+  const clockTime = useClockTime();
 
   useEffect(() => {
     const logs = [
@@ -35,7 +61,7 @@ export default function Home() {
 
   return (
     <div className="min-h-[100dvh] flex flex-col bg-background text-foreground selection:bg-primary selection:text-primary-foreground font-mono">
-      {/* Persistant Status Bar */}
+      {/* Persistent Status Bar */}
       <div className="fixed top-0 left-0 right-0 h-8 border-b border-border bg-card/80 backdrop-blur-md z-40 flex items-center px-4 text-xs font-mono text-muted-foreground justify-between">
         <div className="flex items-center gap-4">
           <span className="text-primary font-bold">[DECKOS]</span>
@@ -45,7 +71,7 @@ export default function Home() {
         </div>
         <div className="flex items-center gap-4">
           <span className="flex items-center gap-1"><Wifi className="w-3 h-3 text-secondary" /> ONLINE</span>
-          <span>{new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' })}</span>
+          <span>{clockTime}</span>
         </div>
       </div>
 
@@ -110,7 +136,7 @@ export default function Home() {
           >
             <div className="absolute inset-0 bg-gradient-to-tr from-primary/10 to-transparent border border-primary/20 p-2">
               <img 
-                src="/cyberdeck-hero.png" 
+                src={HERO_IMAGE_URL}
                 alt="Cyberdeck hardware" 
                 className="w-full h-full object-cover filter grayscale-[20%] contrast-125"
               />
@@ -762,12 +788,12 @@ export default function Home() {
           
           <div className="flex flex-col gap-2">
             {[
-              { tier: "MVP", time: "Month 2", desc: "Core engine, UI shell, hardware arbitration.", color: "border-primary text-primary", bg: "bg-primary/5" },
-              { tier: "Alpha", time: "Month 3", desc: "Network tools, dashboard, file explorer.", color: "border-secondary text-secondary", bg: "bg-secondary/5" },
-              { tier: "Beta", time: "Month 4", desc: "Offline AI integration, full hardware mapping.", color: "border-accent text-accent", bg: "bg-accent/5" },
-              { tier: "v2.0", time: "Post-grad", desc: "Neural link optimization, custom PCB.", color: "border-destructive text-destructive", bg: "bg-destructive/5" }
+              { tier: "MVP", time: "Month 2", desc: "Core engine, UI shell, hardware arbitration.", color: "border-primary text-primary", hoverStyle: { backgroundColor: "hsl(var(--primary) / 0.05)" } },
+              { tier: "Alpha", time: "Month 3", desc: "Network tools, dashboard, file explorer.", color: "border-secondary text-secondary", hoverStyle: { backgroundColor: "hsl(var(--secondary) / 0.05)" } },
+              { tier: "Beta", time: "Month 4", desc: "Offline AI integration, full hardware mapping.", color: "border-accent text-accent", hoverStyle: { backgroundColor: "hsl(var(--accent) / 0.05)" } },
+              { tier: "v2.0", time: "Post-grad", desc: "Neural link optimization, custom PCB.", color: "border-destructive text-destructive", hoverStyle: { backgroundColor: "hsl(var(--destructive) / 0.05)" } }
             ].map((phase, i) => (
-              <div key={i} className={`border border-border p-4 flex flex-col md:flex-row md:items-center gap-4 hover:${phase.bg} transition-colors group cursor-default`}>
+              <HoverRow key={i} hoverStyle={phase.hoverStyle}>
                 <div className={`font-bold w-24 ${phase.color}`}>
                   [{phase.tier}]
                 </div>
@@ -778,7 +804,7 @@ export default function Home() {
                   {phase.desc}
                 </div>
                 <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-foreground opacity-0 group-hover:opacity-100 transition-all transform -translate-x-4 group-hover:translate-x-0" />
-              </div>
+              </HoverRow>
             ))}
           </div>
         </section>

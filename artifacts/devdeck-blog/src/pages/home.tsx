@@ -674,6 +674,88 @@ export default function Home() {
           </article>
         </section>
 
+        {/* Blog Post: Month 3 Week 4 — UI Simplification */}
+        <section className="px-6 md:px-12 lg:px-24 max-w-4xl mx-auto w-full">
+          <article className="prose prose-invert max-w-none">
+            <div className="border-b border-border pb-8 mb-8">
+              <div className="text-primary text-sm font-bold mb-4 tracking-widest">LOG ENTRY</div>
+              <h2 className="text-4xl font-bold text-foreground m-0 mb-4">Month 3, Week 4: Making It Less Overwhelming</h2>
+              <div className="flex gap-4 text-sm text-muted-foreground font-mono">
+                <span>June 21, 2026</span>
+                <span>•</span>
+                <span>4 min read</span>
+                <span>•</span>
+                <span className="text-secondary">By Devin C. Roberts</span>
+              </div>
+            </div>
+
+            <div className="font-sans text-lg leading-relaxed text-foreground/90 space-y-6">
+              <p>
+                We have been so deep in building that we forgot to check whether any of it was actually usable by someone who was not the person who built it. This week I sat down and went through DeckOS from the perspective of a first-time user and the honest answer was that it was a lot. Too many panes visible at once, too many options without context, and no clear sense of where to start. The system worked fine technically but the experience of using it was exhausting. That is the problem this week was about fixing.
+              </p>
+
+              <p>
+                The first thing I changed was the default view. Before this week, DeckOS booted into a five-pane layout that showed everything simultaneously. Status bar, navigation column, main content area, side actions panel, and terminal all visible at once. For me that is readable because I built every part of it and I know what each thing does. For anyone else it reads as noise. The fix was a simplified boot mode that starts with just the status bar and the main pane active. The nav column collapses to icon-only by default and the side panel and terminal are hidden until the user explicitly opens them. Same functionality, just not thrown at you all at once.
+              </p>
+
+              <p>
+                The second change was to the module navigation. The old F-key system still works but we added a home screen with a simple card grid that shows each module by name with a one-line description of what it does. If you have never used DeckOS before you can now open it, read six cards, and immediately understand what your options are. Experienced users can still hit F1 through F5 and skip the home screen entirely. Both paths coexist and neither breaks the other.
+              </p>
+
+              <p>
+                The third change was to how IoT device state gets surfaced. Last week we had seven devices registered and all of their readings were flooding into the same data stream with no filtering. This week we added a device context layer that groups readings by device and only surfaces the ones relevant to the active module. If you are in the terminal module you do not see DHT22 temperature readings unless you ask for them. If you are in the IoT hub module you see everything. The system routes information based on context instead of broadcasting everything everywhere all the time.
+              </p>
+
+              <p>
+                The reason all of this matters right now is that next month we redeploy the server with all the build changes reflected in it. The server has been updated to handle everything we built over the last six weeks including the GPIO device registry, the physical device data model, the updated arbitration layer, and the OpenClaw permission scoping. When that redeployment happens we need to be able to hand the system to testers who were not in the room when we built it. A cleaner UI is not just a nice-to-have at that point, it is the difference between useful feedback and people giving up after two minutes. This week was about making sure we are ready for that.
+              </p>
+            </div>
+          </article>
+        </section>
+
+        {/* Blog Post: Month 3 Week 5 — Full IoT Integration */}
+        <section className="px-6 md:px-12 lg:px-24 max-w-4xl mx-auto w-full">
+          <article className="prose prose-invert max-w-none">
+            <div className="border-b border-border pb-8 mb-8">
+              <div className="text-primary text-sm font-bold mb-4 tracking-widest">LOG ENTRY</div>
+              <h2 className="text-4xl font-bold text-foreground m-0 mb-4">Month 3, Week 5: Everything Is Talking to Everything</h2>
+              <div className="flex gap-4 text-sm text-muted-foreground font-mono">
+                <span>June 28, 2026</span>
+                <span>•</span>
+                <span>5 min read</span>
+                <span>•</span>
+                <span className="text-secondary">By Devin C. Roberts</span>
+              </div>
+            </div>
+
+            <div className="font-sans text-lg leading-relaxed text-foreground/90 space-y-6">
+              <p>
+                This is the week I have been building toward since April. Every device on the table is connected, every signal is flowing into DeckOS, and for the first time the whole system is running together as one thing instead of a collection of separate parts I have been testing in isolation. Raspberry Pi, projector, Arduino, IR sensors, and EEG are all live and reading each other. This is the end of Month 3 and the picture looks like what I drew in that first architecture doc.
+              </p>
+
+              <p>
+                The Raspberry Pi is the center of everything as planned. It is running DeckOS, hosting the event bus, managing the arbitration layer, and handling inference routing. Everything else connects to it or through it. What changed this week is that we stopped testing each device one at a time and started running all of them simultaneously. The Pi handled it without thermal throttling, which was a real question mark going into the week. The temperature peaked at 68 degrees Celsius under full load with the EEG signal processing running alongside GPIO polling, camera feed, and Ollama inference. That is inside the safe range and the thermal check I added back in Month 2 never triggered.
+              </p>
+
+              <p>
+                The projector is fully integrated as a second output surface. The display module now auto-detects it at boot and switches to the projector display profile automatically. We ran a live demo session this week where the projector was showing the IoT hub module with real-time sensor readings while the 7-inch screen was used to issue commands. That split was exactly the use case I imagined when I first thought about adding projector support. It held up in real use.
+              </p>
+
+              <p>
+                The Arduino is handling fast hardware tasks that the Pi should not be doing directly. It reads the IR sensors at high frequency and sends processed events to the Pi over serial rather than raw ADC samples. This keeps the Pi's event bus from getting flooded with low-level sensor data and puts the signal processing where it belongs, close to the hardware. The IR sensors are now tracking presence and proximity in the room and feeding that context into the DeckOS active session. When someone moves into range the system knows it without anyone pressing a button.
+              </p>
+
+              <p>
+                The EEG integration is the piece I am most proud of this week. The BioAmp hardware is reading from forehead electrodes, the signal is getting processed through the StarkProcessor pipeline, and the classified brain state is now part of the DeckOS session context. Alpha state, focus state, and blink events are all being logged in real time. We ran a test where the EEG state was used to automatically adjust the DeckOS display brightness and notification verbosity based on whether the user was in a focused or relaxed state. It worked. The system responded to brain state without any manual input. That is the thing I wrote in the design doc as a stretch goal and we actually shipped it.
+              </p>
+
+              <p>
+                Testing starts next month. The server has been updated to reflect everything from the last three months of build work and we are ready to put real users on this. The architecture held up, the hardware is integrated, and the UI changes from last week make it approachable enough to hand to someone who was not in the room when we built it. Month 4 is about finding out what breaks when someone else uses it.
+              </p>
+            </div>
+          </article>
+        </section>
+
         {/* Roadmap */}
         <section className="px-6 md:px-12 lg:px-24 max-w-7xl mx-auto w-full">
           <h2 className="text-3xl font-bold mb-12">Deployment Timeline</h2>

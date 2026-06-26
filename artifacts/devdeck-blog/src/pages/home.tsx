@@ -1,6 +1,7 @@
 import { useEffect, useState, type CSSProperties } from "react";
+import { Link } from "wouter";
 import { motion } from "framer-motion";
-import { Terminal, HardDrive, Cpu, Wifi, Activity, Code2, Play, CircleDot, ChevronRight, Layers } from "lucide-react";
+import { Terminal, HardDrive, Cpu, Wifi, Activity, Code2, Play, CircleDot, ChevronRight, Layers, ChevronLeft } from "lucide-react";
 
 const STARK_IFRAME_URL = `${import.meta.env.BASE_URL}stark-deck.html`;
 const WIREFRAME_IFRAME_URL = `${import.meta.env.BASE_URL}wireframe-3d.html`;
@@ -64,7 +65,10 @@ export default function Home() {
       {/* Persistent Status Bar */}
       <div className="fixed top-0 left-0 right-0 h-8 border-b border-border bg-card/80 backdrop-blur-md z-40 flex items-center px-4 text-xs font-mono text-muted-foreground justify-between">
         <div className="flex items-center gap-4">
-          <span className="text-primary font-bold">[DECKOS]</span>
+          <Link href="/" className="text-primary font-bold hover:text-primary/80 transition-colors flex items-center gap-1">
+            <ChevronLeft className="w-3 h-3" />[DECKOS]
+          </Link>
+          <span className="hidden sm:inline text-muted-foreground/50">DEV VIEW</span>
           <span className="hidden sm:inline">CPU: 12%</span>
           <span className="hidden sm:inline">RAM: 1.4GB</span>
           <span className="hidden sm:inline">TEMP: 42°C</span>

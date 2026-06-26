@@ -19,7 +19,7 @@ import * as os from "node:os";
 
 // ── Config ───────────────────────────────────────────────────────────────────
 
-const REPO_URL = "https://github.com/Devinrobertsdirect/DeckOS-main.git";
+const REPO_URL = "https://github.com/Devinrobertsdirect/DeckOS.git";
 const INSTALL_DIR = path.join(os.homedir(), ".deckos", "repo");
 const STATE_FILE = path.join(os.homedir(), ".deckos", "state.json");
 const DECKOS_DIR = path.join(os.homedir(), ".deckos");
@@ -160,7 +160,7 @@ function cloneOrUpdate(repoDir: string, mode: "clone" | "pull") {
 
 function installDeps(repoDir: string) {
   step("Installing dependencies");
-  execSync("pnpm install --frozen-lockfile", { cwd: repoDir, stdio: "inherit" });
+  execSync("pnpm install", { cwd: repoDir, stdio: "inherit" });
 }
 
 function copyEnv(repoDir: string) {

@@ -9,7 +9,10 @@ import {
   FolderOpen,
   ChevronRight,
   Circle,
+  Settings,
+  Zap,
 } from "lucide-react";
+import { type AiConfig, loadConfigLocal } from "@/lib/ai-config";
 
 // ── Live clock hook ──────────────────────────────────────────────────────────
 function useClockTime() {
@@ -95,6 +98,13 @@ const MODULES: Module[] = [
   },
 ];
 
+const PROVIDER_NAMES: Record<string, string> = {
+  anthropic: "Claude",
+  openai: "GPT",
+  google: "Gemini",
+  ollama: "Ollama",
+};
+
 const STATUS_COLORS: Record<Module["status"], string> = {
   online: "text-[hsl(158_100%_50%)]",
   standby: "text-[hsl(38_100%_50%)]",
@@ -161,10 +171,33 @@ function ModuleCard({ mod }: { mod: Module }) {
 // ── Dashboard ────────────────────────────────────────────────────────────────
 export default function Dashboard() {
   const clockTime = useClockTime();
+  const [aiConfig, setAiConfig] = useState<AiConfig | null>(null);
+
+  useEffect(() => {
+    setAiConfig(loadConfigLocal());
+  }, []);
+
+  // Derive JARVIS card state from config
+  const jarvisModule: Module = {
+    id: "jarvis",
+    name: "JARVIS",
+    label: "AI Assistant",
+    icon: <Bot className="w-7 h-7" />,
+    description: aiConfig
+      ? `${PROVIDER_NAMES[aiConfig.provider] ?? aiConfig.provider} · ${aiConfig.model}`
+      : "No AI provider configured — connect one to activate.",
+    status: aiConfig ? "online" : "standby",
+    accentVar: "--primary",
+  };
+
+  const MODULES_LIVE: Module[] = [
+    jarvisModule,
+    ...MODULES.filter((m) => m.id !== "jarvis"),
+  ];
 
   return (
     <div className="min-h-[100dvh] flex flex-col bg-background text-foreground font-mono">
-      {/* Status bar — identical aesthetic to blog */}
+      {/* Status bar */}
       <div className="fixed top-0 left-0 right-0 h-8 border-b border-border bg-card/80 backdrop-blur-md z-40 flex items-center px-4 text-xs font-mono text-muted-foreground justify-between">
         <div className="flex items-center gap-4">
           <span className="text-primary font-bold">[DECKOS]</span>
@@ -173,10 +206,31 @@ export default function Dashboard() {
           <span className="hidden sm:inline">TEMP: 42°C</span>
         </div>
         <div className="flex items-center gap-4">
+          {aiConfig ? (
+            <span className="hidden sm:flex items-center gap-1 text-primary/70 text-xs">
+              <Zap className="w-2.5 h-2.5" />
+              {PROVIDER_NAMES[aiConfig.provider] ?? aiConfig.provider}
+            </span>
+          ) : (
+            <Link
+              href="/setup"
+              className="hidden sm:flex items-center gap-1 text-[hsl(38_100%_50%)] hover:opacity-80 transition-opacity text-xs"
+            >
+              <Zap className="w-2.5 h-2.5" />
+              CONNECT AI
+            </Link>
+          )}
           <span className="flex items-center gap-1 text-[hsl(158_100%_50%)]">
             <Circle className="w-1.5 h-1.5 fill-current" /> ONLINE
           </span>
           <span>{clockTime}</span>
+          <Link
+            href="/setup"
+            className="text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+            title="AI settings"
+          >
+            <Settings className="w-3.5 h-3.5" />
+          </Link>
         </div>
       </div>
 
@@ -198,10 +252,36 @@ export default function Dashboard() {
           </div>
         </section>
 
+        {/* ── AI setup banner (only when not configured) ── */}
+        {!aiConfig && (
+          <section className="px-6 md:px-12 lg:px-24 pb-6 max-w-5xl mx-auto w-full">
+            <div className="border border-[hsl(38_100%_50%/0.4)] bg-[hsl(38_100%_50%/0.05)] p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="flex items-start gap-3 flex-1">
+                <Zap className="w-4 h-4 text-[hsl(38_100%_50%)] shrink-0 mt-0.5" />
+                <div>
+                  <div className="text-sm font-bold text-[hsl(38_100%_50%)] font-mono mb-0.5">
+                    JARVIS IS OFFLINE
+                  </div>
+                  <p className="text-xs text-muted-foreground font-sans">
+                    Connect an LLM provider to activate AI features. Takes under a minute.
+                  </p>
+                </div>
+              </div>
+              <Link
+                href="/setup"
+                className="border border-[hsl(38_100%_50%/0.6)] text-[hsl(38_100%_50%)] text-xs font-mono font-bold px-4 py-2 hover:bg-[hsl(38_100%_50%/0.1)] transition-colors shrink-0 flex items-center gap-1.5"
+              >
+                Connect AI
+                <ChevronRight className="w-3 h-3" />
+              </Link>
+            </div>
+          </section>
+        )}
+
         {/* ── Module grid ── */}
         <section className="px-6 md:px-12 lg:px-24 pb-16 max-w-5xl mx-auto w-full">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {MODULES.map((mod) => (
+            {MODULES_LIVE.map((mod) => (
               <ModuleCard key={mod.id} mod={mod} />
             ))}
           </div>

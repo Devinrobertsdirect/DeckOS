@@ -144,3 +144,97 @@ Nightwork_README.md                         (updated)
 **Commits:** `677ac43` — Add simplified user dashboard and npx deckos CLI
 
 ---
+
+## 2026-06-26 (Session 3 — User request)
+
+**Scope:** AI provider onboarding flow — setup page, config persistence, dashboard gating.
+
+### What was built
+
+#### Config library (`artifacts/devdeck-blog/src/lib/ai-config.ts`) — NEW
+
+Shared type + storage helpers used by both the setup page and dashboard:
+
+- `AiConfig` type: `{ provider, model, apiKey, ollamaUrl, savedAt }`
+- `loadConfigLocal()` / `saveConfigLocal()` — synchronous localStorage reads/writes
+- `saveConfig()` — saves to localStorage first (reliable, fast), then attempts a background POST to `http://localhost:8080/api/config` (silently ignored if backend not running)
+- `clearConfigLocal()` — removes config from localStorage
+
+Providers: `"anthropic" | "openai" | "google" | "ollama"`
+
+#### Setup page (`artifacts/devdeck-blog/src/pages/setup.tsx`) — NEW
+
+Full `/setup` route — provider onboarding and reconfiguration form:
+
+- 4 provider cards in a 2×2 grid: Anthropic (amber), OpenAI (green), Google (blue), Ollama (purple)
+- Cloud providers: masked API key input with show/reveal toggle, model dropdown with sensible defaults, and a "get a key →" link to the provider's key page
+- Ollama: URL field (default `http://localhost:11434`) + free-text model name input, with a list of popular models as a hint
+- Client-side validation before save: key required for cloud providers, key prefix check (sk-ant-, sk-, etc.), URL required for Ollama
+- Loads existing config on mount to pre-fill the form (supports reconfiguration)
+- On save: writes config → 800ms success state → navigates to `/`
+- "Back to dashboard without changing" link shown when already configured
+
+Default models:
+| Provider | Default |
+|----------|---------|
+| Anthropic | claude-sonnet-4-6 |
+| OpenAI | gpt-4o |
+| Google | gemini-2.0-flash |
+| Ollama | phi3:mini |
+
+#### Routing (`artifacts/devdeck-blog/src/App.tsx`)
+
+Added `/setup` route — `<Route path="/setup" component={Setup} />`.
+
+#### Dashboard updates (`artifacts/devdeck-blog/src/pages/dashboard.tsx`)
+
+- Reads `loadConfigLocal()` on mount; stores in `aiConfig` state
+- **JARVIS card**: description and status dot change based on config:
+  - Not configured → `"No AI provider configured — connect one to activate."` / STANDBY (amber)
+  - Configured → `"Claude · claude-sonnet-4-6"` (or relevant provider/model) / ONLINE (green)
+- **JARVIS OFFLINE banner**: amber warning banner shown only when no config, with a "Connect AI →" CTA to `/setup`. Disappears once configured.
+- **Status bar**: shows `⚡ Claude` (provider name) when configured, or a `⚡ CONNECT AI` warning link when not
+- **Settings gear icon** in status bar — always-visible link to `/setup` for reconfiguration
+
+#### Backend config endpoint (`artifacts/api-server/src/routes/config.ts`) — NEW
+
+Simple file-backed config store at `~/.deckos/config.json` (next to `state.json`):
+
+- `GET /api/config` → `{ configured: true, config: { provider, model, apiKey, ollamaUrl, savedAt } }` or `{ configured: false }`
+- `POST /api/config` → validates `provider` + `model` required, writes JSON file, returns `{ ok: true }`
+- Directory created automatically if missing
+- Added to `artifacts/api-server/src/routes/index.ts`
+
+### Persistence model
+
+Config flows through two layers in parallel:
+
+1. **`localStorage` (primary)**: always written on save, always read on dashboard/setup load. Works even if the backend isn't running (dev mode, static deploy, etc.)
+2. **Backend `~/.deckos/config.json` (secondary)**: written on save via background fetch (3s timeout, errors silently swallowed). This makes the config available to the server-side AI routing code without requiring the frontend to re-send it per-request.
+
+The dashboard reads `localStorage` synchronously on mount — zero loading state for returning users.
+
+### Files changed this session
+
+```
+artifacts/devdeck-blog/src/lib/ai-config.ts              (NEW)
+artifacts/devdeck-blog/src/pages/setup.tsx               (NEW)
+artifacts/devdeck-blog/src/App.tsx                       (add /setup route)
+artifacts/devdeck-blog/src/pages/dashboard.tsx           (config gating, status indicators)
+artifacts/api-server/src/routes/config.ts                (NEW)
+artifacts/api-server/src/routes/index.ts                 (add config route)
+Nightwork_README.md                                      (updated)
+```
+
+### Remaining open items (carried forward + new)
+
+- `api-server/src/app.ts`: open CORS — needs allowed-origins before public deployment
+- `lib/db/src/schema/index.ts`: empty schema, eager DATABASE_URL check at import
+- Module cards still presentational — no actual routing to module pages
+- `deck-cli` build requires Linux (Windows native esbuild binary excluded from workspace)
+- README `npx deckos` section references an unpublished npm package
+- Inline hex colors `#ff44aa` / `#9966ff` in `home.tsx` pane labels still unresolved
+- ~40 Shadcn UI files duplicated between `devdeck-blog` and `mockup-sandbox`
+- CORS: once the config endpoint stores an API key, the open `cors()` middleware means any page served from this machine could read it. Should lock CORS to `localhost` origins before any public-facing deployment.
+
+---

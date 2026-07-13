@@ -1,0 +1,2208 @@
+<style>
+:root{
+  --paper:#F5F3EE; --panel:#FBFAF6; --panel2:#EDEBE3;
+  --ink:#1E2A38; --ink-soft:#54606d; --rule:#DCDAD2;
+  --accent:#4A7FB5; --accent-ink:#2f5c88; --accent-soft:#e7eef6;
+  --mono:#26333f;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
+  --mono-f:ui-monospace,"SF Mono","Cascadia Mono","JetBrains Mono","Roboto Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root{
+  --paper:#10161c; --panel:#161f27; --panel2:#1b262f; --ink:#dde7f1; --ink-soft:#93a3b3;
+  --rule:#243039; --accent:#6aa0d6; --accent-ink:#93bce4; --accent-soft:#18242f; --mono:#bccadb;
+}}
+:root[data-theme="light"]{
+  --paper:#F5F3EE; --panel:#FBFAF6; --panel2:#EDEBE3; --ink:#1E2A38; --ink-soft:#54606d; --rule:#DCDAD2;
+  --accent:#4A7FB5; --accent-ink:#2f5c88; --accent-soft:#e7eef6; --mono:#26333f;
+}
+:root[data-theme="dark"]{
+  --paper:#10161c; --panel:#161f27; --panel2:#1b262f; --ink:#dde7f1; --ink-soft:#93a3b3; --rule:#243039;
+  --accent:#6aa0d6; --accent-ink:#93bce4; --accent-soft:#18242f; --mono:#bccadb;
+}
+*{box-sizing:border-box}
+.page{background:var(--paper);color:var(--ink);font-family:var(--sans);line-height:1.6;font-size:16px;-webkit-font-smoothing:antialiased;padding:0 0 5rem}
+.masthead{border-bottom:2px solid var(--ink);padding:2.4rem clamp(1rem,4vw,3rem) 1.6rem;display:flex;flex-wrap:wrap;gap:1.5rem;justify-content:space-between;align-items:flex-end;background:linear-gradient(180deg,var(--panel),var(--paper))}
+.masthead .eyebrow{font-family:var(--mono-f);font-size:.72rem;letter-spacing:.28em;text-transform:uppercase;color:var(--accent-ink);margin:0 0 .5rem}
+.masthead h1{font-size:clamp(1.7rem,4vw,2.7rem);line-height:1.04;margin:0;font-weight:800;letter-spacing:-.015em;text-wrap:balance;max-width:16ch}
+.masthead .sub{color:var(--ink-soft);margin:.7rem 0 0;max-width:54ch;font-size:.98rem}
+.titleblock{font-family:var(--mono-f);font-size:.7rem;border:1px solid var(--rule);border-radius:4px;overflow:hidden;min-width:230px}
+.titleblock div{display:flex;justify-content:space-between;gap:1.2rem;padding:.32rem .7rem;border-bottom:1px solid var(--rule)}
+.titleblock div:last-child{border-bottom:0}
+.titleblock span:first-child{color:var(--ink-soft);letter-spacing:.12em;text-transform:uppercase}
+.titleblock span:last-child{color:var(--ink);font-weight:600}
+.wrap{display:grid;grid-template-columns:minmax(0,1fr);max-width:1200px;margin:0 auto}
+@media(min-width:1000px){.wrap{grid-template-columns:250px minmax(0,1fr)}}
+.toc{display:none}
+@media(min-width:1000px){.toc{display:block;position:sticky;top:0;align-self:start;max-height:100vh;overflow-y:auto;padding:2rem 1rem 2rem clamp(1rem,4vw,3rem);font-size:.82rem;border-right:1px solid var(--rule)}}
+.toc .lbl{font-family:var(--mono-f);font-size:.66rem;letter-spacing:.22em;text-transform:uppercase;color:var(--ink-soft);margin:0 0 .8rem}
+.toc ul{list-style:none;margin:0;padding:0}
+.toc>ul>li{margin:.1rem 0}
+.toc ul ul{padding-left:.8rem;border-left:1px solid var(--rule);margin:.15rem 0 .4rem}
+.toc a{color:var(--ink-soft);text-decoration:none;display:block;padding:.2rem .3rem;border-radius:3px;line-height:1.35}
+.toc>ul>li>a{color:var(--ink);font-weight:600}
+.toc a:hover{color:var(--accent-ink);background:var(--accent-soft)}
+.doc{padding:2rem clamp(1rem,4vw,3rem) 2rem;min-width:0;max-width:900px}
+.doc>*{max-width:72ch}
+.doc .tw{max-width:100%}
+.doc h1,.doc h2,.doc h3,.doc h4{line-height:1.15;text-wrap:balance;font-weight:800;letter-spacing:-.01em}
+.doc h1{font-size:1.7rem;margin:3.2rem 0 1rem;padding-top:1.6rem;border-top:2px solid var(--ink)}
+.doc h1:first-child{margin-top:.3rem;border-top:0;padding-top:0}
+.doc h2{font-size:1.3rem;margin:2.4rem 0 .8rem;padding-top:1rem;border-top:1px solid var(--rule)}
+.doc h3{font-size:1.05rem;margin:1.8rem 0 .6rem;color:var(--accent-ink);font-weight:700}
+.doc h4{font-size:.86rem;margin:1.3rem 0 .5rem;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-soft)}
+.doc p{margin:.8rem 0}
+.doc a{color:var(--accent-ink);text-decoration:underline;text-underline-offset:2px;text-decoration-thickness:1px}
+.doc a:hover{text-decoration-thickness:2px}
+.doc strong{font-weight:700;color:var(--ink)}
+.doc ul,.doc ol{margin:.7rem 0;padding-left:1.3rem}
+.doc li{margin:.35rem 0}
+.doc li::marker{color:var(--accent)}
+.doc hr{border:0;border-top:1px solid var(--rule);margin:2.5rem 0}
+.doc blockquote{margin:1.2rem 0;padding:.8rem 1.1rem;background:var(--panel);border-left:3px solid var(--accent);border-radius:0 5px 5px 0;color:var(--ink-soft)}
+.doc blockquote p{margin:.3rem 0}
+.doc blockquote strong{color:var(--ink)}
+.doc code{font-family:var(--mono-f);font-size:.86em;background:var(--panel2);color:var(--mono);padding:.1em .38em;border-radius:4px;border:1px solid var(--rule)}
+.doc pre{background:var(--panel);border:1px solid var(--rule);border-radius:7px;padding:1rem 1.1rem;overflow-x:auto;margin:1.1rem 0;line-height:1.5}
+.doc pre code{background:none;border:0;padding:0;font-size:.82rem;color:var(--mono)}
+.tw{overflow-x:auto;margin:1.2rem 0;border:1px solid var(--rule);border-radius:7px}
+.doc table{border-collapse:collapse;width:100%;font-size:.84rem;min-width:min(100%,520px)}
+.doc thead th{background:var(--ink);color:var(--paper);text-align:left;font-weight:600;text-transform:uppercase;letter-spacing:.05em;font-size:.7rem;padding:.6rem .8rem;white-space:nowrap}
+@media (prefers-color-scheme:dark){.doc thead th{background:var(--accent);color:#08121b}}
+:root[data-theme="dark"] .doc thead th{background:var(--accent);color:#08121b}
+:root[data-theme="light"] .doc thead th{background:var(--ink);color:var(--paper)}
+.doc tbody td{padding:.55rem .8rem;border-top:1px solid var(--rule);vertical-align:top;font-variant-numeric:tabular-nums}
+.doc tbody tr:nth-child(even){background:var(--panel2)}
+.doc tbody td:first-child{font-weight:600;color:var(--ink);font-family:var(--mono-f);font-size:.8rem}
+.footer{max-width:1200px;margin:2rem auto 0;padding:1.6rem clamp(1rem,4vw,3rem);border-top:1px solid var(--rule);font-family:var(--mono-f);font-size:.72rem;letter-spacing:.05em;color:var(--ink-soft);display:flex;justify-content:space-between;flex-wrap:wrap;gap:1rem}
+html{scroll-behavior:smooth}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+</style>
+<div class="page">
+  <header class="masthead">
+    <div>
+      <p class="eyebrow">ATLAS &middot; AI COMPANION ROBOT</p>
+      <h1>Build &amp; Manufacturing Guide</h1>
+      <p class="sub">From files to a working, durable machine &mdash; the high-reliability PCB spec with exact PCBWay values, where to design it, 3D-printing the shell, the Blender &amp; CAD pipeline, the full bill of materials, and the end-to-end manufacturing flow.</p>
+    </div>
+    <div class="titleblock" aria-hidden="true">
+      <div><span>Doc No</span><span>ATL-BUILD-001</span></div>
+      <div><span>Subject</span><span>ATL-HW-001</span></div>
+      <div><span>Rev</span><span>A</span></div>
+      <div><span>Body</span><span>Pi 5 &middot; 282mm</span></div>
+      <div><span>Class</span><span>IPC-6012 CL3</span></div>
+    </div>
+  </header>
+  <div class="wrap">
+    <nav class="toc" aria-label="Contents">
+      <p class="lbl">Contents</p>
+      <div class="toc">
+<ul>
+<li><a href="#atlas-robot-build-manufacturing-guide">Atlas Robot &#8212; Build &amp; Manufacturing Guide</a></li>
+<li><a href="#pcb-fabrication-spec-exact-pcbway-values-for-a-high-reliability-atlas-hat">PCB Fabrication Spec &#8212; exact PCBWay values for a high-reliability Atlas HAT</a><ul>
+<li><a href="#where-to-design-it-online">Where to design it (online)</a></li>
+<li><a href="#pcbway-advanced-pcb-form-exact-selections">PCBWay Advanced-PCB form &#8212; exact selections</a></li>
+<li><a href="#recommended-4-layer-stackup-16-mm">Recommended 4-layer stackup (1.6 mm)</a></li>
+<li><a href="#six-dfm-notes-for-this-mixed-12-v-power-logic-board">Six DFM notes for this mixed 12 V-power + logic board</a></li>
+<li><a href="#assembly-pcba-order-block">Assembly (PCBA) order block</a></li>
+</ul>
+</li>
+<li><a href="#pcb-design-schematic-layout-and-where-to-design-it-online">PCB Design &#8212; schematic, layout, and where to design it online</a><ul>
+<li><a href="#1-board-partitioning-one-hat-or-a-split-stack">1. Board partitioning &#8212; one HAT, or a split stack?</a></li>
+<li><a href="#2-raspberry-pi-5-hat-rules-board-b">2. Raspberry Pi 5 HAT+ rules (Board B)</a></li>
+<li><a href="#3-per-subsystem-design-notes">3. Per-subsystem design notes</a></li>
+<li><a href="#4-connectors-and-strain-relief">4. Connectors and strain relief</a></li>
+<li><a href="#5-where-to-design-it-online-tool-comparison">5. Where to design it online &#8212; tool comparison</a></li>
+<li><a href="#6-pcbway-order-form-values-high-reliability-preset">6. PCBWay order-form values (high-reliability preset)</a></li>
+<li><a href="#3d-printing-the-shell-and-body">3D Printing the shell and body</a></li>
+<li><a href="#blender-cad-workflow-modeling-the-parts-for-print-and-fit">Blender + CAD workflow &#8212; modeling the parts for print and fit</a></li>
+</ul>
+</li>
+<li><a href="#bill-of-materials-parts-ordering-and-manufacturing-flow">Bill of Materials, parts ordering, and manufacturing flow</a><ul>
+<li><a href="#1-full-bom-one-robot">1. Full BOM (one robot)</a></li>
+<li><a href="#2-supplier-strategy">2. Supplier strategy</a></li>
+<li><a href="#3-what-the-fab-sources-vs-what-you-consign">3. What the fab sources vs. what you consign</a></li>
+<li><a href="#4-where-to-draw-the-pcb-online-the-desktop-gold-standard">4. Where to draw the PCB (online + the desktop gold standard)</a></li>
+<li><a href="#5-exact-pcbway-order-form-values-tuned-for-high-reliability">5. Exact PCBWay order-form values (tuned for high reliability)</a></li>
+<li><a href="#6-manufacturing-flow-end-to-end-checklist">6. Manufacturing flow (end-to-end checklist)</a></li>
+<li><a href="#7-cost-lead-time-summary">7. Cost + lead-time summary</a></li>
+<li><a href="#8-li-ion-pack-safety-4s-treat-this-as-the-highest-risk-subsystem">8. Li-ion pack safety (4S &#8212; treat this as the highest-risk subsystem)</a></li>
+</ul>
+</li>
+</ul>
+</div>
+    </nav>
+    <article class="doc">
+      <h1 id="atlas-robot-build-manufacturing-guide">Atlas Robot &#8212; Build &amp; Manufacturing Guide</h1>
+<blockquote>
+<p>Companion to <strong>DeckOS Atlas</strong> (design docs ATL-HW-001 / ATL-ID-001). Everything you need to
+take the Atlas companion robot from files to a working, durable machine: the high-reliability
+PCB spec (with exact PCBWay form values), where to design it, 3D printing the shell, the
+Blender + CAD workflow, the full bill of materials, and the end-to-end manufacturing flow.</p>
+<p>Target: Raspberry Pi 5 (8GB) brain, 282 mm cylindrical body, two-wheel differential drive.</p>
+</blockquote>
+<hr />
+<h1 id="pcb-fabrication-spec-exact-pcbway-values-for-a-high-reliability-atlas-hat">PCB Fabrication Spec &#8212; exact PCBWay values for a high-reliability Atlas HAT</h1>
+<p>This is the fab-and-assembly spec for <strong>ATL-HW-001</strong>, the Pi 5 carrier/HAT. The board is a genuinely mixed beast &#8212; a 62 MHz SPI face, I2S audio, a fistful of I2C sensors, <em>and</em> a 12 V/5 A motor rail plus a 19 V dock input &#8212; all baking continuously at ~78 &#176;C inside a sealed shell with vibration from the drivetrain. Every value below is chosen for the thing you asked for: a board that does not fail in the field.</p>
+<h2 id="where-to-design-it-online">Where to design it (online)</h2>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Verdict for this board</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>KiCad 9</strong> (free desktop, cross-platform)</td>
+<td><strong>Primary recommendation.</strong> Best free 4-layer + physical-stackup/impedance manager, clean Gerber X2 + IPC-2581 export PCBWay ingests directly, zero vendor lock-in. Not browser-based, but it is the correct tool for a mixed-signal controlled-impedance board.</td>
+</tr>
+<tr>
+<td><strong>EasyEDA Pro</strong> (browser + desktop, free)</td>
+<td><strong>Best true "online" pick.</strong> Runs in the browser, huge integrated LCSC library (saves you drawing footprints), exports standard Gerbers you send to PCBWay. It is JLCPCB's tool but is not locked to them for fab. Weaker constraint/stackup control than KiCad.</td>
+</tr>
+<tr>
+<td><strong>Flux.ai</strong> (browser-native, ~$20/mo)</td>
+<td>Good if you want real-time collaboration + AI copilot for library work. Caveat: it gets sluggish at higher layer counts/density and has thin stackup control &#8212; acceptable for a 4-layer HAT, not ideal.</td>
+</tr>
+<tr>
+<td><strong>Altium 365</strong> ($3.5k&#8211;7.5k/seat/yr, Windows-only)</td>
+<td>Overkill and overpriced for a single HAT. Skip.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Design in <strong>KiCad 9</strong> if you can; if you specifically want in-browser, use <strong>EasyEDA Pro</strong>. Either way you hand PCBWay a Gerber X2 + drill + IPC-356 netlist + a stackup drawing.</p>
+<h2 id="pcbway-advanced-pcb-form-exact-selections">PCBWay Advanced-PCB form &#8212; exact selections</h2>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Recommended value</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>PCB Type</strong></td>
+<td>Through-hole board (standard, plated-through vias) &#8212; <strong>not HDI</strong></td>
+<td>No fine-pitch BGA or laser-microvia density here; the biggest part is an SSOP/QFN. HDI blind/buried vias add cost and reliability risk you don't need.</td>
+</tr>
+<tr>
+<td><strong>Board Spec (standard)</strong></td>
+<td><strong>IPC-6012 Class 3</strong></td>
+<td>Class 3 = "high reliability, continued performance critical." It forces tighter annular ring, better registration, and thicker hole-wall copper &#8212; exactly what a continuously-hot, vibrating robot board needs.</td>
+</tr>
+<tr>
+<td>IATF16949 / ISO13485</td>
+<td><strong>No (do not select)</strong></td>
+<td>Those are automotive/medical QMS certifications for regulated supply chains. They add cost and paperwork with zero technical benefit to a maker robot. Class 3 gives you the reliability; the QMS certs give you an audit trail you don't need.</td>
+</tr>
+<tr>
+<td><strong>Board Configuration</strong></td>
+<td>Single pieces (proto) &#8594; <strong>Panel by Supplier</strong> for the assembled run</td>
+<td>Single for bare-board bring-up. For PCBA, a supplier V-scored/tabbed panel feeds the pick-and-place and cuts assembly setup cost.</td>
+</tr>
+<tr>
+<td><strong>Layers</strong></td>
+<td><strong>4</strong> (see stackup below)</td>
+<td>4 layers buys you a solid unbroken ground plane under the 62 MHz SPI and I2S &#8212; clean return paths, controlled impedance, and thermal spreading. <strong>6</strong> is only justified if the 12 V power pours plus high-speed break-out won't route on a crowded HAT footprint; it roughly doubles cost. Start at 4, promote to 6 only if the router forces it.</td>
+</tr>
+<tr>
+<td><strong>Material / Tg</strong></td>
+<td><strong>Tg170 FR-4, halogen-free</strong> (e.g. Shengyi S1150G-class / ITEQ IT-180A-class)</td>
+<td>Sealed box at ~78 &#176;C continuous. Tg must sit far above operating temp &#8212; Tg140 is too close, inviting resin softening and z-axis expansion that cracks plated holes over thermal cycles. Tg170 gives margin + higher Td. Halogen-free is secondary (cleaner outgassing in a sealed shell); if PCBWay can't stock HF at Tg170, keep <strong>Tg170</strong> &#8212; the Tg matters more than the HF.</td>
+</tr>
+<tr>
+<td><strong>Thickness</strong></td>
+<td><strong>1.6 mm</strong></td>
+<td>Standard HAT mechanical: mates the 40-pin stacking header height, gives rigidity against connector-insertion and vibration, and yields the most reliable 0.3 mm PTH aspect ratio (5.3:1). Thinner hurts PTH reliability and stiffness.</td>
+</tr>
+<tr>
+<td><strong>Min track/spacing</strong></td>
+<td>Declare <strong>5/5 mil (0.127 mm)</strong>; design to <strong>&#8805;6 mil</strong> signal, <strong>&#8805;20 mil</strong> power</td>
+<td>Declare 5/5 so the fab holds tolerance for the tightest QFN/SSOP escape, but route everything you can at 6&#8211;8 mil. Wider = higher etch yield and fewer defects. Never push the fab's floor on a reliability board.</td>
+</tr>
+<tr>
+<td><strong>Min hole size</strong></td>
+<td><strong>0.3 mm</strong> (0.20 mm only if a specific via-in-pad forces it)</td>
+<td>Bigger drills plate more reliably. 0.3 mm drill / 0.6 mm pad on a 1.6 mm board is a robust, low-aspect-ratio via. No part here needs sub-0.25 mm.</td>
+</tr>
+<tr>
+<td><strong>Solder mask color</strong></td>
+<td><strong>Green (glossy)</strong></td>
+<td>The board is hidden inside the shell, so pick for <em>inspection</em>, not looks: green has the most mature process, tightest mask registration, and the best AOI/manual-inspection contrast. Matte black looks premium but hides defects, runs thinner over traces, and absorbs heat &#8212; a bad trade on a hot board.</td>
+</tr>
+<tr>
+<td><strong>Silkscreen</strong></td>
+<td><strong>White</strong>, both sides as needed</td>
+<td>High contrast on green. Include ref-designators, pin-1 dots, connector polarity, <strong>fuse/E-STOP labels</strong>, board rev, <code>ATL-HW-001</code>, and a date-code box.</td>
+</tr>
+<tr>
+<td><strong>Surface finish</strong></td>
+<td><strong>ENIG (immersion gold)</strong></td>
+<td>Dead-flat coplanar finish for the fine-pitch SSOP/QFN and dense 0402s (HASL's bumps hurt fine-pitch), plus excellent shelf life through multiple rework/reflow cycles. <strong>ENEPIG</strong> (adds palladium) is for wire-bonding or repeated gold-finger insertion &#8212; you have neither, so it's wasted money. <strong>HASL</strong> is cheaper but uneven and thermally harsher.</td>
+</tr>
+<tr>
+<td><strong>Gold / nickel thickness</strong></td>
+<td><strong>Au 3U&#8243; (&#181;in) / Ni 120&#8211;200U&#8243;</strong></td>
+<td>2U&#8243; is the IPC-4552 solderability minimum; 3U&#8243; adds corrosion/shelf-life margin for a board that may sit in inventory and see humidity. Don't chase 5U&#8243;+ &#8212; excess gold embrittles solder joints.</td>
+</tr>
+<tr>
+<td><strong>Finished copper weight</strong></td>
+<td><strong>Outer 2 oz (70 &#181;m); inner 1 oz</strong></td>
+<td>The 12 V/5 A drive rail plus motor current (&#8776;14 W nominal, 32 W peak, N20 stall spikes) and heat-spreading in a sealed box. 2 oz outer halves trace resistance/temp-rise vs 1 oz. Inner planes stay 1 oz. (2 oz needs the relaxed spacing you already designed to.)</td>
+</tr>
+<tr>
+<td><strong>Hole-copper (barrel) plating</strong></td>
+<td><strong>25 &#181;m (1 mil) minimum</strong></td>
+<td>IPC-6012 <strong>Class 3 mandates &#8805;25 &#181;m</strong> average PTH copper (Class 2 allows 20 &#181;m). Thicker barrels survive the board's continuous thermal cycling + vibration. This selection is coupled to the Class 3 choice above.</td>
+</tr>
+<tr>
+<td><strong>Impedance control</strong></td>
+<td><strong>Yes &#8212; 50 &#937; single-ended on SPI0 only</strong> (SCLK/MOSI/DC nets); everything else uncontrolled</td>
+<td>At 62 MHz with sub-2 ns edges the SPI face is borderline; controlling it forces PCBWay onto a defined stackup and hands you an impedance report &#8212; cheap insurance. There is <strong>no differential impedance to control</strong>: the camera is MIPI CSI-2 but it plugs into the <strong>Pi's own CSI FPC connector, not this HAT</strong>, so no 100 &#937; pairs route on your board. If cost-sensitive, you may skip it <em>provided</em> SPI0 runs short and unbroken over the L2 ground plane.</td>
+</tr>
+<tr>
+<td><strong>Via process (fill/cap)</strong></td>
+<td><strong>Resin-filled &amp; capped (plated-over) for via-in-pad</strong>; tented (mask) for all other vias</td>
+<td>Via-in-pad without fill wicks solder &#8594; voids and opens. Resin-fill + copper cap gives a flat solderable pad and blocks wicking under the TB6612FNG thermal pad and any QFN pad. <strong>Copper-filled (electroplated) vias</strong> are the premium upgrade specifically under the <strong>TB6612 power/thermal pad</strong> for best heat + current path &#8212; worth it there if budget allows.</td>
+</tr>
+<tr>
+<td><strong>Edge plating / castellations</strong></td>
+<td><strong>No (neither)</strong></td>
+<td>This HAT mates through the 40-pin header, not an edge connector or castellated module join. Both options add cost for nothing here.</td>
+</tr>
+<tr>
+<td><strong>Beveling / edge connector</strong></td>
+<td><strong>No</strong></td>
+<td>No gold-finger card edge.</td>
+</tr>
+<tr>
+<td><strong>UL marking</strong></td>
+<td><strong>Off for prototype; On for any production run</strong></td>
+<td>All PCBWay FR-4 is already UL94V-0 laminate. The UL logo + fab ID mark only matters for traceability/compliance if you productize &#8212; add it then.</td>
+</tr>
+<tr>
+<td><strong>Peelable solder mask</strong></td>
+<td><strong>None</strong></td>
+<td>Only needed to protect pads through wave/selective soldering. Your board is SMT-reflow + hand-soldered THT, so it's unnecessary. (Exception: apply peelable over the <strong>pogo-pin dock pads</strong> if you consign the board and want them pristine through assembly.)</td>
+</tr>
+<tr>
+<td><strong>Final inspection / reports (request all free ones)</strong></td>
+<td><strong>Flying-probe/E-test 100% (always) + Microsection + Solderability + Thermal-stress + Impedance report</strong></td>
+<td>Microsection verifies the Class-3 plating thickness &amp; annular ring you're paying for; solderability catches ENIG "black pad"; thermal-stress (float/shock) proves the PTHs survive the hot box; impedance report closes the loop on the SPI0 control. These are free/near-free at PCBWay &#8212; take them on a reliability board.</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="recommended-4-layer-stackup-16-mm">Recommended 4-layer stackup (1.6 mm)</h2>
+<p>Asymmetric build: put a <strong>thin dielectric between L1 and L2</strong> so the 62 MHz SPI microstrip references ground closely and 50 &#937; is achievable at a sane trace width.</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>Name</th>
+<th>Copper</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>L1 (Top)</strong></td>
+<td>Signal + placement</td>
+<td>2 oz</td>
+<td>All SMT parts; high-speed SPI0, I2S, I2C routed here referenced to L2; short power stubs into the planes.</td>
+</tr>
+<tr>
+<td>&#8212;</td>
+<td>Prepreg &#8776; <strong>0.10&#8211;0.15 mm</strong></td>
+<td>&#8212;</td>
+<td>Thin dielectric &#8594; tight SPI0 ground reference + microstrip impedance control.</td>
+</tr>
+<tr>
+<td><strong>L2 (Inner)</strong></td>
+<td><strong>Ground plane</strong></td>
+<td>1 oz</td>
+<td>Solid, unbroken GND &#8212; the primary return/reference for every fast net on L1 and the hub of the star ground. Do not slit it.</td>
+</tr>
+<tr>
+<td>&#8212;</td>
+<td>Core &#8776; <strong>1.065 mm</strong></td>
+<td>&#8212;</td>
+<td>Mechanical bulk; gives the 1.6 mm finished thickness.</td>
+</tr>
+<tr>
+<td><strong>L3 (Inner)</strong></td>
+<td><strong>Power plane</strong></td>
+<td>1 oz</td>
+<td>Split pours: 5 V compute, 3.3 V, and a fat 12 V drive island; reference plane for L4. Keep the split boundaries away from L4 fast nets.</td>
+</tr>
+<tr>
+<td>&#8212;</td>
+<td>Prepreg &#8776; <strong>0.10&#8211;0.15 mm</strong></td>
+<td>&#8212;</td>
+<td>Close reference for bottom-side routing/power.</td>
+</tr>
+<tr>
+<td><strong>L4 (Bottom)</strong></td>
+<td>Signal + power pours</td>
+<td>2 oz</td>
+<td>12 V / motor high-current pours and any spill-over routing, referenced to L3. <strong>Keep the Pi-facing side clear of tall parts</strong> for Pi 5 clearance.</td>
+</tr>
+</tbody>
+</table></div>
+<blockquote>
+<p>Let PCBWay's impedance engineers confirm final dielectric heights and hand you the exact trace width for 50 &#937; (typically ~7&#8211;9 mil microstrip on a ~0.1 mm dielectric). Attach this stackup as a drawing in the order notes and check <strong>"Custom stackup."</strong></p>
+</blockquote>
+<h2 id="six-dfm-notes-for-this-mixed-12-v-power-logic-board">Six DFM notes for this mixed 12 V-power + logic board</h2>
+<ol>
+<li>
+<p><strong>Creepage/clearance on the 12 V and 19 V-dock nets.</strong> IPC-2221 electrical minimums are tiny, but for a vibrating high-current board don't design to them: hold <strong>&#8805;0.5 mm (20 mil)</strong> conductor-to-conductor on the 12 V rail and <strong>&#8805;1.0 mm (40 mil)</strong> on the 19 V dock input, reverse-polarity diode node, and E-STOP switch terminals. Add copper-free gaps/slots under the E-STOP and dock-input switch nodes, and keep these nets away from mounting holes.</p>
+</li>
+<li>
+<p><strong>Copper pour + thermal relief.</strong> Flood L1/L4 with GND and stitch to L2 on a <strong>~2&#8211;3 mm grid of 0.3 mm vias</strong>, densest around the fan, TB6612, and the two bucks, to move heat in the sealed 78 &#176;C box. Use <strong>4-spoke thermal relief (0.3&#8211;0.4 mm spokes)</strong> on hand-soldered THT/connector GND pads so the iron can wet them; use a <strong>solid, relief-free</strong> connection on high-current motor/12 V pads and the TB6612 thermal pad for lowest resistance and best heat sinking.</p>
+</li>
+<li>
+<p><strong>Star ground / plane discipline.</strong> Tie the <strong>power ground</strong> (TB6612/motor return) to the <strong>quiet ground</strong> (BNO085 IMU, VL53L1X ToF, INA219 sense, MAX98357A audio) at a <strong>single point</strong> near the 5 V/GND entry. Keep H-bridge return current out of the sensor ground return. Never route a fast net across an L3 power-plane split; if unavoidable, drop a stitching cap/via at the crossing to give the return a path.</p>
+</li>
+<li>
+<p><strong>Motor-noise isolation.</strong> Corral the TB6612 + 12 V rail + N20 motor connectors into one board region; put the LCD SPI, I2S mics, and analog sensors on the far side with a <strong>ground moat/guard between them</strong>. Snub the motor terminals (RC or ferrite + bulk), <strong>guard the encoder IRQ lines</strong> (GPIO16/17/22/23) with adjacent ground, and route the 20 kHz PWM (GPIO12/13) and DIR (GPIO5/6) well clear of high-impedance sensor and audio nets.</p>
+</li>
+<li>
+<p><strong>Decoupling.</strong> A <strong>100 nF 0402 hard against every IC power pin</strong> (Pi header 3.3 V/5 V feeds, TB6612 VCC <em>and</em> VM, MAX98357A, each sensor), plus bulk: <strong>100&#8211;220 &#181;F low-ESR at the TB6612 VM (12 V)</strong> input to absorb motor di/dt, 10&#8211;22 &#181;F at each buck output, 10 &#181;F at the LCD. Via straight to plane from each cap; keep the power/return loop short and wide. <strong>Kelvin-sense the INA219 shunt</strong> (4-terminal connection) or your current reading will be garbage.</p>
+</li>
+<li>
+<p><strong>Fuse / E-STOP / protection.</strong> Put the hardware E-STOP in series in the 12 V rail on <strong>2 oz copper &#8805;60&#8211;100 mil (or pour)</strong> with the clearance from note 1. At the 19 V dock input, after the reverse-polarity device, add a <strong>fuse (or resettable poly-fuse) + a TVS</strong> for pogo-pin hot-plug transients; prefer a <strong>P-FET ideal-diode</strong> over a plain Schottky for reverse protection (lower drop, less heat). Put <strong>flyback TVS/diodes across the motor terminals</strong>. Size the reverse-polarity device for full charge current + margin and heatsink it into pour. RC-filter the <strong>E-STOP sense (GPIO26)</strong> and <strong>DOCK sense (GPIO27)</strong> so motor noise can't trip them.</p>
+</li>
+</ol>
+<h2 id="assembly-pcba-order-block">Assembly (PCBA) order block</h2>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Recommendation</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Turnkey vs Kitted vs Combo</strong></td>
+<td><strong>Combo (turnkey + partial consignment)</strong></td>
+<td>Let PCBWay <strong>source</strong> the jellybean/standard parts (all passives, TB6612FNG, MAX98357A, INA219, connectors, headers, diodes/TVS, buck ICs) from LCSC &#8212; fast and cheap. <strong>Consign</strong> the spec-critical / authenticity-sensitive parts: <strong>BNO085</strong> (buy genuine from Bosch/DigiKey to dodge clones) and any single-source IC.</td>
+</tr>
+<tr>
+<td><strong>Off-board parts</strong></td>
+<td>Do <strong>not</strong> place: the <strong>3.1&#8243; 480&#215;480 round LCD</strong> (mounts on the face, wired via FFC/JST), N20 motors, 18650 pack/BMS, and the Camera Module 3 (plugs into the Pi CSI, not the HAT).</td>
+<td>These connect by cable/connector; the fab populates only the HAT's own SMT + through-hole.</td>
+</tr>
+<tr>
+<td><strong>Assembly sides</strong></td>
+<td><strong>Top-side SMT only (single reflow)</strong>; 40-pin stacking header + JST/pogo/E-STOP through-hole = <strong>hand or selective solder</strong></td>
+<td>One stencil, one reflow = cheaper and higher yield, and it keeps the <strong>Pi-facing bottom clear</strong> for mechanical clearance to the Pi 5. Only push small passives to the bottom if density truly forces it.</td>
+</tr>
+<tr>
+<td><strong>Stencil</strong></td>
+<td><strong>Frameless (foil) laser-cut stainless, ~0.12 mm (5 mil), electropolished</strong></td>
+<td>Frameless is the right call for proto/low volume (PCBWay includes it); framed is for production stencil printers. <strong>Window-pane the TB6612 thermal-pad aperture to ~50&#8211;60% area</strong> so the part doesn't float or tombstone on a solder flood.</td>
+</tr>
+<tr>
+<td><strong>Consign vs let-fab-source</strong></td>
+<td><strong>Consign:</strong> round LCD (off-board), BNO085, any brand-critical IC. <strong>Fab sources:</strong> passives, TB6612FNG, MAX98357A, INA219, connectors/headers, TVS/diodes, buck regulators.</td>
+<td>Fab-sourcing jellybeans is cheapest and fastest; consigning the few authenticity/lead-time-critical parts protects reliability.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Sources: <a href="https://www.pcbway.com/HighQualityOrderOnline.aspx">PCBWay Advanced-PCB order form</a>, <a href="https://www.pcbway.com/helpcenter/ordering_parameter_instruction/Via_Filled_with_Copper.html">PCBWay &#8212; Via Filled with Copper</a>, <a href="https://www.pcbway.com/helpcenter/ordering_parameter_instruction/Via_in_Pad.html">PCBWay &#8212; Via in Pad</a>, <a href="https://www.pcbway.com/pcb_prototype/Impedance_Control.html">PCBWay &#8212; Impedance Control</a>, <a href="https://www.flux.ai/p/blog/best-pcb-design-software-2026">Best PCB Design Software 2026 (Flux)</a></p>
+<hr />
+<h1 id="pcb-design-schematic-layout-and-where-to-design-it-online">PCB Design &#8212; schematic, layout, and where to design it online</h1>
+<p>This is the board that turns a pile of modules into Atlas. Because the shell is sealed, runs continuously near thermal throttle (~78 &#176;C), and every module "swaps behind a HAL," the PCB stack has to be <strong>serviceable, quiet, and manufacturable to a reliability standard</strong> &#8212; not just electrically correct. The recommendations below are tuned for a PCBWay order at IPC Class 2/3, with exact fab-form values at the end.</p>
+<hr />
+<h2 id="1-board-partitioning-one-hat-or-a-split-stack">1. Board partitioning &#8212; one HAT, or a split stack?</h2>
+<p><strong>Recommendation: split into three boards, not one monolithic HAT.</strong> ATL-HW-001 calls the carrier "a Pi 5 HAT stack," and the right physical realization is:</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Board</th>
+<th>What lives on it</th>
+<th>Where it mounts</th>
+<th>Why it's separate</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>A &#8212; Power/Motor board</strong> ("base board")</td>
+<td>4S pack input, BMS interface + fuel gauge, 12 V/5 A buck, 5 V/5 A buck, TB6612FNG, INA219 shunts, hardware E-stop in 12 V rail, dock 19 V input + reverse-polarity + ideal-diode ORing, motor/encoder/battery connectors</td>
+<td>Low, over the axle next to the battery</td>
+<td>The 12 V motor rail is the noisiest thing in the robot: 20 kHz PWM into inductive N20s with high di/dt on start/stall. You do <strong>not</strong> want that current loop, its ground bounce, or its radiated field sharing copper with a 62 MHz display SPI bus or an IMU. Keeping it on its own board near the battery also shortens the fat high-current traces.</td>
+</tr>
+<tr>
+<td><strong>B &#8212; Logic HAT+</strong></td>
+<td>40-pin header, ID EEPROM, I&#178;C1 sensor bus (BNO085, TCA9548A, INA219/BMS pass-through), I&#178;S mic + amp front-end, fan driver, E-STOP/DOCK sense conditioning, inter-board connectors to A and C</td>
+<td>On the Pi 5 40-pin header</td>
+<td>This is the only board that must obey the HAT+ mechanical spec. Keeping it "logic only" means it's low-current, low-heat, and can be a clean 4-layer board with solid planes.</td>
+</tr>
+<tr>
+<td><strong>C &#8212; Face board</strong></td>
+<td>Round LCD FPC/connector, backlight LED driver + PWM dimming, series/damping resistors on the SPI + DC/RST lines, 3.3 V local bypass</td>
+<td>Directly behind the smoked-glass dome / round LCD, at the crown</td>
+<td>The display is the one high-speed net that wants the shortest possible controlled run. Put its connector millimeters from the panel, not 200 mm down a ribbon to a HAT. It's also the module most likely to change per Mark edition, so it should unplug on its own.</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Interconnect:</strong> Board A &#8596; Board B over a single keyed ribbon (2.0 mm IDC or a JST-PH header) carrying: 5 V compute rail (up), motor control (PWM GPIO12/13, DIR GPIO5/6), the four encoder IRQs (GPIO16/17/22/23), E-STOP sense (GPIO26), DOCK sense (GPIO27), and the shared I&#178;C1 for INA219 + fuel gauge. Board B &#8596; Board C over a short shielded flat cable carrying SPI0 (GPIO8-11), DC/RST (GPIO24/25), 3.3 V, 5 V (for backlight boost), and grounds &#8212; put a ground wire between every signal in that cable.</p>
+<blockquote>
+<p><strong>Why not one HAT:</strong> a single board forces the 12 V/motor return current under the Pi and the display bus. Even with careful planes you'll fight EMI on the ToF ranging and IMU, and a display glitch or a shorted motor lead takes out the whole board instead of a $30 module. The split also matches the "every module swaps behind a HAL" design intent and the two-thumbscrew serviceability goal.</p>
+</blockquote>
+<hr />
+<h2 id="2-raspberry-pi-5-hat-rules-board-b">2. Raspberry Pi 5 HAT+ rules (Board B)</h2>
+<p>Design Board B to the <strong>HAT+ specification</strong> (<a href="https://datasheets.raspberrypi.com/hat/hat-plus-specification.pdf">spec PDF</a>, <a href="https://github.com/raspberrypi/hats/blob/master/designguide.md">design guide</a>, <a href="https://github.com/raspberrypi/hats">mechanical repo</a>). Pull the exact outline/hole DXF+STEP from the repo rather than eyeballing &#8212; the numbers below are the canonical full-size HAT drawing:</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Value</th>
+<th>Why / note</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Board outline</td>
+<td><strong>65.0 &#215; 56.0 mm</strong></td>
+<td>Standard full-HAT footprint; HAT+ <em>allows</em> other sizes but this fits the Pi 5 keep-outs cleanly and gives you room.</td>
+</tr>
+<tr>
+<td>Corner radius</td>
+<td><strong>R3.0 mm</strong> all four corners</td>
+<td>Per drawing; avoids sharp corners fouling standoffs.</td>
+</tr>
+<tr>
+<td>Mounting holes</td>
+<td><strong>4 &#215; &#216;2.75 mm</strong> (for M2.5), centers at (3.5, 3.5), (61.5, 3.5), (3.5, 52.5), (61.5, 52.5) mm &#8594; <strong>58.0 &#215; 49.0 mm</strong> spacing</td>
+<td>Non-plated or plated-and-grounded; put grounded copper annulus if you tie chassis GND here. Use <strong>M2.5 nylon or steel standoffs</strong>; steel gives a chassis-ground path (decide deliberately).</td>
+</tr>
+<tr>
+<td>GPIO connector</td>
+<td>2&#215;20, 2.54 mm pitch, at the Pi datum</td>
+<td>Use a <strong>stacking/extended-height header</strong> if anything on the Pi (fan, RTC) needs vertical clearance; otherwise a standard 8.5 mm SMT or THT 2&#215;20. THT is more robust for a robot that vibrates &#8212; recommend THT with the tail clinched.</td>
+</tr>
+<tr>
+<td>ID EEPROM</td>
+<td><strong>CAT24C32</strong> (or 24C32-class), 3.3 V, on <strong>I&#178;C0</strong> = ID_SD <strong>GPIO0 (pin 27)</strong> / ID_SC <strong>GPIO1 (pin 28)</strong>, address <strong>0x50</strong>, with <strong>3.9 k&#937; pull-ups to 3V3</strong></td>
+<td>Required for HAT+ autodetect. On HAT+ the EEPROM stores the <strong>device-tree overlay name</strong>; firmware then loads the overlay from <code>/boot/firmware/overlays</code>. Write it with <code>eepromutils</code>/<code>eepmake</code>. Do <strong>not</strong> hang your application sensors on ID_SD/ID_SC &#8212; that bus is for the EEPROM only.</td>
+</tr>
+<tr>
+<td>3.3 V I/O only</td>
+<td><strong>Pi 5 GPIO is 3.3 V and NOT 5 V-tolerant on any pin</strong></td>
+<td>Every signal crossing to the Pi must be 3.3 V. TB6612 logic, encoders, ToF, IMU, I&#178;S all run at 3.3 V here, so you're fine &#8212; but if any module is 5 V (some encoder breakouts), level-shift it (e.g., TXB0108/TXS0102 for bidir I&#178;C-safe parts, or a simple FET translator).</td>
+</tr>
+<tr>
+<td>HAT+ STANDBY</td>
+<td>Board must tolerate <strong>5 V rail present while 3.3 V rail is off</strong></td>
+<td>Don't back-feed the 3.3 V rail from anything that's alive in standby, and don't let leakage hold a bus up.</td>
+</tr>
+<tr>
+<td><strong>Powering the Pi through the header</strong></td>
+<td>You feed 5 V <em>up</em> into the header 5 V pins from Board A's 5 V/5 A buck</td>
+<td>This bypasses the Pi's USB-C input protection/e-fuse. The PMIC then can't see a PD contract, so it may cap downstream USB current. Set <code>usb_max_current_enable=1</code> in <code>config.txt</code> (or set the PSU current in EEPROM). Keep the 5 V feed fused and add bulk cap right at the header.</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Keep-outs on the Pi 5 (leave copper <em>and</em> component height clear):</strong></p>
+<ul>
+<li><strong>Active Cooler collision:</strong> the official Pi 5 Active Cooler is too tall to sit under a HAT. Plan for a <strong>low-profile heatsink + your chassis fan (GPIO4 PWM)</strong> instead, or a stacking header tall enough to clear it. Given the sealed, near-throttle thermal case, design the airflow deliberately &#8212; don't assume the HAT can coexist with the tall cooler.</li>
+<li><strong>PCIe FPC connector</strong> (right edge) &#8212; HAT+ defines a cut-out; keep it clear so you can still use NVMe/PCIe later.</li>
+<li><strong>Dual MIPI CSI/DSI FPC connectors</strong> (left edge) &#8212; your Camera Module 3 Wide plugs in here via the Pi CSI connector; the HAT must not block it. Route the camera flex up the mast <em>outside</em> the board footprint.</li>
+<li><strong>Fan header</strong> (4-pin JST-SH between HDMI and header) and <strong>UART/debug + RTC battery connectors</strong> &#8212; keep clearances per the drawing.</li>
+<li><strong>USB-C + micro-HDMI</strong> heights along the front edge.</li>
+</ul>
+<p>Start from <strong><a href="https://github.com/MisterHW/RPi5-HATplus">MisterHW/RPi5-HATplus</a></strong> &#8212; it already has the HAT+ outline plus the PCIe and dual-CSI cut-outs drawn.</p>
+<hr />
+<h2 id="3-per-subsystem-design-notes">3. Per-subsystem design notes</h2>
+<h3 id="tb6612fng-motor-stage-board-a-12-v">TB6612FNG motor stage (Board A, 12 V)</h3>
+<ul>
+<li><strong>Bulk + local decoupling:</strong> &#8805; <strong>470 &#181;F electrolytic</strong> (low-ESR, 25 V) on VM (12 V) right at the driver, plus <strong>0.1 &#181;F + 10 &#181;F ceramic</strong> on VM and on VCC (logic 3.3 V). The stall/reversal current step is what corrupts everything else &#8212; kill it locally.</li>
+<li><strong>Flyback/clamp:</strong> the TB6612 has internal body diodes, but for inductive N20s add a <strong>local RC snubber</strong> or a Schottky across each output pair if you see ringing; keep the motor-current loop (VM &#8594; driver &#8594; motor connector &#8594; GND) tight and on the same layer with a ground pour underneath.</li>
+<li><strong>PWM 20 kHz on GPIO12/13, DIR on GPIO5/6:</strong> 20 kHz is above audible and easy for the TB6612 &#8212; good. Series <strong>~33 &#937;</strong> on PWM/DIR gate-ish lines to tame edges/EMI into the ribbon.</li>
+<li><strong>Current sense:</strong> put the <strong>INA219</strong> on a high-side shunt in the <strong>12 V drive rail</strong> (measures total motor draw; matches the ~14 W motor budget) and optionally a second on the pack. INA219 default <strong>0x40</strong> (address-strap the two if you use two). Kelvin-connect the shunt.</li>
+<li><strong>Encoders:</strong> the four IRQ lines (GPIO16/17/22/23) are noise-sensitive &#8212; route them away from VM, add <strong>1 nF to GND + 1 k&#937; series</strong> at the Pi end, and pull up to 3.3 V.</li>
+</ul>
+<h3 id="tca9548a-i2c-mux-5-vl53l1x-tof-board-ba">TCA9548A I&#178;C mux &#8594; 5&#215; VL53L1X ToF (Board B/A)</h3>
+<ul>
+<li>Mux at <strong>0x70</strong> on I&#178;C1 (GPIO2/3, 400 kHz). Each VL53L1X keeps its <strong>default 0x29</strong> because it lives on its own downstream mux channel &#8212; this avoids XSHUT re-addressing gymnastics.</li>
+<li>Still <strong>break out XSHUT and GPIO1 per sensor</strong>: XSHUT lets you hard-reset a hung ToF; <strong>GPIO1 is the interrupt/ranging-ready</strong> output (wire to spare GPIO or poll). Pull XSHUT up; drive low to disable.</li>
+<li>Because the 5 ToF sit around the crown/skirt on cables, put <strong>each sensor's SDA/SCL/VDD/GND/XSHUT/GPIO1 on its own JST-SH 6-pin</strong> and keep the mux physically central so the five stubs are short and roughly equal.</li>
+</ul>
+<h3 id="bno085-imu-board-b">BNO085 IMU (Board B)</h3>
+<ul>
+<li>Use <strong>I&#178;C1 at 0x4A</strong> (or 0x4B) for simplicity &#8212; SPI is faster but the BNO085's I&#178;C is fine for orientation and frees SPI0 for the display. <strong>If</strong> you ever see the known BNO08x I&#178;C clock-stretch issues, that's the one reason to move it to SPI; design a 0 &#937;/DNP option so you <em>can</em> jump to SPI without a respin.</li>
+<li><strong>Break out PS0/PS1</strong> (interface select), <strong>nRESET</strong>, <strong>BOOTn</strong>, and the <strong>INT/HOST_INT</strong> line to GPIO. Tie PS0/PS1 for I&#178;C per datasheet, pull nRESET/BOOTn to their run states, and route INT to a Pi GPIO so you use interrupt-driven reads, not polling. Bypass with 0.1 &#181;F close to the part.</li>
+</ul>
+<h3 id="i2s-mic-array-max98357a-board-b">I&#178;S mic array + MAX98357A (Board B)</h3>
+<ul>
+<li>Shared <strong>BCLK GPIO18</strong> and <strong>LRCLK/FS GPIO19</strong> fan out to both the mics and the amp. <strong>DIN GPIO20</strong> = mics &#8594; Pi; <strong>DOUT GPIO21</strong> = Pi &#8594; MAX98357A.</li>
+<li><strong>MAX98357A channel select:</strong> it's set by a resistor on the <strong>SD_MODE</strong> pin &#8212; pick <strong>(L+R)/2</strong>, Left, or Right; for a mono 3 W/4 &#937; speaker use <strong>(L+R)/2</strong> so you never drop a channel. Bypass VDD with 10 &#181;F + 0.1 &#181;F; the amp's output filter is internal (Class-D, filterless) but keep the speaker leads twisted and short.</li>
+<li><strong>Correctness callout &#8212; 4 mics vs. one data line:</strong> the Pi's classic I&#178;S/PCM block exposes <strong>one data-in (GPIO20)</strong>. Standard I&#178;S MEMS mics pack <strong>two per data line</strong> (one on the L, one on the R half-frame via each mic's SEL pin). So GPIO20 alone gives you <strong>2 mics, not 4</strong>. For the 4-mic ring you must do one of: <strong>(a)</strong> bring a <strong>second PCM RX</strong> out on other GPIOs via a device-tree overlay on the Pi 5's RP1 (extra wiring, and it won't be the 18-21 block), <strong>(b)</strong> use <strong>PDM mics into a hardware aggregator/decimator</strong> (e.g., a small codec) that emits a single TDM/I&#178;S stream, or <strong>(c)</strong> a <strong>4-channel TDM mic ADC</strong>. Cleanest for a fixed product is <strong>(b) or (c)</strong> &#8212; decide this before you place the mic connectors, because it changes the front-end. Route BCLK/LRCLK as a matched pair, keep them off the motor ribbon, and add series <strong>22-33 &#937;</strong> on the clocks.</li>
+</ul>
+<h3 id="round-lcd-face-board-c-spi0-62-mhz">Round LCD "face" (Board C, SPI0 @ 62 MHz)</h3>
+<ul>
+<li><strong>Verify the panel's real interface before you commit the connector.</strong> Many "480&#215;480 round SPI" modules are <strong>ST7701S RGB panels that use SPI only for init</strong> and then need an 18/16-bit <strong>parallel RGB (DPI)</strong> bus for pixels &#8212; which the Pi 5 can't spare here. For a genuine single-lane-SPI face, choose a controller that streams pixels over SPI/QSPI (e.g., ST77916/SPD2010-class). At 62 MHz single-lane, a full 480&#215;480&#215;16-bit frame is ~3.7 Mbit &#8776; <strong>~16 fps full-screen</strong>, plenty for a face that mostly updates the <strong>eyes</strong> with partial-window writes.</li>
+<li>Route <strong>SCLK/MOSI/MISO (GPIO8-11)</strong> as a short, tight group with a continuous ground under them; series <strong>~22 &#937;</strong> on SCLK/MOSI at the source to control edges. <strong>DC/RST = GPIO24/25.</strong> Keep the whole SPI run &lt; ~100 mm; that's the whole reason the face is its own board.</li>
+<li><strong>Backlight:</strong> drive the LED string from a small <strong>constant-current boost</strong> with a <strong>PWM dimming input</strong> off a spare GPIO/PWM (or a dedicated pin), not straight off 3.3 V &#8212; the "eyes" want smooth brightness and the smoked dome eats light.</li>
+</ul>
+<h3 id="power-tree-board-a">Power tree (Board A)</h3>
+<pre><code>Dock 19 V &#9472;&#9472;[reverse-pol Schottky]&#9472;&#9472;&#9488;
+                                    &#9500;&#9472;[ideal-diode ORing]&#9472;&#9472;&#9658; pack/charge node
+4S2P pack 14.8 V &#9472;[BMS 4S 30A]&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9496;
+        &#9474;  (fuel gauge on I&#178;C1)
+        &#9660;
+   [E-STOP &#8212; hardware, in the 12 V feed]
+        &#9474;
+   &#9484;&#9472;&#9472;&#9472;&#9472;&#9524;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9488;
+   &#9660;                    &#9660;
+[Buck 12 V/5 A]     [Buck 5 V/5 A]
+   &#9474;  (drive rail)      &#9474;  (compute rail)
+   &#9660;                    &#9660;
+INA219 &#8594; TB6612 &#8594; N20s   Pi 5 (via header) + display + audio
+</code></pre>
+<ul>
+<li><strong>Ideal-diode ORing</strong> between dock 19 V and the pack so charging and running coexist without back-driving the dock; the <strong>reverse-polarity Schottky</strong> protects against a mis-inserted pogo contact (accept its Vf drop or use a P-FET ideal diode for efficiency).</li>
+<li><strong>E-stop in the 12 V rail only</strong> (kills motors, keeps compute alive so Atlas can say why it stopped) &#8212; sense the switch state on <strong>GPIO26</strong> with a pulled-up, RC-filtered input.</li>
+<li><strong>INA219 on the 12 V drive rail</strong> (see motor stage). Put the <strong>fuel gauge</strong> (BMS) and INA219 on the shared I&#178;C1 that rides the A&#8596;B ribbon.</li>
+<li>Give each buck its own input/output bulk caps and a solid ground plane; separate the <strong>motor ground return</strong> from the <strong>compute/analog return</strong> and join them at a <strong>single star point</strong> near the pack negative. This one choice does more for ToF/IMU cleanliness than anything else.</li>
+</ul>
+<hr />
+<h2 id="4-connectors-and-strain-relief">4. Connectors and strain relief</h2>
+<p>All <strong>JST parts lock</strong> &#8212; use them everywhere on a robot that vibrates and has a rotating skirt. Match series to current and cable gauge:</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Net</th>
+<th>Connector</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>4S pack main (up to ~7-10 A peak)</td>
+<td><strong>XT30</strong> (or JST-VH 3.96 mm)</td>
+<td>High current, low resistance, keyed. Don't push this through PH.</td>
+</tr>
+<tr>
+<td>BMS balance leads</td>
+<td>Vendor 5-pin balance (JST-XH 2.5 mm)</td>
+<td>Standard for 4S balance.</td>
+</tr>
+<tr>
+<td>Dock 19 V input</td>
+<td><strong>JST-VH</strong> or 2-pos screw terminal</td>
+<td>Robust, higher current/voltage.</td>
+</tr>
+<tr>
+<td>N20 motor power (2-pin, &lt; 1 A)</td>
+<td><strong>JST-PH 2.0 mm</strong></td>
+<td>Locking, right-sized; add RTV dab (see below).</td>
+</tr>
+<tr>
+<td>Encoders (VCC/GND/A/B)</td>
+<td><strong>JST-SH 1.0 mm 4-pin</strong> or PH 4-pin</td>
+<td>Small, keyed; SH for tight crown routing.</td>
+</tr>
+<tr>
+<td>VL53L1X ToF (SDA/SCL/VDD/GND/XSHUT/GPIO1)</td>
+<td><strong>JST-SH 6-pin</strong></td>
+<td>One clean cable per sensor.</td>
+</tr>
+<tr>
+<td>I&#178;S mics</td>
+<td><strong>JST-SH</strong> (per mic module)</td>
+<td>Keeps clock/data pairs tidy.</td>
+</tr>
+<tr>
+<td>A &#8596; B inter-board</td>
+<td><strong>2.0 mm keyed IDC ribbon</strong> or JST-PH 2&#215;N</td>
+<td>Carries power + control; keying prevents mis-mate.</td>
+</tr>
+<tr>
+<td>B &#8596; C (display)</td>
+<td><strong>Shielded FFC or JST-SH</strong> with ground between signals</td>
+<td>Short, quiet SPI run.</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Strain relief (mandatory in a sealed, moving robot):</strong>
+- Add <strong>PCB tie-down slots/anchors</strong> next to every off-board connector and zip-tie a <strong>service loop</strong> so cable tension never pulls the housing.
+- Put a <strong>fillet of RTV/hot-melt</strong> at the motor and battery connectors after final test.
+- Use <strong>right-angle connectors</strong> where a cable exits toward the wheels/skirt so the cable doesn't fold at the shell.
+- Keep connectors <strong>off the board edge that faces moving parts</strong>, and orient them so removing the one-part shell doesn't drag cables.</p>
+<hr />
+<h2 id="5-where-to-design-it-online-tool-comparison">5. Where to design it online &#8212; tool comparison</h2>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Runs where</th>
+<th>Cost</th>
+<th>Ordering / parts</th>
+<th>Collab / AI</th>
+<th>Best for THIS project</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>KiCad 10</strong> (10.0.4, Jun 2026)</td>
+<td>Desktop (Win/mac/Linux)</td>
+<td>Free, open</td>
+<td>Vendor-neutral Gerber/IPC-2581/ODB++ &#8594; any fab incl. PCBWay; JLCPCB/LCSC libs available</td>
+<td>Git-based collab (no live cursors); no built-in AI</td>
+<td><strong>Primary &#8212; recommended.</strong> No vendor lock-in, clean PCBWay-ready outputs, HAT+ template exists, 4-layer + impedance stackups, mature DFM. Best for a board you'll iterate and fab for reliability.</td>
+</tr>
+<tr>
+<td><strong>EasyEDA Std / Pro</strong></td>
+<td>Browser + desktop</td>
+<td>Free</td>
+<td><strong>Direct JLCPCB</strong> parts + one-click order (can still export Gerbers for PCBWay)</td>
+<td>Cloud projects, light collab</td>
+<td>Only if you plan JLCPCB <strong>assembly</strong>; otherwise the JLC tie-in is a distraction when you're fabbing at PCBWay.</td>
+</tr>
+<tr>
+<td><strong>Flux.ai</strong></td>
+<td>Browser</td>
+<td>Free tier + paid</td>
+<td>Exports Gerbers/BOM for any fab</td>
+<td><strong>Real-time collab + AI copilot</strong></td>
+<td>Good <strong>secondary</strong> if you want browser access, live collaboration, and AI help placing/reviewing.</td>
+</tr>
+<tr>
+<td><strong>Altium 365 / Autodesk Fusion Electronics</strong></td>
+<td>Desktop + cloud</td>
+<td>Paid (pro)</td>
+<td>Pro outputs, any fab</td>
+<td>Full cloud collab</td>
+<td>Overkill/cost for a solo founder prototype; revisit if the team grows.</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Recommendation for Atlas:</strong> <strong>KiCad 10 as primary</strong>, optionally <strong>Flux.ai</strong> when you want browser access + AI review. Design all three boards in one KiCad project (three schematic sheets), fab at <strong>PCBWay</strong> with the values in &#167;6. Rationale: your goal is a <em>guaranteed, durable</em> board fabbed at PCBWay &#8212; KiCad's neutral Gerbers + IPC-2581 give the fab the cleanest data, the HAT+ template removes the riskiest mechanical work, and you're never locked to one vendor's parts.</p>
+<p><strong>Exact first-steps workflow:</strong>
+1. <strong>Clone the template:</strong> start Board B from <strong><a href="https://github.com/MisterHW/RPi5-HATplus">MisterHW/RPi5-HATplus</a></strong>; import its outline + PCIe/CSI cut-outs. Confirm hole positions against the <a href="https://github.com/raspberrypi/hats">official mechanical drawing</a>.
+2. <strong>Schematic:</strong> three hierarchical sheets &#8212; Power/Motor (A), Logic-HAT (B), Face (C). Place the ID EEPROM on ID_SD/ID_SC first so you don't forget it. Annotate + ERC.
+3. <strong>Assign footprints:</strong> use manufacturer footprints (KiCad libs) or LCSC/JLCPCB parts; set the ground rules for the mux, INA219, and connector series now.
+4. <strong>Layout:</strong> set the board outline from the template DXF, drop the 40-pin header on the datum, honor the Pi 5 keep-outs. Route order: <strong>power/high-current first &#8594; display SPI &#8594; I&#178;C/IO &#8594; everything else.</strong> 4-layer stackup (SIG / GND / PWR / SIG) for B and A; 2-layer OK for C.
+5. <strong>DRC:</strong> load PCBWay's rules (min 6/6 mil track/space, 0.3 mm drills &#8212; see &#167;6) and run clean. Add impedance constraints only on nets that need them.
+6. <strong>Fab outputs:</strong> Plot <strong>Gerbers (RS-274X)</strong> + <strong>Excellon drill</strong>, generate <strong>BOM (CSV)</strong> and <strong>CPL/placement (.pos)</strong> if you want assembly. Zip Gerbers+drill &#8594; upload to PCBWay &#8594; fill the form.</p>
+<hr />
+<h2 id="6-pcbway-order-form-values-high-reliability-preset">6. PCBWay order-form values (high-reliability preset)</h2>
+<p>Fill the pasted form as below. Values chosen for reliability first, cost second. Where boards differ, the split is called out (<a href="https://www.pcbway.com/capabilities.html">PCBWay capabilities</a>).</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Form field</th>
+<th>Set to</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Board type</td>
+<td><strong>Single pieces</strong> (panel the small Face board via "panel by PCBWay")</td>
+<td>Face board is tiny; panelizing lowers per-unit handling.</td>
+</tr>
+<tr>
+<td>Different design in panel</td>
+<td><strong>1</strong></td>
+<td>One design per order.</td>
+</tr>
+<tr>
+<td>Size (X&#215;Y)</td>
+<td><strong>65 &#215; 56 mm</strong> (Logic HAT); enter each board's actual size</td>
+<td>Matches HAT footprint; drives price tier.</td>
+</tr>
+<tr>
+<td>Layers</td>
+<td><strong>4</strong> for Logic HAT (B) and Power board (A); <strong>2</strong> for Face (C)</td>
+<td>Solid GND + power planes give clean return paths under 62 MHz SPI and quiet the 20 kHz motor rail. Face is simple.</td>
+</tr>
+<tr>
+<td>Material</td>
+<td><strong>FR-4</strong></td>
+<td>Standard, reliable.</td>
+</tr>
+<tr>
+<td>FR4-TG</td>
+<td><strong>TG155</strong> (TG170 if offered at similar cost)</td>
+<td>Sealed shell runs ~78 &#176;C continuously; higher Tg gives thermal-cycling margin over standard TG130-140.</td>
+</tr>
+<tr>
+<td>Thickness</td>
+<td><strong>1.6 mm</strong></td>
+<td>HAT+ standard so standoffs/headers fit; mechanically robust.</td>
+</tr>
+<tr>
+<td>Min track/spacing</td>
+<td><strong>6 mil / 6 mil (0.15 mm)</strong></td>
+<td>Well inside PCBWay's 4 mil floor &#8594; higher yield and reliability, lower cost than fine-line.</td>
+</tr>
+<tr>
+<td>Min hole size</td>
+<td><strong>0.3 mm</strong></td>
+<td>Above the 0.15 mm minimum &#8594; robust plating, better reliability.</td>
+</tr>
+<tr>
+<td>Solder mask</td>
+<td><strong>Green</strong> (or Matte Black if the board is ever visible)</td>
+<td>Green is the most mature, highest-yield mask process. Pick black only for looks.</td>
+</tr>
+<tr>
+<td>Silkscreen</td>
+<td><strong>White</strong></td>
+<td>Standard, legible.</td>
+</tr>
+<tr>
+<td>Surface finish</td>
+<td><strong>ENIG (immersion gold)</strong></td>
+<td>Flat pads for fine-pitch QFN/connectors, best solderability, and corrosion resistance in a warm sealed enclosure &#8212; worth it over lead-free HASL for a reliability build.</td>
+</tr>
+<tr>
+<td>Copper weight (outer)</td>
+<td><strong>1 oz</strong> for B/C; <strong>2 oz</strong> for Power board A</td>
+<td>2 oz on A carries the 12 V/5 A + motor current and spreads heat.</td>
+</tr>
+<tr>
+<td>Via process</td>
+<td><strong>Tented / plugged vias</strong></td>
+<td>Prevents solder wicking and shorts under the dense HAT.</td>
+</tr>
+<tr>
+<td>Impedance control</td>
+<td><strong>No</strong> for HAT/Power (keep SPI short); <strong>only if</strong> you run a long controlled-Z display cable</td>
+<td>Short traces don't need it; don't pay for it unless a net requires it. Standard tolerance is &#177;10%.</td>
+</tr>
+<tr>
+<td>Gold fingers / Castellated / Edge plating</td>
+<td><strong>No</strong></td>
+<td>Not used here.</td>
+</tr>
+<tr>
+<td>Electrical test</td>
+<td><strong>100% flying-probe / E-test</strong></td>
+<td>Non-negotiable for reliability &#8212; catches opens/shorts.</td>
+</tr>
+<tr>
+<td>Remove product No.</td>
+<td><strong>Specify a location</strong> (or Remove)</td>
+<td>Keeps PCBWay's order number off critical silk.</td>
+</tr>
+<tr>
+<td>Quantity</td>
+<td><strong>10</strong> (min useful prototype run)</td>
+<td>Spares for the inevitable rework.</td>
+</tr>
+<tr>
+<td><strong>Special-instructions / remarks box</strong></td>
+<td>Type: <strong>"IPC-A-600 Class 3; confirm stackup &amp; impedance before production; no design changes without approval."</strong></td>
+<td>Class 3 raises annular-ring/plating/inspection standards; the confirm-before-build note is your reliability insurance.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Verify current fab rules at the <a href="https://www.pcbway.com/capabilities.html">PCBWay capabilities page</a> at order time, and pull the exact HAT outline from the <a href="https://github.com/raspberrypi/hats">official Raspberry Pi hats repo</a> before you generate Gerbers.</p>
+<p><strong>Key reference links</strong>
+- HAT+ specification: https://datasheets.raspberrypi.com/hat/hat-plus-specification.pdf
+- HAT design guide: https://github.com/raspberrypi/hats/blob/master/designguide.md
+- HAT mechanical + repo: https://github.com/raspberrypi/hats
+- KiCad HAT+ template: https://github.com/MisterHW/RPi5-HATplus
+- PCBWay capabilities: https://www.pcbway.com/capabilities.html</p>
+<hr />
+<h2 id="3d-printing-the-shell-and-body">3D Printing the shell and body</h2>
+<p>This is the part of the build where an hour of planning saves a week of reprints. The shell is one continuous arched dome, 282 mm tall &#215; 180 mm dia, it lives a few millimeters from a Pi 5 that idles near 78 &#176;C, and it has to look like "good paper" while snapping on and off by hand. Everything below is chosen around those four constraints: <strong>heat, height, hand-feel, and finish.</strong></p>
+<h3 id="1-material-choice-per-part">1. Material choice per part</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Part</th>
+<th>Recommended material</th>
+<th>Why this one</th>
+<th>Avoid / notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Outer shell</strong> (the dome, ONE part)</td>
+<td><strong>ASA</strong> (Polymaker PolyLite ASA or 3DO ASA), matte natural/bone. Premium alt: <strong>SLS/MJF PA12</strong> printed by a service.</td>
+<td>ASA HDT is ~95&#8211;100 &#176;C &#8212; it will not creep or soften sitting next to a 78 &#176;C Pi, and it's genuinely UV-stable (won't yellow), which PETG and PLA are not. PolyLite ASA prints with a naturally matte, low-sheen face that already reads as bead-blasted paper and hides layer lines better than almost any other ASA.</td>
+<td><strong>Do not use PETG for the shell.</strong> Its HDT is only ~70&#8211;75 &#176;C; in a sealed tower running at throttle it can slump or lose stiffness at the crown. <strong>Never PLA</strong> (~55 &#176;C, and it embrittles in UV).</td>
+</tr>
+<tr>
+<td><strong>Face dome</strong> ("smoked glass" over the LCD)</td>
+<td><strong>NOT FDM.</strong> Either (a) <strong>SLA clear resin</strong> (Elegoo Saturn 4 Ultra 16K + a clear resin) polished to optical clarity and tinted, or (b) <strong>off-the-shelf smoked polycarbonate camera dome</strong> (the security-camera dome hemispheres sold in 60&#8211;90 mm dia).</td>
+<td>FDM cannot make anything you can see through &#8212; layer lines scatter light. A tinted resin print or a PC camera dome gives the dark, glassy "one eye" look and PC survives the heat.</td>
+<td>Acrylic (PMMA) domes are cheaper but scratch easily and are more brittle near heat; PC is the durable choice. See tinting methods in &#167;5.</td>
+</tr>
+<tr>
+<td><strong>Rubber skirt</strong> (hides wheels)</td>
+<td><strong>TPU 95A</strong> (Polymaker PolyFlex TPU95 or SUNLU TPU) in matte black. Alt: an off-the-shelf rubber bumper/gasket ring cut to length.</td>
+<td>95A is flexible enough to absorb bumps and take the differential-drive scuffing, but stiff enough to print cleanly and hold a skirt profile. Matte black hides scuffs and reads as "rubber."</td>
+<td>85&#8211;90A prints poorly on Bowden setups and oozes; use direct-drive. If you don't want to print flexible, a slip-on silicone/EPDM bumper is a legitimate shortcut.</td>
+</tr>
+<tr>
+<td><strong>Internal spine + module brackets</strong> (behind the HAL)</td>
+<td><strong>PETG</strong> for general brackets; <strong>PA-CF / PA6-CF</strong> (Bambu PAHT-CF or Polymaker Fiberon PA6-CF) for the load-bearing spine and motor mounts.</td>
+<td>These are hidden, so no UV/finish concern &#8212; you optimize purely for stiffness and dimensional stability. Carbon-filled nylon is dramatically stiffer and dimensionally stable at chassis temperatures, which keeps the drive geometry and encoder alignment true. PETG is fine and cheap for low-load brackets.</td>
+<td>PA-CF needs a hardened steel nozzle and aggressive drying (see &#167;3). Don't put ABS-family parts under continuous load next to the battery.</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Why ASA over PA12-nylon for the shell (the real trade):</strong> printed PA12 (via SLS/MJF at a service like Craftcloud/JLC/PCBWay) is the "guaranteed durable" dream &#8212; isotropic, no layer lines, a factory-matte nylon surface that is <em>exactly</em> the good-paper look with zero post-work, and it sidesteps the 282 mm height problem entirely because the service bed is huge. The catch is cost (a shell that size in MJF is typically $150&#8211;350 per part) and you can't iterate cheaply. <strong>Recommendation: prototype the shell in ASA on your own printer; move the final "Mark edition" shells to MJF PA12 once the geometry is frozen.</strong> That matches your edition model (editions differ only by finish + persona) &#8212; MJF gives you a repeatable, dyeable, identical shell per unit.</p>
+<h3 id="2-the-282-mm-tall-problem">2. The 282 mm-tall problem</h3>
+<p>Most desktop beds are 220&#8211;256 mm in Z, so a 282 mm upright print is off the table on a Bambu P1S/X1C (256), Prusa MK4 (210), or any Ender-class 250. You have three real options.</p>
+<p><strong>Option A &#8212; Buy into a 350 mm-class printer and print it in one piece (recommended if you're doing a run).</strong>
+A one-piece shell has no seams to hide, no glue creep, and no alignment error &#8212; for a "high-reliability, durable" build that's worth the printer. Current (mid-2026) enclosed machines that clear 282 mm in Z with a 180 mm footprint to spare:</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Printer</th>
+<th>Build volume</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Creality K2 Plus</strong></td>
+<td>350 &#215; 350 &#215; 350 mm</td>
+<td>True cube, enclosed, heated chamber &#8212; good for ASA.</td>
+</tr>
+<tr>
+<td><strong>Sovol SV08</strong> (Voron-based, Klipper)</td>
+<td>350 &#215; 350 &#215; 345 mm</td>
+<td>Best value; add the enclosure kit for ASA.</td>
+</tr>
+<tr>
+<td><strong>Qidi Plus 4 / Max 4</strong></td>
+<td>305 &#215; 305 &#215; 280 / 325 mm</td>
+<td>Actively heated chamber (holds ~60&#8211;65 &#176;C) &#8212; the strongest ASA machine here. Max 4 clears the height; verify Plus 4's 280 mm against your final Z.</td>
+</tr>
+<tr>
+<td><strong>Bambu Lab H2D</strong></td>
+<td>350 &#215; 320 &#215; 325 mm</td>
+<td>Fully enclosed CoreXY, plug-and-play calibration at size.</td>
+</tr>
+</tbody>
+</table></div>
+<p>An actively-heated chamber (Qidi) is the single biggest reliability upgrade for a tall ASA part &#8212; it kills the mid-height delamination that open printers get on ASA.</p>
+<p><strong>Option B &#8212; Split into 2 sections along the hidden rear seam + internal collar (recommended if you keep your current printer).</strong>
+Split the dome once at roughly mid-height (~140 mm), landing the cut <em>inside the rear seam line</em> so it's already visually broken there. Design the join as:
+- A <strong>3&#8211;4 mm registration lip/collar</strong> on the lower half that the upper half slides over (self-aligning, and it doubles the glue-bond surface area).
+- <strong>3&#215; tapered alignment pins</strong> (&#216;5 mm, 8 mm long, 1&#176; draft) at 120&#176; so it can only assemble one way and can't rack.
+- A separately-printed <strong>internal PETG collar ring</strong> epoxied across the seam on the inside &#8212; this is what actually carries the load; the outer joint is cosmetic.
+- Bond with <strong>methylene-chloride/acetone-family solvent weld</strong> (ASA solvent-welds like ABS &#8212; it fuses to one material, stronger than glue) or, for PA12/PETG where solvent won't work, <strong>methacrylate structural adhesive (e.g. 3M DP8005/Plexus)</strong>.</p>
+<p><strong>Option C &#8212; 3 shorter sections.</strong> Only if your Z is truly small (~200 mm). More seams = more finishing work and more chances for a visible step; avoid unless forced.</p>
+<p><strong>Recommendation:</strong> if this is a product run, <strong>Option A on a Qidi (heated chamber) or K2 Plus</strong> &#8212; one-piece reliability with the fewest failure modes. If it's a one-off on gear you already own, <strong>Option B, two-piece with an internal PETG collar</strong>, hidden in the rear seam. Either way, keep the <em>face bezel</em> opening and the two thumbscrew bosses in the lower section so the precision features print flat and true.</p>
+<h3 id="3-print-settings-per-material">3. Print settings per material</h3>
+<p>Values are a strong starting point for a 0.4 mm nozzle (use a <strong>0.6 mm nozzle for the shell</strong> &#8212; fewer perimeters for the same wall thickness, ~40% faster on a big part, and stronger layer bonding). Always fine-tune to your machine.</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>ASA (shell)</th>
+<th>PETG (brackets)</th>
+<th>PA-CF (spine)</th>
+<th>TPU 95A (skirt)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Nozzle temp</strong></td>
+<td>250&#8211;260 &#176;C</td>
+<td>235&#8211;245 &#176;C</td>
+<td>285&#8211;300 &#176;C</td>
+<td>220&#8211;230 &#176;C</td>
+</tr>
+<tr>
+<td><strong>Bed temp</strong></td>
+<td>95&#8211;100 &#176;C</td>
+<td>80&#8211;85 &#176;C</td>
+<td>90&#8211;110 &#176;C</td>
+<td>40&#8211;50 &#176;C</td>
+</tr>
+<tr>
+<td><strong>Chamber</strong></td>
+<td>Enclosed, 45&#8211;55 &#176;C (heated ideal)</td>
+<td>Not required</td>
+<td>Enclosed</td>
+<td>Not required</td>
+</tr>
+<tr>
+<td><strong>Nozzle type</strong></td>
+<td>Brass ok</td>
+<td>Brass ok</td>
+<td><strong>Hardened steel</strong> (CF is abrasive)</td>
+<td>Brass ok</td>
+</tr>
+<tr>
+<td><strong>Filament drying</strong></td>
+<td>4 h @ 70 &#176;C</td>
+<td>4 h @ 65 &#176;C</td>
+<td><strong>8&#8211;12 h @ 80 &#176;C, print from dry box</strong></td>
+<td>6 h @ 55 &#176;C</td>
+</tr>
+<tr>
+<td><strong>Layer height</strong></td>
+<td>0.20 mm body / <strong>0.12&#8211;0.16 mm face bezel</strong></td>
+<td>0.20 mm</td>
+<td>0.20 mm</td>
+<td>0.20 mm</td>
+</tr>
+<tr>
+<td><strong>Walls / perimeters</strong></td>
+<td><strong>4</strong> (or 3 with 0.6 nozzle &#8594; ~1.8 mm wall)</td>
+<td>3&#8211;4</td>
+<td>4</td>
+<td>2&#8211;3</td>
+</tr>
+<tr>
+<td><strong>Infill</strong></td>
+<td><strong>15% gyroid</strong></td>
+<td>15&#8211;20% gyroid</td>
+<td>25&#8211;30% gyroid</td>
+<td>8&#8211;12% gyroid</td>
+</tr>
+<tr>
+<td><strong>Top/bottom layers</strong></td>
+<td>5 / 5</td>
+<td>5 / 5</td>
+<td>6 / 6</td>
+<td>4 / 4</td>
+</tr>
+<tr>
+<td><strong>Print speed (walls)</strong></td>
+<td>80&#8211;120 mm/s (outer ~60)</td>
+<td>40&#8211;60 mm/s</td>
+<td>40&#8211;60 mm/s</td>
+<td><strong>20&#8211;35 mm/s</strong></td>
+</tr>
+<tr>
+<td><strong>Part cooling fan</strong></td>
+<td><strong>5&#8211;20%</strong> (low, prevents delam)</td>
+<td>30&#8211;50%</td>
+<td>0&#8211;20%</td>
+<td>30&#8211;50%</td>
+</tr>
+<tr>
+<td><strong>Bed adhesion</strong></td>
+<td><strong>5&#8211;8 mm brim + draft shield</strong>, glue stick</td>
+<td>Brim if tall</td>
+<td>Brim, PEI + glue</td>
+<td>Textured PEI, glue</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Why these:</strong> <em>Gyroid infill</em> gives near-isotropic stiffness in all directions for a shell that gets handled from every angle, and it prints without the "thunk" resonance of grid. <em>4 walls</em> is the structural minimum for a load-bearing shell that takes thumbscrew and magnet loads &#8212; at 0.6 mm nozzle that's ~1.8 mm of solid perimeter. <em>Low cooling on ASA</em> is counterintuitive but essential: too much fan is the #1 cause of layer cracking and warping on ASA, especially on a tall part. The <em>finer 0.12&#8211;0.16 mm layers on the face bezel</em> keep the smoked-dome bezel crisp so the "one eye" reads as a clean rim, not a stair-stepped ring.</p>
+<p><strong>Orientation &amp; supports for the curved dome:</strong>
+- <strong>Print the shell upright, crown-up</strong>, on its skirt opening. This puts layer lines running <em>around</em> the dome (they follow the silhouette, so they read as intentional turned-lathe rings, not defects) and keeps the crown's mic-ring/camera features as the last thing printed &#8212; no supports touching the visible dome exterior.
+- The <strong>crown overhang</strong>: a dome that closes at the top self-supports up to ~50&#8211;55&#176; from vertical, but the final cap flattens past that. Use <strong>tree/organic supports</strong> <em>interfacing only the inside</em> of the crown, or design a small "sacrificial dome-cap" seam. Never let supports contact the outer show surface &#8212; support scars are the hardest thing to sand out of a matte finish.
+- The <strong>face-dome bezel opening</strong> prints as an overhang on the front; add a 45&#176; chamfer or a printed-in-place bridge so it needs no support.
+- ASA <strong>must</strong> run in an enclosure. On an open printer a 282 mm ASA shell <em>will</em> corner-lift and crack. If you can't enclose, that's your cue to switch that part to PETG-for-prototype-only or go MJF.</p>
+<h3 id="4-magnetic-mounts-the-two-thumbscrews-magnets-system">4. Magnetic mounts (the "two thumbscrews + magnets" system)</h3>
+<p>The thumbscrews carry the real retention load; the magnets do <strong>alignment and the satisfying snap</strong>, and hold the shell/face closed between the screws so nothing rattles. Use <strong>N52 discs</strong>: 6 &#215; 3 mm for the shell perimeter, 6 &#215; 2 mm for the lighter face dome.</p>
+<p><strong>Pocket geometry (model these into the CAD, don't drill later):</strong></p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Value</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Pocket diameter</td>
+<td><strong>magnet &#216; + 0.10&#8211;0.15 mm</strong> &#8594; <strong>6.10&#8211;6.15 mm</strong> for a 6 mm magnet</td>
+<td>FDM prints holes slightly undersize; this lands a light slip/press fit. Print a 3-hole test coupon (6.05/6.10/6.15) and pick the one that presses in with thumb pressure.</td>
+</tr>
+<tr>
+<td>Pocket depth (press-fit)</td>
+<td><strong>magnet thickness + 0.05 mm</strong>, blind</td>
+<td>Magnet sits flush or 0.05 mm proud so mating pairs actually touch.</td>
+</tr>
+<tr>
+<td>Pocket depth (glued, recessed)</td>
+<td><strong>magnet thickness + 0.20 mm</strong></td>
+<td>Leaves room for a CA-glue bead under the magnet.</td>
+</tr>
+<tr>
+<td><strong>Cap wall</strong> (show side)</td>
+<td><strong>0.6&#8211;0.8 mm</strong> of solid material over the pocket</td>
+<td>Hides the magnet completely behind the "good paper" surface &#8212; a blind pocket, never a through-hole. Thin enough that it barely costs pull force.</td>
+</tr>
+<tr>
+<td>Wall around pocket</td>
+<td>&#8805; 1.5 mm</td>
+<td>Keeps the boss from splitting on press-fit.</td>
+</tr>
+<tr>
+<td>Lead-in chamfer</td>
+<td>0.3 mm &#215; 45&#176; at the pocket mouth</td>
+<td>Guides the magnet in straight.</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Press-fit vs CA glue:</strong> press-fit alone can pop a magnet loose over hundreds of open/close cycles. <strong>Best practice: press-fit for alignment, then a drop of thin CA wicked around the edge and a 5-minute cure.</strong> Use CA, not epoxy &#8212; epoxy's thickness fights the tight fit.</p>
+<p><strong>Polarity &#8212; build a jig, this is the classic disaster:</strong> if two magnets go in backwards, the shell repels instead of holds. Make a tiny printed <strong>polarity jig</strong>: a block with one magnet epoxied in a marked "reference" pocket, and a shallow tray. Before every install, drop the loose magnet on the reference &#8212; the face that <em>sticks</em> is the face that goes <em>down into</em> the pocket (or up, pick one convention and mark it). Install all shell magnets one way and all mating (chassis-side) magnets the other. Dab the top face with a paint pen after seating so a mistake is visible before glue cures.</p>
+<p><strong>Pull-force sizing (make it hold, but pop off by hand):</strong>
+- A single <strong>6 &#215; 3 mm N52</strong> disc pulls ~<strong>1.0&#8211;1.3 kg (&#8776;10&#8211;13 N)</strong> against thick steel <em>in contact</em>. But you're going <strong>magnet-to-magnet through two cap walls</strong> (~1.2&#8211;1.6 mm total air gap), which drops the <em>usable</em> clamp to roughly <strong>30&#8211;50%</strong>, so budget ~<strong>0.4&#8211;0.6 kg (&#8776;4&#8211;6 N) per pair</strong>.
+- <strong>Target total shell retention &#8776; 2&#8211;3&#215; the shell's weight</strong> so it feels solid but releases with a deliberate pull. A bare ASA shell of this size is ~250&#8211;350 g, so aim for ~<strong>0.7&#8211;1.0 kg</strong> of magnetic hold.
+- That's <strong>4&#8211;6 magnet pairs</strong> around the skirt seam (&#8776;2.5&#8211;3.5 kg raw, ~1 kg usable through the walls) &#8212; comfortably poppable by hand yet impossible to rattle loose. <strong>Face dome: 3&#215; 6 &#215; 2 mm pairs</strong> (lighter, ~0.4&#8211;0.6 kg total) since it's a small part you remove often.
+- Space shell magnets <strong>evenly at the seam</strong> and orient the two thumbscrews as the primary latch; the magnets fill the arc between them so there's no gap you can pry.</p>
+<h3 id="5-post-processing-for-the-matte-good-paper-finish">5. Post-processing for the matte "good paper" finish</h3>
+<p>The goal is a uniform, warm, sheen-free bead-blasted look &#8212; the opposite of glossy 3D-printed plastic. ASA gets you 80% of the way raw; the rest is finishing discipline.</p>
+<ol>
+<li><strong>Layer-line strategy first.</strong> The fastest matte look is <em>not sanding to gloss</em> &#8212; it's keeping consistent fine layers and then unifying the surface with primer. Print the shell at 0.20 mm with clean walls; a matte ASA already scatters light. Knock down any support nubs or seams with 320 grit <em>locally only</em>.</li>
+<li><strong>Fill + prime.</strong> Two to three light coats of <strong>filler-primer</strong> (Rust-Oleum Filler Primer or Dupli-Color Filler Primer), sanding between coats with 320&#8594;400 grit. This buries the finest layer lines and gives one uniform substrate color &#8212; critical since the "good paper" tone must be even across a glued seam.</li>
+<li><strong>Matte topcoat for the bead-blast look.</strong> Finish with a <strong>dead-matte / ultra-flat clear or color</strong>: Rust-Oleum 2X Ultra Matte or Montana FLAT MATTE in a warm off-white/bone ("color of good paper"). A flat/matte lacquer chemically gives the diffuse, no-gloss, faintly textured surface that reads as bead-blasted &#8212; you don't actually need to bead-blast. If you <em>want</em> real texture, a very light pass with 220-grit <em>before</em> the matte coat adds tooth.</li>
+<li><strong>MJF PA12 shortcut:</strong> if you went the SLS/MJF route, skip 1&#8211;3 &#8212; order it <strong>dyed (Deep-dye) in a warm neutral</strong>; it arrives matte and uniform out of the box. That's the single biggest reason to move final editions to MJF.</li>
+<li><strong>The face dome tint (smoked glass).</strong> Three ways, darkest-looking first:
+   - <strong>Dye the clear resin</strong> before printing &#8212; a few drops of translucent resin dye (SpecCast/Alsa or Elegoo's own translucent) makes the whole dome smoke-gray. Most durable, no coating to scratch.
+   - <strong>Spray transparent smoke</strong> on a polished clear dome: <strong>Tamiya TS-71 Smoke</strong> or Alsa Candy in light passes &#8212; you control darkness by coats. The LCD must still read through it (aim for ~30&#8211;50% transmission), so test on a coupon over a lit screen.
+   - <strong>Off-the-shelf smoked PC camera dome</strong> &#8212; already tinted, already optically smooth, zero polishing. Often the smart move.
+   - To make a <em>printed</em> clear dome truly glassy first: wet-sand 400&#8594;800&#8594;1500&#8594;3000, then either a <strong>2K automotive clear coat</strong>, a <strong>Krylon Triple-Thick</strong> clear, or a <strong>dip in clear resin + re-cure</strong> to fill micro-scratches. Then tint.</li>
+<li><strong>The single steel-blue accent &#8212; used exactly twice.</strong> Mask and paint <strong>only the skirt seam line and the eye ring</strong> in your one steel-blue (a satin, not gloss, so it sits within the matte language). Use fine-line masking tape, a light coat, and pull the tape while wet for a crisp edge. The eye-ring accent goes on the face-dome bezel rim; the seam accent goes in the recessed skirt groove where it catches light as a single deliberate line. Restraint is the whole aesthetic &#8212; resist adding it anywhere else.</li>
+</ol>
+<h3 id="6-threaded-inserts-heat-set-m3">6. Threaded inserts (heat-set M3)</h3>
+<p>Never thread screws directly into printed plastic on a part that gets opened repeatedly &#8212; the threads strip. Use <strong>brass heat-set M3 inserts</strong> (the standard tapered-knurl type, e.g. CNC Kitchen / Ruthex M3&#215;4 mm or M3&#215;5.7 mm) for <strong>both thumbscrew bosses and the Pi/PCB standoffs.</strong></p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Value</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Pilot-hole diameter (ASA/PETG)</td>
+<td><strong>&#216;4.0 mm</strong> (test &#216;3.9&#8211;4.1 in 0.1 steps)</td>
+<td>Too small &#8594; melts/bulges the boss and stresses walls; too large &#8594; weak pull-out. Measure the <em>cooled printed</em> hole, not CAD.</td>
+</tr>
+<tr>
+<td>Hole depth</td>
+<td>insert length <strong>+ 0.5&#8211;1.0 mm</strong></td>
+<td>Gives molten plastic somewhere to flow instead of squeezing back up around the insert.</td>
+</tr>
+<tr>
+<td>Boss outer diameter</td>
+<td><strong>&#8805; 2&#215; insert OD</strong> (~9&#8211;10 mm for M3)</td>
+<td>Enough material around the insert for real pull-out and torque strength.</td>
+</tr>
+<tr>
+<td>Lead-in chamfer</td>
+<td>0.5 mm &#215; 45&#176; at hole mouth</td>
+<td>Centers the insert so it goes in straight and flush.</td>
+</tr>
+<tr>
+<td>Insert length</td>
+<td><strong>thumbscrews: M3&#215;5.7 mm</strong> (higher load); standoffs: M3&#215;4 mm</td>
+<td>Longer insert for the parts that see repeated hand-torque.</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Installation:</strong> use a soldering iron with a heat-set tip (or a spare conical tip), set <strong>240&#8211;260 &#176;C for ASA/PETG</strong>. Rest the insert on the hole, press slowly and dead-straight until it's flush or <strong>0.1 mm below</strong> the surface, then back the iron out and press the insert square with a flat metal block while it's still soft so the top is perfectly parallel. Let it cool 30 s before threading. Slight melt squeeze-out around the rim is normal &#8212; that's the plastic keying into the knurls, which is exactly the mechanical lock you want.</p>
+<p><strong>Placement:</strong> put the two <strong>thumbscrew inserts in the lower shell section</strong> (so the precision bosses print flat and don't cross a glue seam), and put <strong>PCB/standoff inserts in the internal PA-CF spine</strong>, not the cosmetic shell &#8212; the spine is stiffer and stays dimensionally stable at the ~78 &#176;C the stack runs at, so the Pi 5 HAT mounting stays true over time.</p>
+<hr />
+<p><strong>Verified references (mid-2026):</strong> large-format enclosed printers &#8212; <a href="https://peccadille.net/best-large-format-3d-printers/">Bambu H2D / Creality K2 Plus / Qidi / Sovol roundups</a>, <a href="https://us.store.bambulab.com/collections/large-format-3d-printer">Bambu Lab large-format store</a>; ASA selection &amp; matte finish &#8212; <a href="https://3dprinting.com/filament/best-abs-asa-filament/">3DPrinting.com ABS/ASA guide</a>, <a href="https://makers101.com/best-asa-filament/">Makers101 ASA test</a>; clear-resin face dome &#8212; <a href="https://www.liqcreate.com/supportarticles/elegoo-saturn4-ultra-resin/">Elegoo Saturn 4 Ultra resin/settings (Liqcreate)</a>; heat-set inserts &#8212; <a href="https://accu-components.com/us/p/488-threaded-insert-hole-size-charts-for-3d-printing-pla-petg-resin">Accu insert hole-size charts</a>, <a href="https://insertguide.com/m3-heat-set-insert-hole-size-for-3d-printed-parts/">InsertGuide M3 hole size</a>.</p>
+<hr />
+<h2 id="blender-cad-workflow-modeling-the-parts-for-print-and-fit">Blender + CAD workflow &#8212; modeling the parts for print and fit</h2>
+<p><strong>The honest split:</strong> Blender is the right tool for exactly one thing on Atlas &#8212; the <em>organic shell skin</em>: the single crown-to-skirt arch, the way the vent grille flows into the surface, the skirt transition, the smoked-glass face bezel. It is the <em>wrong</em> tool for anything that has to hold a tolerance: the PCB tray, the M2.5 standoffs under the Pi 5, the N20 motor cradles, the magnet pockets for the dock, the two thumbscrew bosses, the HAL slide rails. Blender's mesh math has no notion of &#177;0.1 mm, its "fillets" are bevels-on-triangles, and a threaded-insert boss modeled there will drift. Parametric CAD (FreeCAD 1.1.1, free, or Fusion 360) carries real dimensions, real fillets, and a feature tree you can edit when the header moves 2 mm.</p>
+<p>So run a <strong>hybrid pipeline with STEP as the contract between the two apps.</strong> Sculpt the shell in Blender, engineer every mechanical fixture in CAD, and marry them as <em>separate printed parts</em> (preferred &#8212; the shell prints alone, the spine/tray prints alone) rather than fusing everything into one mesh. STEP moves solids between tools; STL/3MF feeds the slicer; DXF handles anything 2D.</p>
+<h3 id="0-tools-and-roles-verified-current-july-2026">0. Tools and roles (verified current, July 2026)</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Version</th>
+<th>Role in Atlas</th>
+<th>Native formats</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Blender</strong></td>
+<td>4.5 LTS</td>
+<td>Shell surface: dome silhouette, vent flow, skirt, face bezel, cosmetic booleans</td>
+<td><code>.blend</code>, exports STL / 3MF / OBJ</td>
+</tr>
+<tr>
+<td><strong>3D Print Toolbox</strong></td>
+<td>1.3.2 extension (Jan 2026)</td>
+<td>Manifold / normal / wall-thickness / shell-count checks</td>
+<td>&#8212;</td>
+</tr>
+<tr>
+<td><strong>FreeCAD</strong></td>
+<td>1.1.1</td>
+<td>Mechanical: PCB tray, standoffs, motor mounts, magnet pockets, spine, dock</td>
+<td><code>.FCStd</code>, native <strong>STEP</strong> in/out, DXF</td>
+</tr>
+<tr>
+<td><strong>Fusion 360</strong></td>
+<td>2026 release</td>
+<td>Same as FreeCAD if you prefer cloud/assemblies</td>
+<td>STEP, DXF, 3MF</td>
+</tr>
+<tr>
+<td><strong>Slicer</strong></td>
+<td>OrcaSlicer 2.x / Bambu / PrusaSlicer 2.9</td>
+<td>Print prep for shell + internals</td>
+<td>consumes STL / <strong>3MF</strong></td>
+</tr>
+</tbody>
+</table></div>
+<blockquote>
+<p>Note on the toolbox: as of Blender 4.2+ it is <strong>no longer a bundled add-on</strong> &#8212; install it from the in-app <strong>Extensions</strong> panel (<code>Edit &#8594; Preferences &#8594; Get Extensions</code>, search "3D Print Toolbox"). It is compatible with 4.5 LTS.</p>
+</blockquote>
+<p>FreeCAD 1.0+ finally fixed the <em>topological naming problem</em>, which is exactly why it's now safe to recommend for a build where you'll edit standoff positions repeatedly &#8212; earlier versions would silently break references when you changed an upstream feature.</p>
+<hr />
+<h3 id="1-the-signature-single-arched-dome-profile-curve-revolve">1. The signature single-arched dome &#8212; profile curve &#8594; revolve</h3>
+<p><strong>First, reconcile the golden-ratio target before you draw anything.</strong> &#966; = 1.6180.</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Dimension</th>
+<th>Design doc</th>
+<th>True &#966; at &#216;180</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Width (diameter)</td>
+<td>180 mm</td>
+<td>180 mm</td>
+</tr>
+<tr>
+<td>Height</td>
+<td>282 mm &#8594; ratio <strong>1.567</strong></td>
+<td>180 &#215; &#966; = <strong>291.2 mm</strong></td>
+</tr>
+</tbody>
+</table></div>
+<p>The doc's 282 &#215; 180 is <em>not</em> golden (it's 1.567). Decide now: either accept 282 as a hard mechanical constraint (battery-over-axle stack height) and call the ratio "near-golden," or push the crown to <strong>291 mm</strong> to hit true &#966;. This is a one-number decision that propagates through every part &#8212; set it first. (I'd hold 180 &#216; and take the height to 291; the extra 9 mm is free internal air on a shell that runs at ~78 &#176;C.)</p>
+<p><strong>Draw the profile as ONE B&#233;zier curve, half only:</strong></p>
+<ol>
+<li>Front orthographic view (<code>Numpad 1</code>), <code>Shift+A &#8594; Curve &#8594; B&#233;zier</code>.</li>
+<li>Model <strong>only the right half</strong> of the silhouette (X &#8805; 0), from crown apex on the Z axis down to the skirt seam. The Screw/Spin will mirror it around.</li>
+<li>Keep it <em>one continuous curve, no hard edges</em>: use <strong>Auto/Aligned handles</strong>, not Vector handles. The whole point of the aesthetic is crown-to-skirt with no visible break &#8212; a single Vector handle anywhere prints as a crease. Set the curve's <strong>Shape &#8594; Resolution Preview U</strong> to 24&#8211;32 so the arc is smooth before it becomes geometry.</li>
+<li>The apex control point sits <em>on</em> the Z axis with a horizontal handle (guarantees a smooth, non-pinched crown when revolved). The skirt-seam point is where your <strong>one steel-blue accent line #1</strong> lives &#8212; put a control point there exactly so the seam is a clean latitude.</li>
+</ol>
+<p><strong>Revolve it:</strong></p>
+<ul>
+<li>Convert curve &#8594; mesh only when the profile is final (<code>Object &#8594; Convert &#8594; Mesh</code>), <em>or</em> keep it a curve and use <strong>Spin</strong>. For a controllable, non-destructive tower, the clean path is: convert to a profile mesh edge-loop, then add a <strong>Screw modifier</strong>:</li>
+</ul>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Screw setting</th>
+<th>Value</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Axis</td>
+<td>Z</td>
+<td>Vertical tower</td>
+</tr>
+<tr>
+<td>Angle</td>
+<td>360&#176;</td>
+<td>Full revolve</td>
+</tr>
+<tr>
+<td>Screw (pitch)</td>
+<td>0 mm</td>
+<td>Pure revolve, not a helix</td>
+</tr>
+<tr>
+<td>Steps</td>
+<td><strong>128</strong> (viewport) / <strong>256</strong> (render+export)</td>
+<td>256 around &#216;180 = ~2.2 mm facet chord; below the bead-blast texture, invisible. Fewer facets = polygonal skirt.</td>
+</tr>
+<tr>
+<td>Merge / Clamp</td>
+<td>On, 0.01 mm</td>
+<td>Welds the seam vertices so it stays one watertight shell</td>
+</tr>
+</tbody>
+</table></div>
+<ul>
+<li>Prefer <strong>Screw modifier over Spin</strong> here because it stays live &#8212; you can keep tweaking the B&#233;zier profile and watch the tower update.</li>
+</ul>
+<p><strong>Then Boolean-cut the four openings</strong> (each as its own hidden cutter object, <code>Boolean</code> modifier set to <strong>Exact</strong>, keep cutters in a hidden "CUTTERS" collection so they don't export):</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Cutter</th>
+<th>Feature</th>
+<th>Placement note</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Face opening</td>
+<td>Round LCD aperture</td>
+<td>Front, on the mast-rake datum. Aperture = LCD <strong>active-circle &#216; + ~1 mm reveal</strong>; recess a lip for the smoked-glass dome. Pull the exact active-area diameter from the panel datasheet &#8212; do <strong>not</strong> guess it from the "3.1 in" number (round panels quote diagonal/outer glass, not active pixels).</td>
+</tr>
+<tr>
+<td>Rear vent grille</td>
+<td>Airflow for the ~78 &#176;C, fan-forced sealed shell</td>
+<td>Louvered slots, radiused ends; total open area sized to the FAN duct, not decorative.</td>
+</tr>
+<tr>
+<td>Recessed e-stop</td>
+<td>Crown-recessed button (GPIO26 sense)</td>
+<td>Recess deeper than the button cap so nothing snags &#8212; it's a safety control.</td>
+</tr>
+<tr>
+<td>Camera/mic crown</td>
+<td>CSI camera window + 4-mic ring ports</td>
+<td>On the crown; see mast rake &#167;4.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Do these cuts <strong>after</strong> Solidify (next), so the slot walls have real thickness on both faces.</p>
+<hr />
+<h3 id="2-wall-thickness-solidify">2. Wall thickness &#8212; Solidify</h3>
+<p>Target <strong>2.5&#8211;3.5 mm</strong> wall. Why that band, concretely:</p>
+<ul>
+<li><strong>Lower bound 2.5 mm</strong> &#8212; this is a sealed, always-on shell held by only two thumbscrews and dropped occasionally; below ~2.5 mm the arch flexes, thumbscrew bosses pull through, and heat-set inserts don't get enough wall to grip.</li>
+<li><strong>Upper bound 3.5 mm</strong> &#8212; beyond that you warp a 282&#8211;291 mm print, waste filament, and gain no stiffness; 3.5 mm also keeps the bead-blast/finish sanding pass from ever cutting through to daylight.</li>
+<li>Use <strong>3.0 mm</strong> nominal; go to 3.5 mm locally around the thumbscrew bosses and face-opening lip (model those as separate reinforcing solids, not by thickening the whole shell).</li>
+</ul>
+<p>Solidify settings:</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Value</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Thickness</td>
+<td>3.0 mm</td>
+<td>Nominal wall</td>
+</tr>
+<tr>
+<td>Offset</td>
+<td><strong>&#8722;1</strong> (inward)</td>
+<td>Keeps the <strong>outer</strong> silhouette dimensionally exact &#8212; your golden-ratio &#216;180 and crown height are the <em>outside</em> skin. Offset 0 or +1 would grow the OD and break the ratio.</td>
+</tr>
+<tr>
+<td>Even Thickness</td>
+<td>On</td>
+<td>Constant wall through the crown curvature</td>
+</tr>
+<tr>
+<td>Rim / Fill</td>
+<td>On</td>
+<td>Closes the wall edges at the vent and face apertures so they're solid, not paper-thin</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Order of operations matters:</strong> silhouette surface &#8594; <strong>Solidify</strong> &#8594; <strong>then Boolean</strong> the apertures through the finished wall. Cutting holes through an already-thick wall gives clean, manifold slot edges; solidifying <em>after</em> booleaning tends to leave zero-thickness rims the slicer chokes on.</p>
+<hr />
+<h3 id="3-getting-a-manufacturable-mesh">3. Getting a manufacturable mesh</h3>
+<ol>
+<li><strong>Apply modifiers in stack order</strong>, top-down, only when final: Screw &#8594; Solidify &#8594; Boolean (<code>Ctrl+A</code> / Apply on each). Everything above stays live until this point.</li>
+<li><strong>Normals:</strong> enable <strong>Overlays &#8594; Face Orientation</strong> (blue = outside, red = inside). Any red = flipped normal the slicer reads as a hole. <code>Shift+N</code> = Recalculate Outside. On a booleaned shell, recalc <em>after</em> applying booleans.</li>
+<li><strong>3D Print Toolbox &#8594; Check All.</strong> For a shippable shell you want:
+   - <strong>Non-manifold edges: 0</strong> (the single most common cause of a slicer refusing/mis-solidifying a part)
+   - <strong>Intersecting / self-intersecting faces: 0</strong>
+   - <strong>Zero-area faces / zero-length edges: 0</strong>
+   - <strong>Shells: 1</strong> (exactly one watertight island &#8212; the toolbox's Shells check confirms it)
+   - Overhang / thickness reports as reference (steep crown overhangs &#8594; plan tree supports or print face-down)</li>
+<li><strong>Remesh/decimate &#8212; sparingly.</strong> A clean quad revolve is <em>already</em> good topology; don't reflexively voxel-remesh it. Voxel Remesh only if booleans left a shredded intersection you can't repair by hand; if you do, use a voxel size &#8804; 1 mm so you don't round off the arch. <strong>Decimate</strong> is for cosmetic weight reduction only &#8212; never on mating surfaces or the face lip.</li>
+<li><strong>Export &#8212; and get millimeters right, or you print a doll:</strong></li>
+</ol>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Export setting</th>
+<th>Value</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Scene Unit Scale</td>
+<td>Blender treats 1 BU = 1 m by default</td>
+<td>Set <code>Scene Properties &#8594; Units &#8594; Length = Millimeters</code>, Unit Scale 0.001, so 1 BU reads as 1 mm</td>
+</tr>
+<tr>
+<td>STL export <strong>Scale</strong></td>
+<td>1.0 (if units set as above) or 1000 (if left at meters)</td>
+<td>This is the #1 wrong-scale trap</td>
+</tr>
+<tr>
+<td>Format</td>
+<td><strong>3MF preferred</strong>, STL fallback</td>
+<td>3MF carries units + multiple objects + is what OrcaSlicer/Bambu/Prusa want in 2026; STL is unit-less and forgets scale</td>
+</tr>
+<tr>
+<td>Selection Only</td>
+<td>On</td>
+<td>Export just the shell, not the cutters/reference imports</td>
+</tr>
+<tr>
+<td>Apply Modifiers</td>
+<td>On</td>
+<td>Bakes anything you left live</td>
+</tr>
+<tr>
+<td>Forward/Up</td>
+<td>Y-up or Z-up per slicer</td>
+<td>Match your slicer's convention so it lands flat</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+<h3 id="4-fit-workflow-do-the-assembly-in-cad-not-blender">4. Fit workflow &#8212; do the assembly in CAD, not Blender</h3>
+<p>Blender's STEP import is weak (it needs an add-on like STEPper/CAD-Sketcher and still tessellates solids). <strong>Do the fit check in FreeCAD/Fusion</strong>, where STEP is native, and bring the <em>shell</em> in the other direction as an STL/3MF reference body. Import the real STEP solids:</p>
+<ul>
+<li><strong>Raspberry Pi 5</strong> (official STEP), the <strong>custom HAT</strong> (export from your PCB tool as STEP &#8212; see the PCB section), <strong>4S2P 18650 pack</strong>, <strong>N20 motors + wheels</strong>, <strong>Camera Module 3</strong>, the <strong>round LCD</strong>, TB6612FNG carrier, dock pogo block.</li>
+</ul>
+<p>Lay out the internal <strong>"spine"</strong> &#8212; every board mounted to one billet/tray that slides out as a unit behind the HAL:</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Clearance check</th>
+<th>Target</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PCB edge &#8594; shell inner wall</td>
+<td>&#8805; 2.0 mm</td>
+<td>Assembly tolerance + insulation on a sealed shell</td>
+</tr>
+<tr>
+<td>Any board &#8594; board (stacked)</td>
+<td>Per header height (Pi5 + HAT &#8776; 20&#8211;25 mm)</td>
+<td>Confirm the HAT stack clears the camera ribbon</td>
+</tr>
+<tr>
+<td>Airflow gap (fan path)</td>
+<td>&#8805; 5 mm continuous</td>
+<td>It idles near the 78 &#176;C throttle &#8212; the vent&#8594;fan&#8594;board channel must stay open</td>
+</tr>
+<tr>
+<td>Spine slide travel</td>
+<td>Full pack length + finger clearance</td>
+<td>The whole spine must extract without fouling the skirt</td>
+</tr>
+<tr>
+<td>Thumbscrew boss &#8594; nearest board</td>
+<td>&#8805; 3 mm</td>
+<td>So you can drive the screw without hitting a connector</td>
+</tr>
+</tbody>
+</table></div>
+<ul>
+<li><strong>Camera mast: 2&#176; forward rake.</strong> Model the mast as its own feature and rotate <strong>2&#176; about the pitch (X) axis toward the front</strong>, referenced to the shell's front datum. Verify the CSI ribbon still has slack at 2&#176; and that the lens cone clears the crown aperture through the full rake.</li>
+<li><strong>AprilTag dock face:</strong> keep the docking face <strong>flat, vertical, and a known printed size</strong> (the tag must be planar and its edge length exact for pose solving). Place it as a recessed flat on the skirt/dock so the tag can't bow when the shell flexes, and confirm the camera at 2&#176; rake actually sees it at docking distance.</li>
+</ul>
+<hr />
+<h3 id="5-where-to-get-the-component-3d-models">5. Where to get the component 3D models</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Part</th>
+<th>Best source</th>
+<th>Format</th>
+<th>Caution</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Raspberry Pi 5, Cam Module 3</td>
+<td><strong>Official</strong> <code>datasheets.raspberrypi.com/rpi5</code> (<code>RaspberryPi5-step.zip</code>) + mechanical-drawing PDF</td>
+<td>STEP + PDF</td>
+<td>Use official over community &#8212; connector heights are right</td>
+</tr>
+<tr>
+<td>N20 motors, VL53L1X, IMU carriers</td>
+<td>Manufacturer (Pololu, ST, DFRobot, Adafruit)</td>
+<td>STEP</td>
+<td>Often on the product page's "Resources" tab</td>
+</tr>
+<tr>
+<td>Round LCD, MAX98357A, mic boards</td>
+<td>Vendor (Waveshare/Adafruit) STEP or datasheet dims</td>
+<td>STEP / PDF</td>
+<td>If no STEP, model a simple bounding solid from the datasheet</td>
+</tr>
+<tr>
+<td>40-pin header, JST, USB-C, pogo pins</td>
+<td><strong>SnapEDA / Ultra Librarian</strong></td>
+<td>STEP (+ footprint/symbol)</td>
+<td>Same source feeds your PCB tool &#8212; keeps board and enclosure consistent</td>
+</tr>
+<tr>
+<td>Anything missing</td>
+<td><strong>GrabCAD</strong> community library</td>
+<td>STEP</td>
+<td><strong>Verify against the physical part / datasheet</strong> &#8212; community models are frequently wrong by a millimeter or a revision</td>
+</tr>
+</tbody>
+</table></div>
+<p>Rule: a downloaded STEP is a <em>hypothesis</em> until you've checked its critical dimension (header pitch, mount-hole spacing, connector height) against the datasheet or calipers.</p>
+<hr />
+<h3 id="6-concrete-step-order-and-the-file-matrix">6. Concrete step order and the file matrix</h3>
+<p><strong>Order:</strong> silhouette &#8594; shell &#8594; internals &#8594; print files.</p>
+<ol>
+<li><strong>Silhouette (Blender):</strong> lock the height:width decision (&#167;1), draw the half-profile B&#233;zier, Screw-revolve to the tower.</li>
+<li><strong>Shell (Blender):</strong> Solidify to 3.0 mm inward, then Boolean the four apertures, then run 3D Print Toolbox to zero out non-manifold/normals/shells.</li>
+<li><strong>Internals (CAD):</strong> import component STEP, build the spine/tray, standoffs, motor mounts, magnet pockets, dock, thumbscrew bosses; import the shell STL as a reference body and check every clearance in &#167;4; set the 2&#176; mast rake and the AprilTag flat.</li>
+<li><strong>Reconcile:</strong> if a fixture forces the shell to change, edit the <em>Blender</em> profile/cutters (not the exported mesh) and re-export &#8212; keep both apps' sources authoritative, never hand-edit exports.</li>
+<li><strong>Print files:</strong> slice shell and internals separately.</li>
+</ol>
+<p><strong>File matrix &#8212; what each downstream tool needs:</strong></p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Deliverable</th>
+<th>File</th>
+<th>Consumed by</th>
+<th>Produced from</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Shell for printing</td>
+<td><strong>3MF</strong> (STL fallback)</td>
+<td>Slicer (OrcaSlicer/Prusa/Bambu)</td>
+<td>Blender</td>
+</tr>
+<tr>
+<td>Spine / tray / mounts for printing</td>
+<td><strong>3MF / STL</strong></td>
+<td>Slicer</td>
+<td>CAD</td>
+</tr>
+<tr>
+<td>Mechanical interfaces (standoffs, mounts, dock, boss positions)</td>
+<td><strong>STEP</strong></td>
+<td>CAD fit assembly; anyone re-CADing a part</td>
+<td>CAD</td>
+</tr>
+<tr>
+<td>Custom HAT body for enclosure fit</td>
+<td><strong>STEP</strong></td>
+<td>CAD fit</td>
+<td>PCB tool export</td>
+</tr>
+<tr>
+<td>PCB board outline / cutouts to the fab</td>
+<td><strong>DXF</strong> (+ Gerbers separately)</td>
+<td>PCBWay/JLCPCB, or a laser/water-cut skirt gasket</td>
+<td>CAD / PCB tool</td>
+</tr>
+<tr>
+<td>Shell as reference inside CAD</td>
+<td><strong>STL / 3MF</strong></td>
+<td>CAD fit assembly</td>
+<td>Blender</td>
+</tr>
+<tr>
+<td>2D drawings (skirt gasket, dock plate, any panel)</td>
+<td><strong>DXF</strong></td>
+<td>Laser/CNC vendor, documentation</td>
+<td>CAD</td>
+</tr>
+</tbody>
+</table></div>
+<p>Keep it disciplined: <strong>STL/3MF is mesh and goes to the slicer; STEP is solid and goes to CAD and the enclosure fit; DXF is 2D and goes to the fab or a 2D cutter.</strong> The moment you try to hold a tolerance in an STL, or sculpt the paper-matte dome in CAD, you're using the wrong file in the wrong tool.</p>
+<hr />
+<p><em>Verified current (July 2026):</em> <a href="https://extensions.blender.org/add-ons/print3d-toolbox/">Blender 3D Print Toolbox 1.3.2</a> &#183; <a href="https://github.com/FreeCAD/FreeCAD/releases">FreeCAD 1.1.1 release notes</a> &#183; <a href="https://datasheets.raspberrypi.com/rpi5/raspberry-pi-5-mechanical-drawing.pdf">Raspberry Pi 5 mechanical drawing + STEP</a></p>
+<hr />
+<h1 id="bill-of-materials-parts-ordering-and-manufacturing-flow">Bill of Materials, parts ordering, and manufacturing flow</h1>
+<p>This section turns ATL-HW-001 into a purchasable BOM, an exact PCBWay order recipe tuned for a <em>guaranteed, durable</em> board, and a start-to-finish build checklist. Prices are 2026 USD, single-unit, before shipping/tax. Where the design doc's rough numbers were optimistic (motors, cells, power), the real figure is called out &#8212; plan for a realistic <strong>~$410&#8211;$470 prototype</strong>, not $310.</p>
+<h2 id="1-full-bom-one-robot">1. Full BOM (one robot)</h2>
+<h3 id="1a-compute-vision">1a. Compute &amp; vision</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Qty</th>
+<th>Part</th>
+<th>Recommended part no. / module</th>
+<th>Supplier</th>
+<th>Unit $</th>
+<th>Notes (why)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>SBC</td>
+<td><strong>Raspberry Pi 5, 8 GB</strong> (SC1112)</td>
+<td>PiShop / CanaKit / DigiKey</td>
+<td>80</td>
+<td>8 GB is the floor for on-device wake-word + vision + the DeckOS stack running warm.</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Storage</td>
+<td><strong>Samsung PRO Endurance 128 GB microSD</strong> (MB-MJ128) <em>or</em> NVMe on M.2 HAT</td>
+<td>Amazon / DigiKey</td>
+<td>20</td>
+<td>Continuous logging destroys consumer SD cards; PRO Endurance is rated for high write cycles. NVMe is better but competes with your HAT for the stack &#8212; see &#167;3 note.</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Heatsink/fan</td>
+<td><strong>Noctua NF-A4x10 5V PWM</strong> + low-profile Cu heatsink</td>
+<td>Noctua / DigiKey</td>
+<td>15</td>
+<td>Runs on FAN PWM GPIO4; SSO2 bearing survives 24/7 near 78 &#176;C. Ducting for the <em>sealed</em> shell is a thermal-section problem &#8212; the fan itself belongs here.</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Camera</td>
+<td><strong>Raspberry Pi Camera Module 3 Wide</strong> (SC0873)</td>
+<td>PiShop / DigiKey</td>
+<td>35</td>
+<td>120&#176; FoV, autofocus, CSI-2 to the Pi's own connector (not your HAT). Buy the ~200&#8211;300 mm FPC for the mast run.</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="1b-face-display">1b. Face / display</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Qty</th>
+<th>Part</th>
+<th>Recommended part no. / module</th>
+<th>Supplier</th>
+<th>Unit $</th>
+<th>Notes (why)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Round LCD 480&#215;480</td>
+<td><strong>2.1&#8243; round IPS, ST7701S</strong> &#8212; DisplayModule <em>DM-TFTR21-455</em> / Waveshare 2.1&#8243; Round / Elecrow equivalent</td>
+<td>DisplayModule, Waveshare</td>
+<td>25&#8211;35</td>
+<td>ST7701S is the standard 480&#215;480 round controller. <strong>Read the callout below &#8212; the interface and the "3.1&#8243;" size both need reconciling.</strong></td>
+</tr>
+</tbody>
+</table></div>
+<blockquote>
+<p><strong>&#9888; Display reality check (real money &#8212; read before you buy).</strong>
+1. <strong>Interface:</strong> the ST7701S is <em>not</em> a plain 4-wire SPI framebuffer. It uses <strong>3-/4-wire SPI for register config + an 18-bit RGB (DPI) bus for pixel data</strong>. On a Pi 5 that RGB bus eats ~28 GPIO and collides head-on with your pin map. Your options: <strong>(a)</strong> drive it over the Pi's <strong>DPI/RGB interface</strong> and rework the pinout (heavy); <strong>(b)</strong> keep it on SPI0 by switching to a <strong>QSPI round AMOLED</strong> &#8212; e.g. a <strong>CO5300/SH8601-based 1.85&#8243;&#8211;2.06&#8243; round 466&#215;466 or 410&#215;502</strong> panel &#8212; which <em>is</em> genuinely SPI-fed at speed (this is what your <code>SPI0 @62 MHz + DC/RST</code> map actually wants); or <strong>(c)</strong> use a small <strong>round DSI panel on the Pi 5's second MIPI connector</strong> (the Pi 5 has two 4-lane MIPI ports; CSI is taken by the camera, the other can run DSI) and free SPI0 entirely.
+2. <strong>Size:</strong> there is <strong>no commonly stocked round 480&#215;480 module at 3.1&#8243;</strong> &#8212; the largest common round 480&#215;480 is <strong>2.1&#8243;</strong>. Reconcile by (i) mounting the 2.1&#8243; behind a magnifying smoked dome, (ii) stepping to a <strong>3.4&#8243; <em>square</em> 480&#215;480 (GC9503, SPI+RGB)</strong> cropped to a circle by the bezel, or (iii) accepting a round AMOLED at 466&#215;466. Update ATL-HW-001 to whichever you commit to; the mechanical <code>face</code> cutout depends on it.</p>
+</blockquote>
+<h3 id="1c-audio-i2s">1c. Audio (I2S)</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Qty</th>
+<th>Part</th>
+<th>Recommended part no. / module</th>
+<th>Supplier</th>
+<th>Unit $</th>
+<th>Notes (why)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>4</td>
+<td>MEMS mic (I2S)</td>
+<td><strong>InvenSense ICS-43434</strong> (bare, placed on a crown "mic-ring" satellite PCB)</td>
+<td>DigiKey / Mouser</td>
+<td>2&#8211;3 ea</td>
+<td>24-bit, ~65 dBA SNR, high AOP &#8594; best far-field wake-word. <strong>4 mics on one I2S data line = 2 max</strong>; you need TDM or a 2nd data line &#8212; resolve in the electrical section.</td>
+</tr>
+<tr>
+<td>&#8212;</td>
+<td><em>Easy alt</em></td>
+<td><strong>Adafruit SPH0645 breakout</strong> (#3421) &#215;4</td>
+<td>Adafruit</td>
+<td>6 ea</td>
+<td>Solder-free but only 18-bit, lower AOP.</td>
+</tr>
+<tr>
+<td>&#8212;</td>
+<td><em>Plug-and-play alt</em></td>
+<td><strong>Seeed ReSpeaker Lite</strong> (XMOS XU316) or ReSpeaker 4-Mic Array HAT</td>
+<td>Seeed</td>
+<td>15&#8211;25</td>
+<td>Offloads TDM/beamforming; trades the clean I2S ring for a pre-made board.</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Amp</td>
+<td><strong>Adafruit MAX98357A I2S 3W Class-D</strong> (#3006)</td>
+<td>Adafruit / DigiKey</td>
+<td>6</td>
+<td>Direct I2S-out, no DAC needed.</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Speaker</td>
+<td><strong>3W 4&#937;, 40 mm</strong> (Adafruit #1314 or CUI CDS-40188)</td>
+<td>Adafruit / DigiKey</td>
+<td>3</td>
+<td>Matches the amp's 4&#937; load.</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="1d-sensing-i2c1-via-tca9548a">1d. Sensing (I2C1, via TCA9548A)</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Qty</th>
+<th>Part</th>
+<th>Recommended part no. / module</th>
+<th>Supplier</th>
+<th>Unit $</th>
+<th>Notes (why)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>5</td>
+<td>ToF ranger</td>
+<td><strong>VL53L1X</strong> &#8212; Pololu #3415 or Adafruit #3967 (carriers)</td>
+<td>Pololu / Adafruit</td>
+<td>12&#8211;14 ea</td>
+<td>4 m range, 400 kHz I2C. All share address 0x29 &#8594; <strong>must</strong> sit behind the mux. Bare GY-53 clones (~$5) work but QC is a lottery &#8212; carriers for reliability.</td>
+</tr>
+<tr>
+<td>1</td>
+<td>I2C mux</td>
+<td><strong>Adafruit TCA9548A</strong> (#2717)</td>
+<td>Adafruit / DigiKey</td>
+<td>7</td>
+<td>8-channel; fans out the five identical ToF sensors.</td>
+</tr>
+<tr>
+<td>1</td>
+<td>IMU</td>
+<td><strong>Adafruit BNO085 / BNO086 9-DOF</strong> (#4754)</td>
+<td>Adafruit / SparkFun</td>
+<td>20</td>
+<td>On-chip sensor fusion (quaternion out) offloads the Pi. BNO086 is the drop-in current-production part.</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Current sense</td>
+<td><strong>Adafruit INA219</strong> (#904) &#8212; or <strong>INA260</strong> (#4226, integrated shunt)</td>
+<td>Adafruit / DigiKey</td>
+<td>10</td>
+<td>Doubles as your <strong>software fuel gauge</strong> by coulomb-counting the pack rail (see BMS note).</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="1e-motion-drive">1e. Motion (drive)</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Qty</th>
+<th>Part</th>
+<th>Recommended part no. / module</th>
+<th>Supplier</th>
+<th>Unit $</th>
+<th>Notes (why)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2</td>
+<td>Gearmotor</td>
+<td><strong>Pololu 100:1 Micro Metal Gearmotor HPCB 12V, <em>extended shaft</em></strong> (~#4805-class &#8212; confirm SKU for the 100:1 12V extended-shaft variant)</td>
+<td>Pololu</td>
+<td>22&#8211;28 ea</td>
+<td><strong>100:1</strong> is the sweet spot for a ~282 mm / ~1.3 kg tower on ~60&#8211;65 mm wheels: ~0.3&#8211;0.5 m/s top speed with enough torque to climb thresholds and hold on inclines. Go <strong>150:1</strong> for more torque/slower, <strong>50:1</strong> for faster/flatter. Extended shaft is required to fit the encoder.</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Encoders</td>
+<td><strong>Pololu Magnetic Encoder Pair Kit, 12 CPR</strong> (#4761)</td>
+<td>Pololu</td>
+<td>9</td>
+<td>12 CPR &#215; 100 gearing = <strong>1200 counts/rev</strong> output &#8594; clean odometry on the 4 encoder IRQ lines.</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Motor driver</td>
+<td><strong>Pololu TB6612FNG carrier</strong> (#713) or <strong>SparkFun ROB-14451</strong></td>
+<td>Pololu / SparkFun</td>
+<td>9&#8211;10</td>
+<td>1.2 A/ch continuous, 3.2 A peak &#8212; ample for N20s. <strong>Buy genuine</strong> &#8212; clone TB6612s run hot and die.</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Wheels + tires</td>
+<td><strong>Pololu 60&#8211;70 mm wheel</strong> for 3 mm D-shaft (e.g. #1435/#3690)</td>
+<td>Pololu</td>
+<td>8 ea</td>
+<td>Rubber tire for traction on the diff-drive base.</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Caster</td>
+<td><strong>Pololu ball caster, 3/8&#8243;&#8211;1/2&#8243; metal</strong> (#955/#951)</td>
+<td>Pololu</td>
+<td>3</td>
+<td>Rear caster per the two-wheel + caster geometry.</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="1f-power">1f. Power</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Qty</th>
+<th>Part</th>
+<th>Recommended part no. / module</th>
+<th>Supplier</th>
+<th>Unit $</th>
+<th>Notes (why)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>8</td>
+<td>18650 cell</td>
+<td><strong>LG INR18650-MJ1 (3500 mAh)</strong> or <strong>Samsung INR18650-35E</strong> &#8212; <em>genuine, matched</em></td>
+<td>18650BatteryStore / IMR Batteries / Liion Wholesale</td>
+<td>6&#8211;9 ea</td>
+<td>4S2P of 3500 mAh = ~7 Ah &#8776; your 6.8 Ah target at ~100 Wh. Your draw is modest (pack ~2&#8211;3 A), so <strong>capacity cells beat high-drain cells</strong>. If motor surge worries you, <strong>Molicel P28A</strong>. <strong>Never</strong> Amazon/AliExpress "9900 mAh" cells (&#167;9).</td>
+</tr>
+<tr>
+<td>8</td>
+<td>Cell holders / spot-weld</td>
+<td>Nickel strip + fish-paper, or <strong>4S2P holder</strong></td>
+<td>DigiKey / Amazon</td>
+<td>8</td>
+<td>Spot-welded pack is more durable than spring holders under vibration; insulate the positive ring.</td>
+</tr>
+<tr>
+<td>1</td>
+<td>BMS</td>
+<td><strong>JBD (Jiabaida) 4S 30A smart BMS</strong> (common-port, UART) &#8212; or Daly 4S 30A</td>
+<td>Overkill Solar / JBD store</td>
+<td>20&#8211;28</td>
+<td>Balance + OV/UV/OC/short protection. <strong>I2C fuel-gauge caveat:</strong> smart BMSs report SoC over <strong>UART, not I2C</strong>. To honor the I2C-gauge line either (a) let the <strong>INA219 coulomb-count</strong> in software (no extra part), or (b) add a <strong>TI BQ34Z100-G1 / MAX17055</strong> I2C gauge on GPIO2/3.</td>
+</tr>
+<tr>
+<td>1</td>
+<td>5 V rail</td>
+<td><strong>Pololu 5V 9A step-down D24V90F5</strong></td>
+<td>Pololu</td>
+<td>25</td>
+<td>Pi 5 alone wants 5 V/5 A and peaks higher; a 9 A reg gives headroom for Pi+display+audio and <strong>prevents brownout SD corruption</strong>. Don't run the Pi on a 5 A part at the edge.</td>
+</tr>
+<tr>
+<td>1</td>
+<td>12 V / motor rail</td>
+<td><strong>Buck-boost</strong> (TPS55289 module or Pololu S18V-series) &#8212; <strong>or feed motors from raw pack</strong></td>
+<td>Pololu / Amazon</td>
+<td>15&#8211;25</td>
+<td><strong>Design gotcha:</strong> a plain buck <em>can't hold 12 V</em> &#8212; a 4S pack sags to ~12.0 V empty, below the buck's dropout. Either use a <strong>buck-boost to pin 12 V</strong>, or run the TB6612/N20s <strong>directly off the pack (12&#8211;16.8 V)</strong> through the e-stop and cap duty cycle in firmware.</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Dock PSU</td>
+<td><strong>19 V / 3.42 A (65 W) brick</strong> (barrel or USB-C PD trigger to 20 V)</td>
+<td>DigiKey / Amazon</td>
+<td>15</td>
+<td>19 V gives CC/CV headroom to charge the 4S pack to <strong>16.8 V</strong>.</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Charger front-end</td>
+<td><strong>CC/CV to 16.8 V</strong> (TI BQ25703/BQ25887 or a set buck) + <strong>ideal-diode/Schottky</strong> reverse-protect (e.g. SS54 or a P-FET)</td>
+<td>DigiKey</td>
+<td>8&#8211;12</td>
+<td>4S full charge = 4.20 V &#215; 4 = 16.8 V. Reverse-polarity diode per the doc.</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Fuse</td>
+<td><strong>15 A blade or mini-ANL</strong> inline, pack&#8594;load</td>
+<td>Amazon / DigiKey</td>
+<td>3</td>
+<td>Last-ditch protection independent of the BMS (&#167;9).</td>
+</tr>
+<tr>
+<td>1</td>
+<td>E-stop</td>
+<td><strong>16 mm latching push-button (mushroom, recessed)</strong> in the <strong>12 V/motor rail</strong></td>
+<td>DigiKey (E-Switch/Schurter)</td>
+<td>6</td>
+<td>Hard-cuts drive power; sensed on GPIO26 for software awareness.</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="1g-dock-structure-fasteners-wiring">1g. Dock, structure, fasteners, wiring</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Qty</th>
+<th>Part</th>
+<th>Recommended part no. / module</th>
+<th>Supplier</th>
+<th>Unit $</th>
+<th>Notes (why)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>4&#8211;6</td>
+<td>Pogo pins</td>
+<td><strong>Mill-Max spring-loaded pins</strong> (0906/0965 series) + flat targets</td>
+<td>DigiKey / Mouser</td>
+<td>1&#8211;2 ea</td>
+<td>Gold contacts survive thousands of dock cycles; size current pins for the 19 V charge current.</td>
+</tr>
+<tr>
+<td>~20</td>
+<td>Heat-set inserts</td>
+<td><strong>M3 brass, CNC Kitchen</strong> (M3&#215;5.7&#215;4.6) or McMaster <strong>94459A130</strong></td>
+<td>CNC Kitchen / McMaster</td>
+<td>0.15 ea</td>
+<td>Reusable threads in the printed shell &#8594; the "swap behind a HAL" requirement survives repeated service.</td>
+</tr>
+<tr>
+<td>6&#8211;10</td>
+<td>Magnets</td>
+<td><strong>N52 neodymium disc, 6&#215;3 mm</strong></td>
+<td>K&amp;J Magnetics / Amazon</td>
+<td>0.4 ea</td>
+<td>Module/dome retention; keep clear of the BNO085 (magnetometer).</td>
+</tr>
+<tr>
+<td>set</td>
+<td>Fasteners</td>
+<td>M3 SHCS assortment + <strong>2&#215; M4 knurled captive thumbscrews</strong></td>
+<td>McMaster / Amazon</td>
+<td>8</td>
+<td>The two thumbscrews that hold the one-part shell.</td>
+</tr>
+<tr>
+<td>set</td>
+<td>Connectors</td>
+<td><strong>JST-PH 2.0</strong> (signals), <strong>JST-XH</strong> (balance), <strong>XT30</strong> (pack main), 18&#8211;22 AWG silicone wire</td>
+<td>DigiKey / Amazon</td>
+<td>12</td>
+<td>Genuine JST only &#8212; clone housings cause intermittent faults (&#167;8).</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Subsystem subtotals (approx):</strong> Compute+vision <strong>$150</strong> &#183; Face <strong>$30</strong> &#183; Audio <strong>$25</strong> &#183; Sensing <strong>$95</strong> &#183; Motion <strong>$95</strong> &#183; Power <strong>$135</strong> &#183; Dock/structure/wiring <strong>$45</strong> &#8594; <strong>~$575 with the fan/storage/caster</strong> the doc omitted, or <strong>~$430</strong> if you strip to the doc's original scope. Budget <strong>$450</strong> and don't be surprised by shipping.</p>
+<hr />
+<h2 id="2-supplier-strategy">2. Supplier strategy</h2>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Buy from</th>
+<th>For</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>DigiKey / Mouser</strong></td>
+<td>Bare ICs (ICS-43434), passives, connectors, fuses, pogo pins, the E-stop, charger front-end parts</td>
+<td>Authentic, traceable, single consolidated cart, fast. Use for anything safety- or reliability-critical.</td>
+</tr>
+<tr>
+<td><strong>Adafruit / SparkFun</strong></td>
+<td>Breakouts: MAX98357A, VL53L1X, TCA9548A, BNO085, INA219, SPH0645</td>
+<td>Known-good designs, real datasheets, drivers/tutorials, honest parts. Slightly pricier, worth it for bring-up.</td>
+</tr>
+<tr>
+<td><strong>Pololu</strong></td>
+<td>N20 gearmotors, encoders, TB6612 carrier, wheels, caster, 5 V/buck regs</td>
+<td>The reference source for small-robot drivetrain; genuine TB6612 and matched motors.</td>
+</tr>
+<tr>
+<td><strong>18650BatteryStore / IMR Batteries / Liion Wholesale</strong></td>
+<td>Genuine 18650 cells</td>
+<td>The <em>only</em> place to trust cell authenticity (&#167;9).</td>
+</tr>
+<tr>
+<td><strong>Amazon / AliExpress</strong></td>
+<td>Bucks, dock brick, nickel strip, generic wire, magnets</td>
+<td>Fine for commodity mechanical/power modules <strong>with caveats</strong>: buy from reviewed sellers, expect &#177;20% spec variance, bench-test every buck's output before it touches the Pi, and <strong>never</strong> cells or the BMS here.</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Consolidate for shipping:</strong> put one order each at DigiKey (ICs/passives/connectors), Adafruit <em>or</em> SparkFun (breakouts &#8212; pick one to avoid two shipments), and Pololu (drivetrain). That's <strong>three parcels</strong> instead of a dozen. Order the PCB/PCBA (&#167;4&#8211;6) in parallel so lead times overlap.</p>
+<hr />
+<h2 id="3-what-the-fab-sources-vs-what-you-consign">3. What the fab sources vs. what you consign</h2>
+<p>Split the design's BOM into <strong>fab-sourced</strong> (cheap, standard, let PCBWay/JLCPCB place from their library) and <strong>consigned</strong> (you ship them the part, or you hand-solder it after).</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Let the fab source (turnkey, their library)</th>
+<th>Consign or hand-place</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>All <strong>passives</strong> (0402/0603 R/C, ferrites, TVS), LEDs</td>
+<td><strong>Raspberry Pi 5</strong> &#8212; never goes on the HAT; the HAT plugs into <em>it</em></td>
+</tr>
+<tr>
+<td><strong>TB6612FNG</strong>, common LDOs, MOSFETs, the mux (<strong>TCA9548A</strong>), the amp (<strong>MAX98357A</strong>) if on the JLC/PCBWay standard library</td>
+<td>The <strong>2.1&#8243; round LCD</strong> &#8212; module, mounts off-board via FPC/JST</td>
+</tr>
+<tr>
+<td>Standard connectors (2&#215;20 header, JST footprints) if in-library</td>
+<td><strong>BNO085/BNO086</strong> &#8212; expensive, long-lead, moisture-sensitive; hand-solder or consign a reel/cut-tape</td>
+</tr>
+<tr>
+<td>The <strong>INA219</strong> and passives around the shunt</td>
+<td><strong>VL53L1X</strong> sensors &#8212; go on the crown/skirt satellite boards, not the HAT</td>
+</tr>
+<tr>
+<td>&#8212;</td>
+<td>Anything you only have 1&#8211;2 of (consignment beats a full reel MOQ)</td>
+</tr>
+</tbody>
+</table></div>
+<p>Practical rule: <strong>let the fab place everything that's a standard, in-stock library part with &#8805;100 stock</strong> (near-zero placement cost, better yield than hand-soldering QFNs), and <strong>consign the few expensive, low-stock, or mechanically-mounted parts.</strong> Prefer the fab's <strong>Basic/Preferred (no-fee) library</strong> parts when choosing passive values to avoid per-part loading fees. For QFNs like the BNO085 and TB6612, machine placement + reflow is <em>more</em> reliable than hand-soldering &#8212; consign the part but let them place it if they'll accept it.</p>
+<hr />
+<h2 id="4-where-to-draw-the-pcb-online-the-desktop-gold-standard">4. Where to draw the PCB (online + the desktop gold standard)</h2>
+<p>You asked for a good <strong>online</strong> place. All three below export standard Gerber/BOM/CPL that PCBWay accepts:</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Type</th>
+<th>Pick it when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Flux.ai</strong></td>
+<td>Browser, modern, AI copilot, real-time collab</td>
+<td>You want fully in-browser, <strong>fab-neutral</strong> exports, and a fast 2026 workflow. Good default for "online."</td>
+</tr>
+<tr>
+<td><strong>EasyEDA Pro</strong></td>
+<td>Browser (by JLCPCB)</td>
+<td>You want the <strong>JLCPCB parts library auto-linked</strong> so passives self-source and one-click PCBA &#8212; Gerbers still go to PCBWay fine. Slightly locked to the JLC ecosystem.</td>
+</tr>
+<tr>
+<td><strong>KiCad 10.0.4</strong></td>
+<td>Free desktop (current stable, June 2026)</td>
+<td><strong>The gold standard for a guaranteed, portable design:</strong> best DRC, huge libraries, fab-neutral, and <strong>both PCBWay and JLCPCB ship KiCad plugins</strong> for one-click Gerber/BOM/CPL + ordering. Not "online," but it's what I'd build a reliability-critical board in.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Recommendation: <strong>prototype the layout in Flux.ai or EasyEDA Pro if you want browser-only; move to KiCad 10 if you want the strongest DRC and zero fab lock-in.</strong> Whatever you choose, keep the 40-pin header on the <strong>HAT mechanical spec</strong> (65 &#215; 56.5 mm, mounting holes 58 &#215; 49 mm, &#8960;3.5 mm) so it seats correctly on the Pi 5.</p>
+<hr />
+<h2 id="5-exact-pcbway-order-form-values-tuned-for-high-reliability">5. Exact PCBWay order-form values (tuned for high reliability)</h2>
+<p>Enter these on the PCBWay prototype form. The <strong>reliability levers that matter most</strong> are ENIG + 2 oz copper + High-Tg FR-4 + tented vias + relaxed DRC + the free file review/E-test &#8212; <em>not</em> exotic options.</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Form field</th>
+<th>Value to select</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Board Type</td>
+<td><strong>Single pieces</strong></td>
+<td>It's one HAT design.</td>
+</tr>
+<tr>
+<td>Different designs in panel</td>
+<td><strong>1</strong></td>
+<td>&#8212;</td>
+</tr>
+<tr>
+<td>Size (X &#215; Y)</td>
+<td><strong>65 &#215; 56.5 mm</strong></td>
+<td>Conforms to the Pi HAT mechanical spec &#8594; seats on the Pi 5 and its mounting holes.</td>
+</tr>
+<tr>
+<td>Quantity</td>
+<td><strong>10</strong></td>
+<td>PCBWay's price floor is ~5&#8211;10 pcs anyway; spares for rework.</td>
+</tr>
+<tr>
+<td>Layers</td>
+<td><strong>4</strong></td>
+<td>Signal/GND/PWR/signal &#8594; clean return paths for the 62 MHz SPI, I2S, 20 kHz motor PWM.</td>
+</tr>
+<tr>
+<td>Material</td>
+<td><strong>FR-4</strong></td>
+<td>&#8212;</td>
+</tr>
+<tr>
+<td>FR4-TG</td>
+<td><strong>TG155</strong> (step to <strong>TG170</strong> if budget allows)</td>
+<td>You run continuously near 78 &#176;C; TG130 is marginal, <strong>TG155/TG170 gives thermal-cycling margin</strong> and lower delamination risk.</td>
+</tr>
+<tr>
+<td>Thickness</td>
+<td><strong>1.6 mm</strong></td>
+<td>Standard HAT rigidity + correct fit for the 2&#215;20 header and standoffs.</td>
+</tr>
+<tr>
+<td>Min track/spacing</td>
+<td><strong>6/6 mil</strong></td>
+<td>Relaxed from PCBWay's 4 mil floor &#8594; <strong>higher yield and fewer field-failure hairlines</strong>. Only tighten if a QFN escape forces it.</td>
+</tr>
+<tr>
+<td>Min hole size</td>
+<td><strong>0.3 mm</strong></td>
+<td>Relaxed from the 0.15 mm minimum (which carries a surcharge and lower yield) &#8594; cheaper and more robust.</td>
+</tr>
+<tr>
+<td>Solder mask</td>
+<td><strong>Green</strong> (yield) &#8212; or <strong>Matte Black</strong> (aesthetic; board is hidden in the shell)</td>
+<td>Green is highest-yield/lowest-cost; the board isn't visible, so pick green unless you want black.</td>
+</tr>
+<tr>
+<td>Silkscreen</td>
+<td><strong>White</strong></td>
+<td>Standard, legible.</td>
+</tr>
+<tr>
+<td>Surface finish</td>
+<td><strong>Immersion gold (ENIG)</strong></td>
+<td><strong>The key reliability choice:</strong> flat coplanar pads for the QFNs (BNO085/TB6612), no oxidation, long shelf life, best hand-rework &#8212; worth the upcharge over HASL.</td>
+</tr>
+<tr>
+<td>Via process</td>
+<td><strong>Tenting (cover) vias</strong></td>
+<td>Prevents solder wicking/shorts under the header and BGAs; cleaner assembly.</td>
+</tr>
+<tr>
+<td>Finished copper</td>
+<td><strong>2 oz</strong></td>
+<td>Motor/charge rails carry real current and heat; 2 oz <strong>widens current capacity and spreads heat</strong>.</td>
+</tr>
+<tr>
+<td>Impedance control</td>
+<td><strong>No</strong> (default) &#8212; <strong>Yes only if</strong> your SPI/CSI routing needs it</td>
+<td>On a ~65 mm HAT the traces are short; skip it. If you enable it, spec <strong>50 &#937; single-ended</strong> for SPI and let PCBWay adjust the stackup. The camera CSI-2 is on the Pi's own connector, not your HAT.</td>
+</tr>
+<tr>
+<td>Gold fingers / castellation</td>
+<td><strong>No</strong></td>
+<td>Not an edge-connector board.</td>
+</tr>
+<tr>
+<td>Confirm production file</td>
+<td><strong>Yes</strong></td>
+<td>Free PCBWay engineer DFM review &#8212; <strong>catches your Gerber errors before they cut copper.</strong> Always on.</td>
+</tr>
+<tr>
+<td>Electrical test</td>
+<td><strong>100% flying-probe / E-test</strong> (default)</td>
+<td>Guarantees continuity on every board &#8212; non-negotiable for "guaranteed."</td>
+</tr>
+<tr>
+<td>Remove order number</td>
+<td><strong>No</strong> <em>(or "Specify a location")</em></td>
+<td>Let them place their tiny ID in a non-critical spot.</td>
+</tr>
+</tbody>
+</table></div>
+<p><em>JLCPCB alternative:</em> their 4-layer JLC04161H-3313 stackup supports impedance control and goes down to 3.5 mil; use the same philosophy &#8212; <strong>ENIG, 2 oz, tented vias, confirm production file</strong> &#8212; if you price-shop. PCBWay tends to be more forgiving on High-Tg + 2 oz + ENIG combos for small runs.</p>
+<hr />
+<h2 id="6-manufacturing-flow-end-to-end-checklist">6. Manufacturing flow (end-to-end checklist)</h2>
+<ol>
+<li><strong>Finalize the schematic.</strong> Lock the pin map (BCM assignments from ATL-HW-001), resolve the display-interface decision from the &#167;1b callout, and add TVS on the dock input, a 15 A fuse symbol, and the reverse-polarity diode.</li>
+<li><strong>Run DRC + ERC</strong> against the &#167;5 rules (6/6 mil, 0.3 mm holes, 2 oz clearances). Zero errors before export. Do a <strong>3D check</strong> in KiCad/EasyEDA for header + connector collisions on the stack.</li>
+<li><strong>Export the fab package:</strong> <strong>Gerber (RS-274X)</strong> + <strong>NC drill</strong>, <strong>BOM (CSV)</strong>, and <strong>CPL/centroid (pick-and-place)</strong>. Generate an <strong>IPC-2581 or ODB++</strong> too if the fab accepts it &#8212; richer than Gerber.</li>
+<li><strong>PCBWay quote &amp; upload</strong> using the &#167;5 values. Choose <strong>turnkey assembly</strong> for library passives + drivers; mark the <strong>Pi, LCD, BNO085, VL53L1X as consigned/DNP</strong>. Wait for the free <strong>DFM/production-file confirmation</strong> and clear any queries before paying.</li>
+<li><strong>Order the stencil</strong> (framan less, laser-cut, tuned for your finest pitch) if you'll ever hand-assemble spares; PCBA orders include it in setup.</li>
+<li><strong>Order/consign parts in parallel</strong> (three parcels, &#167;2). Ship consigned parts (Pi excluded) to PCBWay per their consignment instructions; keep a spare Pi/LCD at your bench for bring-up.</li>
+<li><strong>PCBA runs</strong> (SMT paste &#8594; place &#8594; reflow &#8594; AOI). Confirm they'll place the consigned QFNs; if not, receive the SMT-populated board and hand-solder those.</li>
+<li><strong>Receive &amp; test the bare/assembled board &#8212; power OFF first:</strong>
+   - <strong>Continuity/short check:</strong> ohm-out 5 V&#8594;GND, 3V3&#8594;GND, 12 V&#8594;GND for shorts <em>before</em> applying power.
+   - <strong>Rail bring-up on a bench supply, current-limited:</strong> feed the dock input, verify <strong>5 V and the motor rail</strong> are in spec and clean under load; confirm the <strong>reverse-polarity diode</strong> blocks reversed input.
+   - <strong>E-stop:</strong> confirm pressing it kills the 12 V/motor rail and that <strong>GPIO26 reads the state</strong>.</li>
+<li><strong>Flash &amp; bring up per subsystem</strong> (one at a time, log each): boot the Pi from the SD/NVMe &#8594; <strong>I2C scan</strong> (expect BNO085, INA219, TCA9548A, and each VL53L1X per mux channel) &#8594; <strong>I2S</strong> mics in + amp out &#8594; <strong>SPI</strong> display "face" &#8594; <strong>motor PWM + encoders</strong> (wheels off the ground) &#8594; <strong>fan PWM</strong> &#8594; <strong>dock/charge sense</strong>.</li>
+<li><strong>Print the shell</strong> (&#167;7 material note) &#8212; one-part shell + smoked-glass face dome + skirt.</li>
+<li><strong>Mechanical assembly:</strong> heat-set inserts &#8594; mount Pi + HAT stack, motors/encoders, ToF ring, mic ring + camera mast, speaker, pack + BMS &#8594; route JST/XT30 harness &#8594; close shell with the two thumbscrews.</li>
+<li><strong>Dock/charge test:</strong> dock the robot, confirm <strong>pogo contact + 19 V in</strong>, watch the charger hold <strong>CC then CV to 16.8 V</strong>, verify BMS balancing engages and the INA219 SoC tracks. Then a <strong>full discharge &#8594; recharge cycle</strong> to validate runtime against the 100 Wh / 11.2 W budget (~7&#8211;8 h typ).</li>
+</ol>
+<hr />
+<h2 id="7-cost-lead-time-summary">7. Cost + lead-time summary</h2>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Line item</th>
+<th>Spec</th>
+<th>Cost (proto)</th>
+<th>Lead time</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Bare PCB (proto)</td>
+<td>4-layer, 65&#215;56.5 mm, ENIG, 2 oz, TG155, 10 pcs</td>
+<td><strong>$80&#8211;130</strong></td>
+<td>~5&#8211;7 day build + 3&#8211;5 day DHL &#8776; <strong>~2 weeks</strong></td>
+</tr>
+<tr>
+<td>PCBA (assembly)</td>
+<td>Turnkey passives/drivers, ~5 boards, stencil + setup, consigned Pi/LCD/IMU</td>
+<td><strong>$150&#8211;300</strong></td>
+<td>+1 week over bare board</td>
+</tr>
+<tr>
+<td>Electronic parts</td>
+<td>The &#167;1 BOM (breakouts, motors, sensors, cells, power)</td>
+<td><strong>$400&#8211;470</strong></td>
+<td>DigiKey/Adafruit/Pololu 2&#8211;5 days; cells 3&#8211;7 days</td>
+</tr>
+<tr>
+<td>3D print</td>
+<td>~1.2 kg shell filament (<strong>PETG/ASA matte</strong>) + ~150 g smoke resin for the dome</td>
+<td><strong>$35&#8211;55</strong></td>
+<td>12&#8211;24 h print/robot</td>
+</tr>
+<tr>
+<td><strong>First working robot</strong></td>
+<td></td>
+<td><strong>~$700&#8211;900 all-in</strong></td>
+<td><strong>~2.5&#8211;3 weeks</strong> (fab is the long pole)</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Shell material note (why not PLA):</strong> internal air sits at 45&#8211;55 &#176;C near a Pi throttling at 78 &#176;C; <strong>PLA's Tg (~55&#8211;60 &#176;C) means it will creep and sag.</strong> Print the <em>structural</em> shell in <strong>PETG (matte)</strong> or <strong>ASA</strong> (better heat + UV, natural matte "good-paper" look after bead-blast). Use PLA only for <strong>fit-check prototypes</strong>. The smoked-glass face is <strong>clear/smoke SLA resin, tinted</strong>, or a cast-acrylic dome.</p>
+<p><strong>Where to save:</strong> passives (fab library), enclosure filament, generic hookup wire, magnets, the dock brick. <strong>Where NOT to cheap out:</strong> the <strong>BMS</strong> (genuine JBD/Daly), the <strong>motor driver</strong> (genuine TB6612 &#8212; clones cook), <strong>connectors</strong> (genuine JST/Molex &#8212; clone housings = intermittent faults that are hell to debug), the <strong>5 V regulator</strong> (brownouts corrupt the SD), and the <strong>cells</strong> (&#167;9).</p>
+<hr />
+<h2 id="8-li-ion-pack-safety-4s-treat-this-as-the-highest-risk-subsystem">8. Li-ion pack safety (4S &#8212; treat this as the highest-risk subsystem)</h2>
+<ul>
+<li><strong>Genuine cells only.</strong> Buy <strong>LG MJ1 / Samsung 35E / Molicel</strong> from a reputable seller (&#167;2). Amazon/AliExpress "ultra-capacity" 18650s are re-wrapped junk with fake ratings &#8212; a fire risk in a sealed, continuously-hot enclosure.</li>
+<li><strong>Match and top-balance before the first build.</strong> Same brand/batch, capacity-matched; charge every cell to the <em>same</em> voltage (4.20 V) before assembling into 2P groups. Don't rely on the BMS to balance a wildly unbalanced pack.</li>
+<li><strong>Real BMS, always in-circuit.</strong> The JBD/Daly 4S 30A provides <strong>per-cell OV (4.25 V), UV (~2.5 V), overcurrent, short-circuit, and balance</strong>. Wire the <strong>balance leads in the correct order</strong> &#8212; a swapped balance tap can over-charge a cell.</li>
+<li><strong>Independent fuse.</strong> A <strong>15 A inline fuse</strong> between pack and load protects even if the BMS FETs fail shorted. The BMS is protection #1; the fuse is protection #2.</li>
+<li><strong>Charge correctly:</strong> 4S Li-ion tops at <strong>16.8 V</strong>, CC then CV, charge current &#8804; ~0.5C (~3&#8211;3.5 A for this pack). The 19 V dock feeds a <strong>proper CC/CV charger front-end</strong>, not the pack directly. Charge in the <strong>0&#8211;45 &#176;C</strong> window &#8212; relevant since the robot runs warm; don't charge a hot pack.</li>
+<li><strong>Hardware E-stop in the 12 V/motor rail</strong> (per the doc) cuts drive instantly; keep it mechanically accessible even though it's recessed in the crown.</li>
+<li><strong>Reverse-polarity + inrush protection</strong> on the dock input (Schottky/ideal-diode + a soft-start), so a mis-docked or reversed 19 V can't back-feed the pack.</li>
+<li><strong>Thermal + venting:</strong> cells in a <strong>sealed</strong> shell that runs near throttle need a defined thermal path and a <strong>vent/relief detail</strong> &#8212; a Li-ion cell venting inside a fully sealed tower is the worst case. Coordinate this with the thermal/mechanical section before you seal it up.</li>
+<li><strong>Never</strong> puncture, reverse, or hard-short the pack; store at ~3.7&#8211;3.8 V/cell (~40&#8211;60% SoC) if the robot sits unused.</li>
+</ul>
+<hr />
+<p><em>Verification (checked July 2026):</em> <a href="https://www.kicad.org/blog/2026/06/KiCad-10.0.4-Release/">KiCad 10.0.4 release</a> &#183; <a href="https://www.pcbway.com/capabilities.html">PCBWay capabilities</a> &#183; <a href="https://www.pcbway.com/helpcenter/ordering_parameter_instruction/What_is_Impedance_Control_.html">PCBWay impedance control</a> &#183; <a href="https://www.displaymodule.com/products/2-1-inch-round-ips-display-480x480-500nits-all-view-transflective-with-spi-rgb">2.1&#8243; round 480&#215;480 ST7701S module</a> &#183; <a href="https://www.buydisplay.com/square-3-4-inch-480x480-ips-tft-lcd-display-spi-rgb-interface">3.4&#8243; square 480&#215;480 (GC9503) alt</a></p>
+    </article>
+  </div>
+  <footer class="footer">
+    <span>DECKOS ATLAS &middot; BUILD GUIDE</span>
+    <span>ONE CURVE &middot; TWO EYES &middot; ONE ACCENT &middot; BUILT TO BE OPENED</span>
+  </footer>
+</div>

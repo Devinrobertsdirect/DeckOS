@@ -25,26 +25,32 @@ Raspberry Pi robot tomorrow — same memory, same personality, same face.
 ## Quickstart
 
 ```bash
-git clone https://github.com/your-username/DeckOS-Atlas.git
+git clone https://github.com/Devinrobertsdirect/DeckOS.git -b atlas DeckOS-Atlas
 cd DeckOS-Atlas
 pnpm install
 cp .env.example .env        # optional: add ANTHROPIC_API_KEY, MQTT broker, …
 
-# terminal 1 — Atlas server (REST + WS on :8080)
-pnpm --filter @workspace/api-server dev
-
-# terminal 2 — Command Center dashboard
-pnpm --filter @workspace/deck-os dev
+# build the dashboard once, then run everything from one process
+pnpm --filter @workspace/deck-os build
+pnpm --filter @workspace/api-server start
 ```
 
-Or the zero-thought path via the bootstrap CLI in `installer/atlas-cli`:
+Then open **http://localhost:8080** — the API server hosts both the dashboard
+and the REST/WebSocket API on a single port.
+
+Or the zero-thought path via the bootstrap CLI in `installer/atlas-cli` (builds
+the dashboard and starts Atlas, then opens the browser for you):
 
 ```bash
-npx atlas start
+npx atlas start      # → http://localhost:8080
 ```
 
+For live dashboard editing with hot-reload, run the Vite dev server separately
+(`pnpm --filter @workspace/deck-os dev`, proxies `/api` to :8080).
+
 No API keys, no Ollama? Everything still boots — the rule engine keeps the
-lights on. Details: [SETUP.md](SETUP.md).
+lights on, and Atlas even runs with no database (persistence just degrades).
+Details: [SETUP.md](SETUP.md).
 
 ## The face
 

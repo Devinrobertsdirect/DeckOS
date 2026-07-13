@@ -82,13 +82,14 @@ export async function startCmd(opts = {}) {
   // ── 3. Check for already running ─────────────────────────────────────────
   const state = getState();
   const apiProc = state['api'];
-  const webProc = state['web'];
-  const bothRunning = apiProc && isAlive(apiProc.pid) && webProc && isAlive(webProc.pid);
-  if (bothRunning) {
+  const apiRunning = apiProc && isAlive(apiProc.pid);
+  if (apiRunning) {
+    const runningEnv = loadEnvFile(repoDir);
+    const runningPort = runningEnv.PORT || '8080';
     console.log('');
     ok(chalk.bold('DeckOS Atlas is already running!'));
-    printUrls(loadEnvFile(repoDir));
-    if (doOpen) openBrowser('http://localhost:3000');
+    printUrls(runningEnv);
+    if (doOpen) openBrowser(`http://localhost:${runningPort}`);
     return;
   }
 
@@ -166,22 +167,28 @@ export async function startCmd(opts = {}) {
     }
   }
 
-  step(6, TOTAL_STEPS, 'Starting services...');
+  step(6, TOTAL_STEPS, 'Building dashboard & starting Atlas...');
   const apiPort = env.PORT || '8080';
-  const webPort = '3000';
 
-  const apiPid = spawnDetached('pnpm', ['--filter', '@workspace/api-server', 'run', 'dev'], {
+  // Build the dashboard once; the API server serves it at the same port
+  // (single-process, no separate dev server, no port juggling).
+  info('Building dashboard (first run may take a minute)...');
+  try {
+    sh('pnpm --filter @workspace/deck-os run build', repoDir, {
+      ...env, PORT: apiPort, BASE_PATH: env.BASE_PATH || '/',
+    });
+    ok('Dashboard built');
+  } catch (e) {
+    warn(e.message);
+    fail('Dashboard build failed. Fix the error above and re-run: atlas start');
+  }
+
+  const apiPid = spawnDetached('pnpm', ['--filter', '@workspace/api-server', 'run', 'start'], {
     cwd: repoDir,
     env: { ...process.env, ...env, PORT: apiPort, NODE_ENV: env.NODE_ENV || 'production' },
   });
 
-  const webPid = spawnDetached('pnpm', ['--filter', '@workspace/deck-os', 'run', 'dev'], {
-    cwd: repoDir,
-    env: { ...process.env, ...env, PORT: webPort, BASE_PATH: env.BASE_PATH || '/', NODE_ENV: env.NODE_ENV || 'development' },
-  });
-
   saveProc('api', apiPid, repoDir);
-  saveProc('web', webPid, repoDir);
 
   await sleep(3000);
 
@@ -193,19 +200,19 @@ export async function startCmd(opts = {}) {
   if (apiReady) {
     ok(chalk.bold.green('DeckOS Atlas is running!'));
   } else {
-    warn('Services started but health check timed out.');
-    info('The API may still be building. Check logs or try again in a moment.');
+    warn('Service started but health check timed out.');
+    info('Atlas may still be starting. Check logs or try again in a moment.');
   }
   console.log('');
-  console.log(`  ${chalk.cyan('Frontend')}  →  ${chalk.underline(`http://localhost:${webPort}`)}`);
-  console.log(`  ${chalk.cyan('API')}       →  ${chalk.underline(`http://localhost:${apiPort}`)}`);
-  console.log(`  ${chalk.gray('Stop:')}       ${chalk.cyan('atlas stop')}`);
-  console.log(`  ${chalk.gray('Status:')}     ${chalk.cyan('atlas status')}`);
+  console.log(`  ${chalk.cyan('Atlas')}   →  ${chalk.underline(`http://localhost:${apiPort}`)}  ${chalk.gray('(dashboard + API)')}`);
+  console.log(`  ${chalk.gray('Brain:')}   ${chalk.cyan('atlas brain')}`);
+  console.log(`  ${chalk.gray('Stop:')}    ${chalk.cyan('atlas stop')}`);
+  console.log(`  ${chalk.gray('Status:')}  ${chalk.cyan('atlas status')}`);
   console.log('');
 
   if (doOpen) {
     await sleep(1500);
-    openBrowser(`http://localhost:${webPort}`);
+    openBrowser(`http://localhost:${apiPort}`);
   }
 }
 
@@ -224,8 +231,7 @@ async function waitForHealth(url, timeoutSec = 30) {
 function printUrls(env) {
   const apiPort = env.PORT || '8080';
   console.log('');
-  console.log(`  ${chalk.cyan('Frontend')}  →  ${chalk.underline('http://localhost:3000')}`);
-  console.log(`  ${chalk.cyan('API')}       →  ${chalk.underline(`http://localhost:${apiPort}`)}`);
+  console.log(`  ${chalk.cyan('Atlas')}   →  ${chalk.underline(`http://localhost:${apiPort}`)}  ${chalk.gray('(dashboard + API)')}`);
   console.log('');
 }
 

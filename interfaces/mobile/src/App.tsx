@@ -273,15 +273,15 @@ function PairingGate({ onPaired }: { onPaired: () => void }) {
             <span className="font-mono text-2xl font-bold text-primary">J</span>
           </div>
           <div className="text-center">
-            <p className="font-mono text-sm text-primary tracking-widest uppercase">DeckOS Mobile</p>
-            <p className="font-mono text-[10px] text-primary/30 mt-1 uppercase tracking-widest">JARVIS Command Center</p>
+            <p className="font-mono text-sm text-primary tracking-widest uppercase">DeckOS Atlas Mobile</p>
+            <p className="font-mono text-[10px] text-primary/30 mt-1 uppercase tracking-widest">Personal AI Operating System</p>
           </div>
         </div>
 
         <div className="text-center space-y-1">
           <p className="font-mono text-xs text-primary/60">Enter your desktop pairing code</p>
           <p className="font-mono text-[10px] text-primary/30 leading-relaxed">
-            Open DeckOS on your desktop → Settings → Mobile Access
+            Open DeckOS Atlas on your desktop → Settings → Mobile Access
           </p>
         </div>
 
@@ -314,7 +314,7 @@ function PairingGate({ onPaired }: { onPaired: () => void }) {
         </form>
 
         <p className="font-mono text-[9px] text-primary/15 text-center leading-relaxed max-w-xs">
-          The pairing code links your mobile device to a specific DeckOS instance. You only need to do this once.
+          The pairing code links your mobile device to a specific DeckOS Atlas instance. You only need to do this once.
         </p>
       </div>
     </div>
@@ -678,7 +678,7 @@ function PairedApp({ onUnpair }: { onUnpair: () => void }) {
           <div>
             <div className="font-bold text-primary tracking-widest text-sm uppercase leading-none">{aiName}</div>
             <div className="font-mono text-xs text-primary/40 leading-none mt-0.5">
-              {userName ? `${userName} · Mobile` : "DeckOS.Mobile"}
+              {userName ? `${userName} · Mobile` : "Atlas.Mobile"}
             </div>
           </div>
         </div>
@@ -1331,7 +1331,7 @@ function jarvisWelcome(): ChatMsg {
   return {
     id: "welcome",
     role: "assistant",
-    content: `${getTimeGreeting()}. DeckOS online. All systems nominal. How can I assist you?`,
+    content: `${getTimeGreeting()}. Atlas online. All systems nominal. How can I assist you?`,
     channel: "mobile",
     timestamp: new Date().toISOString(),
   };

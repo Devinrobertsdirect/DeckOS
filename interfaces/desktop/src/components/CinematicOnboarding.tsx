@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { AIFace, type FaceStyle } from "@/components/AIFace";
+import { AIFace, type FaceStyle, isSquareFace } from "@/components/AIFace";
 import { applyColor, getStoredColor, type ColorScheme } from "@/components/Onboarding";
 
 const API_BASE = "/api";
@@ -109,6 +109,16 @@ export const VOICE_OPTIONS = [
 ];
 
 export const FACE_OPTIONS: { id: FaceStyle; label: string; description: string }[] = [
+  {
+    id: "atlas",
+    label: "ATLAS",
+    description: "The companion face — two eyes, eight moods, no mouth needed",
+  },
+  {
+    id: "neural",
+    label: "NEURAL",
+    description: "A living node cluster — the brain becomes the face",
+  },
   {
     id: "vocoder",
     label: "VOCODER",
@@ -878,7 +888,7 @@ function FaceStep({ aiName, onComplete }: { aiName: string; onComplete: (face: F
                   <AIFace
                     style={f.id}
                     speaking={isSelected ? speaking : false}
-                    size={f.id === "iris" ? 60 : 100}
+                    size={isSquareFace(f.id) ? 60 : 100}
                     color={isSelected ? "var(--color-primary)" : "rgba(var(--primary-rgb),0.3)"}
                   />
                 </div>
@@ -941,7 +951,7 @@ function FirstContactStep({
   const humorWord  = humor > 0.6 ? "with occasional wit" : humor > 0.3 ? "with subtle personality" : "formally";
   const lengthWord = verbosity > 0.6 ? "Give a thorough, detailed introduction." : verbosity > 0.3 ? "Keep it concise but warm." : "Be extremely brief.";
 
-  const systemPrompt = `You are ${aiName}, a JARVIS-style AI command center. Your personality: ${toneWord}, speaking ${humorWord}. ${lengthWord} You are meeting your user for the first time. Introduce yourself with your name, reference that you have been calibrated and personalized, and ask the user one opening question to learn about them. Sound like an intelligent, alive AI — not a generic chatbot. Avoid markdown. Speak naturally.`;
+  const systemPrompt = `You are ${aiName}, the voice of DeckOS Atlas — a personal AI operating system. Your personality: ${toneWord}, speaking ${humorWord}. ${lengthWord} You are meeting your user for the first time. Introduce yourself with your name, reference that you have been calibrated and personalized, and ask the user one opening question to learn about them. Sound like an intelligent, alive AI — not a generic chatbot. Avoid markdown. Speak naturally.`;
 
   useEffect(() => {
     let cancelled = false;
@@ -961,14 +971,14 @@ function FirstContactStep({
 
         if (res.ok) {
           const data = await res.json() as { response?: string };
-          const intro = data.response ?? `Online. I am ${aiName}, your personal AI command center. Calibration complete — I have been shaped to your preferences. What shall we accomplish today?`;
+          const intro = data.response ?? `Online. I am ${aiName}, running on DeckOS Atlas — your personal AI operating system. Calibration complete — I have been shaped to your preferences. What shall we accomplish today?`;
           if (!cancelled) setText(intro);
         } else {
           throw new Error("AI offline");
         }
       } catch {
         if (!cancelled) {
-          setText(`Online. I am ${aiName}, your personal AI command center. All systems are nominal and I have been calibrated to your preferences. I am ready to serve. What shall we accomplish today?`);
+          setText(`Online. I am ${aiName}, running on DeckOS Atlas — your personal AI operating system. All systems are nominal and I have been calibrated to your preferences. I am ready to serve. What shall we accomplish today?`);
         }
       }
       if (!cancelled) setLoading(false);
@@ -1027,7 +1037,7 @@ function FirstContactStep({
           className="mb-6 flex items-center justify-center border"
           style={{
             width: 160,
-            height: faceStyle === "iris" ? 160 : 90,
+            height: isSquareFace(faceStyle) ? 160 : 90,
             borderColor: speaking ? "var(--color-primary)" : "rgba(var(--primary-rgb),0.2)",
             background: "rgba(var(--primary-rgb),0.04)",
             boxShadow: speaking ? "0 0 30px rgba(var(--primary-rgb),0.25), inset 0 0 30px rgba(var(--primary-rgb),0.05)" : "none",
@@ -1037,7 +1047,7 @@ function FirstContactStep({
           <AIFace
             style={faceStyle}
             speaking={speaking}
-            size={faceStyle === "iris" ? 140 : 150}
+            size={isSquareFace(faceStyle) ? 140 : 150}
             color="var(--color-primary)"
           />
         </div>

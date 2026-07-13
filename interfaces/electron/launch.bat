@@ -1,17 +1,18 @@
 @echo off
 setlocal enabledelayedexpansion
 
-title Deck OS — JARVIS Command Center
+title DeckOS Atlas
 
 echo.
-echo  ██████╗ ███████╗ ██████╗██╗  ██╗     ██████╗ ███████╗
-echo  ██╔══██╗██╔════╝██╔════╝██║ ██╔╝    ██╔═══██╗██╔════╝
-echo  ██║  ██║█████╗  ██║     █████╔╝     ██║   ██║███████╗
-echo  ██║  ██║██╔══╝  ██║     ██╔═██╗     ██║   ██║╚════██║
-echo  ██████╔╝███████╗╚██████╗██║  ██╗    ╚██████╔╝███████║
-echo  ╚═════╝ ╚══════╝ ╚═════╝╚═╝  ╚═╝     ╚═════╝ ╚══════╝
+echo   █████╗ ████████╗██╗      █████╗ ███████╗
+echo  ██╔══██╗╚══██╔══╝██║     ██╔══██╗██╔════╝
+echo  ███████║   ██║   ██║     ███████║███████╗
+echo  ██╔══██║   ██║   ██║     ██╔══██║╚════██║
+echo  ██║  ██║   ██║   ███████╗██║  ██║███████║
+echo  ╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝╚══════╝
 echo.
-echo  Launching JARVIS Command Center...
+echo  DeckOS Atlas — personal AI operating system
+echo  Launching...
 echo.
 
 where node >nul 2>&1
@@ -37,7 +38,7 @@ if not exist "node_modules" (
     )
 )
 
-echo  Starting Deck OS...
+echo  Starting DeckOS Atlas...
 npx electron .
 
 endlocal

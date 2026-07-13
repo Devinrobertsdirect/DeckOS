@@ -7,7 +7,7 @@ import {
   Play, Square, Wand2, MonitorPlay, Loader2,
 } from "lucide-react";
 import { HudCorners } from "@/components/HudCorners";
-import { AIFace, saveFaceStyle, useFaceStyle } from "@/components/AIFace";
+import { AIFace, saveFaceStyle, useFaceStyle, isSquareFace } from "@/components/AIFace";
 import {
   FACE_OPTIONS, QUIZ_QUESTIONS, VOICE_OPTIONS, VOICE_KEY, AI_NAME_KEY,
 } from "@/components/CinematicOnboarding";
@@ -15,6 +15,7 @@ import { getStoredConfig, applyColor, applyHexColor, type ColorScheme } from "@/
 import { AI_NAME_UPDATED_EVENT } from "@/hooks/useAiName";
 import { USER_NAME_UPDATED_EVENT } from "@/hooks/useUserName";
 import type { FaceStyle } from "@/components/AIFace";
+import { FACE_THEMES, useFaceTheme, saveFaceTheme } from "@/components/faces/AtlasFace";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -40,6 +41,8 @@ export const VOICE_CHANGED_EVENT = "deckos:voiceChanged";
 // ── Constants ──────────────────────────────────────────────────────────────
 
 const PRESET_COLORS = [
+  { label: "ATLAS STEEL", value: "#4a7fb5" },
+  { label: "ATLAS ICE",   value: "#c9dcf0" },
   { label: "COBALT",   value: "#3f84f3" },
   { label: "CYAN",     value: "#00d4ff" },
   { label: "EMERALD",  value: "#11d97a" },
@@ -51,6 +54,8 @@ const PRESET_COLORS = [
 ];
 
 const HEX_TO_SCHEME: Record<string, ColorScheme> = {
+  "#4a7fb5": "steel",
+  "#c9dcf0": "ice",
   "#3f84f3": "blue",
   "#11d97a": "green",
   "#ffc820": "yellow",
@@ -343,6 +348,7 @@ function LocalVoicePreview({ gender }: { gender: string }) {
 
 function RecalibrateTab() {
   const currentFace  = useFaceStyle();
+  const faceTheme = useFaceTheme();
   const [face, setFaceLocal]    = useState<FaceStyle>(currentFace);
   const [voice, setVoiceLocal]  = useState<string>(() => localStorage.getItem(VOICE_KEY) ?? "onyx");
   const [playing, setPlaying]   = useState<string | null>(null);
@@ -701,7 +707,7 @@ function RecalibrateTab() {
                   <AIFace
                     style={f.id}
                     speaking={active}
-                    size={f.id === "iris" ? 52 : 90}
+                    size={isSquareFace(f.id) ? 52 : 90}
                     color={active ? "hsl(var(--primary))" : "rgba(var(--primary-rgb),0.35)"}
                   />
                 </div>
@@ -715,6 +721,38 @@ function RecalibrateTab() {
             );
           })}
         </div>
+
+        {/* ── Eye packs — "the eyes always match the seam" ─────────────── */}
+        {(face === "atlas" || face === "neural") && (
+          <div className="mt-4 pt-4 border-t border-primary/15">
+            <div className="font-mono text-[9px] tracking-widest uppercase mb-2" style={{ color: "rgba(var(--primary-rgb),0.4)" }}>
+              EYE PACK — an edition is a config, not a fork
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {FACE_THEMES.map((t) => {
+                const activeTheme = faceTheme.id === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => saveFaceTheme(t.id)}
+                    className="flex items-center gap-2 px-2.5 py-1.5 border font-mono text-[10px] tracking-wider transition-all"
+                    style={{
+                      borderColor: activeTheme ? "hsl(var(--primary))" : "rgba(var(--primary-rgb),0.2)",
+                      background: activeTheme ? "rgba(var(--primary-rgb),0.1)" : "transparent",
+                      color: activeTheme ? "hsl(var(--primary))" : "rgba(var(--primary-rgb),0.55)",
+                    }}
+                  >
+                    <span
+                      className="inline-block w-2.5 h-2.5 rounded-full"
+                      style={{ background: t.eyeRgb ? `rgb(${t.eyeRgb})` : "hsl(var(--primary))" }}
+                    />
+                    {t.name.toUpperCase()}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Voice picker ────────────────────────────────────────────────── */}
@@ -1346,7 +1384,7 @@ export default function AiPersonality() {
                 className="flex items-center justify-center border transition-all"
                 style={{
                   width: 120,
-                  height: currentFaceStyle === "iris" ? 120 : 68,
+                  height: isSquareFace(currentFaceStyle) ? 120 : 68,
                   borderColor: `${form.textColor ?? "#00d4ff"}40`,
                   background: `${form.textColor ?? "#00d4ff"}08`,
                   boxShadow: `0 0 18px ${form.textColor ?? "#00d4ff"}22`,
@@ -1356,7 +1394,7 @@ export default function AiPersonality() {
                 <AIFace
                   style={currentFaceStyle}
                   speaking={true}
-                  size={currentFaceStyle === "iris" ? 100 : 110}
+                  size={isSquareFace(currentFaceStyle) ? 100 : 110}
                   color={form.textColor ?? "#00d4ff"}
                 />
               </div>

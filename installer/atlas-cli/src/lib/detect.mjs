@@ -69,9 +69,9 @@ export function findRepoRoot() {
 }
 
 export function defaultInstallDir() {
-  if (IS_WINDOWS) return join(process.env.LOCALAPPDATA || homedir(), 'DeckOS');
-  if (IS_MAC)     return join(homedir(), 'Library', 'Application Support', 'DeckOS');
-  return join(homedir(), '.local', 'share', 'deckos');
+  if (IS_WINDOWS) return join(process.env.LOCALAPPDATA || homedir(), 'DeckOS-Atlas');
+  if (IS_MAC)     return join(homedir(), 'Library', 'Application Support', 'DeckOS-Atlas');
+  return join(homedir(), '.local', 'share', 'deckos-atlas');
 }
 
 export function majorVersion(versionStr) {
@@ -79,4 +79,4 @@ export function majorVersion(versionStr) {
   return parseInt(versionStr.split('.')[0], 10);
 }
 
-export const GITHUB_REPO = 'https://github.com/your-username/deck-os';
+export const GITHUB_REPO = 'https://github.com/Devinrobertsdirect/DeckOS-Atlas';

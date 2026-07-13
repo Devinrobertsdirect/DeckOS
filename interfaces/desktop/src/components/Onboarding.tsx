@@ -4,7 +4,7 @@ import { AIFace } from "@/components/AIFace";
 // ─────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────
-export type ColorScheme = "blue" | "green" | "yellow" | "red";
+export type ColorScheme = "steel" | "ice" | "blue" | "green" | "yellow" | "red";
 export type VisualMode  = "minimal" | "standard" | "cinematic";
 
 export interface UserConfig {
@@ -44,18 +44,24 @@ export function isInitialized(): boolean {
 // Color system
 // ─────────────────────────────────────────────
 const COLOR_LABEL: Record<ColorScheme, string> = {
+  steel:  "ATLAS STEEL",
+  ice:    "ATLAS ICE",
   blue:   "COBALT",
   green:  "EMERALD",
   yellow: "AMBER",
   red:    "CRIMSON",
 };
 const COLOR_HEX: Record<ColorScheme, string> = {
+  steel:  "#4A7FB5",
+  ice:    "#C9DCF0",
   blue:   "#3f84f3",
   green:  "#11d97a",
   yellow: "#ffc820",
   red:    "#f03248",
 };
 const COLOR_DESC: Record<ColorScheme, string> = {
+  steel:  "the Atlas signature",
+  ice:    "calm precision",
   blue:   "deep focus",
   green:  "growth & clarity",
   yellow: "energy & focus",
@@ -74,7 +80,8 @@ export function applyColor(c: ColorScheme) {
   }
 }
 export function getStoredColor(): ColorScheme {
-  return (localStorage.getItem("deckos_color") as ColorScheme) ?? "blue";
+  // Default for new users is the Atlas Steel accent; an existing stored choice always wins.
+  return (localStorage.getItem("deckos_color") as ColorScheme) ?? "steel";
 }
 
 function hexToRgb(hex: string): [number, number, number] {
@@ -393,7 +400,7 @@ function MicButton({
 // Phase 0: Color Picker
 // ─────────────────────────────────────────────
 function ColorPickPhase({ onNext }: { onNext: (c: ColorScheme) => void }) {
-  const [selected, setSelected] = useState<ColorScheme>("blue");
+  const [selected, setSelected] = useState<ColorScheme>("steel");
   const [visible, setVisible]   = useState(false);
 
   useEffect(() => {
@@ -415,7 +422,7 @@ function ColorPickPhase({ onNext }: { onNext: (c: ColorScheme) => void }) {
       >
         <div className="text-center space-y-1">
           <div className="text-primary/30 font-mono text-xs tracking-[0.4em] uppercase">
-            DeckOS // First Boot
+            DeckOS Atlas // First Boot
           </div>
           <div className="text-primary font-mono text-xl tracking-[0.3em] uppercase">
             Choose Your System Color
@@ -423,7 +430,7 @@ function ColorPickPhase({ onNext }: { onNext: (c: ColorScheme) => void }) {
         </div>
 
         <div className="flex gap-8 items-center">
-          {(["blue", "green", "yellow", "red"] as ColorScheme[]).map((c) => (
+          {(["steel", "ice", "blue", "green", "yellow", "red"] as ColorScheme[]).map((c) => (
             <button
               key={c}
               onClick={() => pick(c)}
@@ -518,7 +525,7 @@ function BootPhase({ aiName, onNext }: { aiName: string; onNext: () => void }) {
         <div className="text-center space-y-1 mb-2">
           <div className="text-primary font-sans text-4xl font-bold tracking-[0.3em] uppercase
             drop-shadow-[0_0_20px_rgba(var(--primary-rgb),0.7)] animate-[ob-glow-in_1s_ease_both]">
-            DECK OS
+            DECKOS ATLAS
           </div>
           <div className="text-primary/40 font-mono text-xs tracking-widest">{aiName} — FIRST BOOT</div>
         </div>

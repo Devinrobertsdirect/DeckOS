@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Mic, MicOff, Loader2, Volume2 } from "lucide-react";
 import { useVoiceRecorder } from "@/hooks/useVoiceRecorder";
 import { useAudioPlayback } from "@/hooks/useAudioPlayback";
@@ -17,6 +17,8 @@ interface VoiceMicButtonProps {
   disabled?: boolean;
   className?: string;
   compact?: boolean;
+  /** Fires whenever the voice pipeline state changes (drives the face). */
+  onStateChange?: (state: VoicePipelineState) => void;
 }
 
 const STATE_LABEL: Record<VoicePipelineState, string> = {
@@ -28,8 +30,11 @@ const STATE_LABEL: Record<VoicePipelineState, string> = {
   error:       "ERROR",
 };
 
-export function VoiceMicButton({ onTranscript, disabled = false, className = "", compact = false }: VoiceMicButtonProps) {
+export function VoiceMicButton({ onTranscript, disabled = false, className = "", compact = false, onStateChange }: VoiceMicButtonProps) {
   const [pipelineState, setPipelineState] = useState<VoicePipelineState>("idle");
+  useEffect(() => {
+    onStateChange?.(pipelineState);
+  }, [pipelineState, onStateChange]);
   const [errorMsg, setErrorMsg]           = useState<string | null>(null);
   const { recorderState, micDenied, supported, startRecording, stopRecording, cancelRecording } = useVoiceRecorder();
   const { playbackState, speak } = useAudioPlayback();

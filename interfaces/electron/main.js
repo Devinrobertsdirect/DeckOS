@@ -83,7 +83,7 @@ function handleWsEventForNotification(msg) {
       const value = payload.value != null ? ` (${Math.round(payload.value)}%)` : "";
       showNotification(
         `system.resource.alert.${resource}`,
-        "JARVIS — System Alert",
+        "Atlas — System Alert",
         `High ${resource} usage detected${value}. Check the System tab.`
       );
       break;
@@ -93,7 +93,7 @@ function handleWsEventForNotification(msg) {
       const pluginId = payload.pluginId ?? payload.plugin ?? "plugin";
       showNotification(
         `plugin.error.${pluginId}`,
-        "JARVIS — Plugin Error",
+        "Atlas — Plugin Error",
         `Plugin "${pluginId}" encountered an error.`
       );
       break;
@@ -104,7 +104,7 @@ function handleWsEventForNotification(msg) {
       const body = payload.body ?? payload.message ?? "";
       showNotification(
         `notification.created.${title}`,
-        `JARVIS — ${title}`,
+        `Atlas — ${title}`,
         body
       );
       break;
@@ -114,7 +114,7 @@ function handleWsEventForNotification(msg) {
       const name = payload.name ?? payload.routineName ?? "Routine";
       showNotification(
         `routine.completed.${name}`,
-        "JARVIS — Routine Complete",
+        "Atlas — Routine Complete",
         `"${name}" finished successfully.`
       );
       break;
@@ -124,7 +124,7 @@ function handleWsEventForNotification(msg) {
       const message = payload.message ?? payload.error ?? "An unexpected system error occurred.";
       showNotification(
         "system.error",
-        "JARVIS — System Error",
+        "Atlas — System Error",
         message
       );
       break;
@@ -135,7 +135,7 @@ function handleWsEventForNotification(msg) {
       if (mainWindow && !mainWindow.isVisible()) {
         showNotification(
           "ai.inference_completed",
-          "JARVIS — Response Ready",
+          "Atlas — Response Ready",
           payload.summary ?? "AI inference completed."
         );
       }
@@ -180,9 +180,9 @@ const ICONS = {
 };
 
 const STATUS_LABELS = {
-  offline: "JARVIS — Offline",
-  online: "JARVIS — Online",
-  speaking: "JARVIS — Speaking",
+  offline: "Atlas — offline",
+  online: "Atlas — online",
+  speaking: "Atlas — speaking",
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -190,7 +190,9 @@ function getResourcePath(...parts) {
   if (app.isPackaged) {
     return path.join(process.resourcesPath, ...parts);
   }
-  return path.join(__dirname, "..", ...parts);
+  // Dev / no-build mode: api-dist and frontend-dist are copied into
+  // interfaces/electron/ (this directory) by scripts/build-win.sh.
+  return path.join(__dirname, ...parts);
 }
 
 function waitForApi(port, timeoutMs) {
@@ -261,7 +263,7 @@ function buildTrayMenu() {
 
   return Menu.buildFromTemplate([
     {
-      label: "Open Deck OS",
+      label: "Open DeckOS Atlas",
       click: () => {
         if (mainWindow) {
           mainWindow.show();
@@ -422,7 +424,7 @@ async function createWindow() {
     minWidth: 900,
     minHeight: 620,
     icon: path.join(__dirname, "build", "icon.png"),
-    title: "Deck OS — JARVIS Command Center",
+    title: "DeckOS Atlas",
     backgroundColor: "#000000",
     show: false,
     webPreferences: {

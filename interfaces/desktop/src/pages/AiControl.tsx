@@ -2,10 +2,11 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { Brain, Zap, Database, Globe, Loader2, Copy, Check, Mic } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useWebSocket, useLatestPayload, useWsEvents } from "@/contexts/WebSocketContext";
-import { AIFace, useFaceStyle } from "@/components/AIFace";
+import { AIFace, useFaceStyle, isSquareFace } from "@/components/AIFace";
 import { useAiName } from "@/hooks/useAiName";
 import { useUserName } from "@/hooks/useUserName";
-import { VoiceMicButton } from "@/components/VoiceMicButton";
+import { VoiceMicButton, type VoicePipelineState } from "@/components/VoiceMicButton";
+import { deriveFaceState } from "@/components/faces/AtlasFace";
 import { useAudioPlayback } from "@/hooks/useAudioPlayback";
 
 const GREET_SESSION_KEY = "deckos_ai_greeted";
@@ -109,6 +110,7 @@ export default function AiControl() {
   const aiName = useAiName();
   const userName = useUserName();
   const { speak, playbackState } = useAudioPlayback();
+  const [voiceState, setVoiceState] = useState<VoicePipelineState>("idle");
 
   // ── Browser-side Ollama detection ────────────────────────────────────────
   // The server (Replit cloud) can't reach localhost:11434 on the user's machine.
@@ -442,7 +444,14 @@ export default function AiControl() {
         <AIFace
           style={faceStyle}
           speaking={!!streamingText || playbackState === "speaking"}
-          size={faceStyle === "iris" ? 36 : 52}
+          state={deriveFaceState({
+            listening: voiceState === "listening",
+            speaking: !!streamingText || playbackState === "speaking" || voiceState === "speaking",
+            thinking: (sending && !streamingText) || voiceState === "transcribing" || voiceState === "chatting",
+            mood: voiceState === "error" ? "confused" : null,
+          })}
+          activity={sending || streamingText ? 0.9 : voiceState !== "idle" ? 0.6 : 0.15}
+          size={isSquareFace(faceStyle) ? 36 : 52}
           color="var(--color-primary)"
         />
         <div className="font-mono flex flex-col gap-0.5">
@@ -556,6 +565,7 @@ export default function AiControl() {
           onTranscript={handleVoiceTranscript}
           disabled={sending}
           compact
+          onStateChange={setVoiceState}
         />
         <button
           type="submit"

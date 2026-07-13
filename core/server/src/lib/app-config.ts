@@ -10,6 +10,9 @@
  *   FAST_MODEL        — Reflex model     (default: phi3)
  *   OPENAI_API_KEY    — Cloud API key    (sensitive — masked on read)
  *   ANTHROPIC_API_KEY — Cloud API key    (sensitive — masked on read)
+ *   CLAUDE_MODEL      — Apex (Claude) model      (default: claude-sonnet-5)
+ *   CLOUD_PREFERENCE  — local-first | cloud-first | local-only (default: local-first)
+ *   CLAUDE_MAX_TOKENS — Apex max output tokens   (default: 4096)
  */
 
 import { db, appConfigTable } from "@workspace/db";

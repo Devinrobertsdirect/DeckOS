@@ -1,0 +1,9 @@
+# Network contract — matches docs/ARCHITECTURE.md and design sheet ATL-HW-001.
+robot_id: atlas-robot
+desktop_host: atlas.local   # where the desktop Atlas server lives
+mdns: atlas.local           # the robot announces itself here too
+ports:
+  rest: 8000                # robot REST API
+  ws: 8001                  # robot WebSocket (telemetry / face mirror)
+  dashboard: 8080           # desktop Atlas server (REST + WS /api/ws)
+  mqtt: 1883                # Home Assistant / Mosquitto broker

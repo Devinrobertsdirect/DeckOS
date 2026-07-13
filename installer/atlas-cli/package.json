@@ -1,12 +1,13 @@
 {
-  "name": "deckos",
+  "name": "deckos-atlas",
   "version": "1.0.0",
-  "description": "JARVIS Command Center — 1-command bootstrap for Deck OS",
-  "keywords": ["deckos", "jarvis", "ai", "dashboard", "self-hosted"],
+  "description": "DeckOS Atlas — a Jarvis brain for humans, machines, and robots. 1-command bootstrap CLI.",
+  "keywords": ["deckos", "atlas", "jarvis", "ai", "dashboard", "self-hosted", "robot"],
   "license": "MIT",
   "type": "module",
   "bin": {
-    "deckos": "bin/deckos.mjs"
+    "atlas": "bin/atlas.mjs",
+    "deckos": "bin/atlas.mjs"
   },
   "files": [
     "bin",

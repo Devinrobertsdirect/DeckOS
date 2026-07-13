@@ -217,7 +217,7 @@ export default function MapView() {
           {devices.length === 0 && (
             <div className="font-mono text-[10px] text-primary/20 text-center py-6">
               No trackers online.<br />
-              Open DeckOS on your phone to begin.
+              Open DeckOS Atlas on your phone to begin.
             </div>
           )}
 

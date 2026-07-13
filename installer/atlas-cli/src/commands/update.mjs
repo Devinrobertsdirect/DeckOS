@@ -9,7 +9,7 @@ export async function updateCmd() {
   console.log('');
   const repoDir = findRepoRoot();
   if (!repoDir) {
-    fail('Could not find Deck OS repo. Run from inside the repo or install with: npx deckos start');
+    fail('Could not find the DeckOS Atlas repo. Run from inside the repo or install with: atlas start');
   }
 
   // Check for running services
@@ -48,6 +48,6 @@ export async function updateCmd() {
   }
 
   console.log('');
-  ok(chalk.bold('Update complete! Run: npx deckos start'));
+  ok(chalk.bold('Update complete! Run: atlas start'));
   console.log('');
 }

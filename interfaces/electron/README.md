@@ -1,6 +1,6 @@
-# Deck OS — Desktop App
+# DeckOS Atlas — Desktop App
 
-Iron Man JARVIS-style AI Command Center running locally on your Windows machine.
+DeckOS Atlas — a personal AI operating system — running locally on your Windows machine.
 
 ## Quick Start (Development / No-Build)
 
@@ -13,38 +13,38 @@ From the repository root:
 bash scripts/build-win.sh
 ```
 
-This builds the API server, builds the frontend, copies outputs into `deck-win/`, and produces the Windows distributable in `deck-win/dist-win/`.
+This builds the API server, builds the frontend, copies outputs into `interfaces/electron/`, and produces the Windows distributable in `interfaces/electron/dist-win/`.
 
 ### Option B — Manual steps
 
 1. **Build the API server** (from repo root):
    ```bash
-   cd artifacts/api-server
+   cd core/server
    pnpm run build
    ```
 
 2. **Build the frontend** (from repo root):
    ```bash
-   cd artifacts/deck-os
+   cd interfaces/desktop
    pnpm run build
    ```
 
-3. **Copy build outputs** into `deck-win/`:
+3. **Copy build outputs** into `interfaces/electron/`:
    ```bash
    # Linux/macOS
-   cp -r artifacts/api-server/dist  deck-win/api-dist
-   cp -r artifacts/deck-os/dist     deck-win/frontend-dist
+   cp -r core/server/dist        interfaces/electron/api-dist
+   cp -r interfaces/desktop/dist interfaces/electron/frontend-dist
 
    # Windows (cmd)
-   xcopy /E /I artifacts\api-server\dist deck-win\api-dist
-   xcopy /E /I artifacts\deck-os\dist    deck-win\frontend-dist
+   xcopy /E /I core\server\dist        interfaces\electron\api-dist
+   xcopy /E /I interfaces\desktop\dist interfaces\electron\frontend-dist
    ```
 
 4. **Launch** (Windows):
    ```bat
-   deck-win\launch.bat
+   interfaces\electron\launch.bat
    ```
-   Or from inside the `deck-win\` directory:
+   Or from inside the `interfaces\electron\` directory:
    ```bat
    npm install
    npm start
@@ -64,14 +64,14 @@ This builds the API server, builds the frontend, copies outputs into `deck-win/`
 REM 1. Build API & frontend (see above)
 REM 2. Copy outputs (see above)
 REM 3. Install Electron builder deps + build
-cd deck-win
+cd interfaces\electron
 npm install
 npm run build
 ```
 
-Outputs land in `deck-win\dist-win\`:
-- `Deck OS Setup 1.0.0.exe` — NSIS installer (creates Start Menu + Desktop shortcut)
-- `Deck OS 1.0.0.exe` — Single-file portable executable (no install needed)
+Outputs land in `interfaces\electron\dist-win\`:
+- `DeckOS Atlas Setup 1.0.0.exe` — NSIS installer (creates Start Menu + Desktop shortcut)
+- `DeckOS Atlas 1.0.0.exe` — Single-file portable executable (no install needed)
 
 ---
 
@@ -79,18 +79,18 @@ Outputs land in `deck-win\dist-win\`:
 
 ### System Tray Integration
 
-Deck OS lives in the Windows system tray and reflects the AI's live status:
+DeckOS Atlas lives in the Windows system tray and reflects the AI's live status:
 
 | Tray icon | Meaning |
 |-----------|---------|
-| 🔵 Blue dot | JARVIS — Online (idle) |
-| 🔵 Cyan dot | JARVIS — Speaking (streaming a response) |
-| ⚫ Grey dot | JARVIS — Offline |
+| 🔵 Blue dot | Atlas — online (idle) |
+| 🔵 Cyan dot | Atlas — speaking (streaming a response) |
+| ⚫ Grey dot | Atlas — offline |
 
 **Tray behaviour:**
 - Closing the window **hides** it to the tray instead of quitting.
 - **Double-click** the tray icon to bring the window back.
-- Right-click → **Open Deck OS** or **Quit** to exit fully.
+- Right-click → **Open DeckOS Atlas** or **Quit** to exit fully.
 
 The tray connects to the local WebSocket server (`/api/ws`) and updates the icon in real time based on events (`ai.chat.token`, `ai.tts.speaking`, `system.boot`, etc.).
 
@@ -99,7 +99,7 @@ The tray connects to the local WebSocket server (`/api/ws`) and updates the icon
 ## Architecture
 
 ```
-deck-win/
+interfaces/electron/
 ├── main.js          ← Electron main process
 │   • Spawns the API server as a child Node process
 │   • Shows splash screen while API warms up

@@ -1,0 +1,14 @@
+# Face / LCD settings (3.1" round 480x480 SPI — "the face").
+# Matches docs/FACE-SPEC.md: eye colour always equals the accent —
+# THE EYES ALWAYS MATCH THE SEAM.
+fps: 60
+brightness: 0.9           # 0.0–1.0; SLEEPING dims to 0.05 automatically
+theme: workshop           # workshop | stealth | forge | codex | cat | pixel
+eye_color: "#C9DCF0"      # ice-blue on navy #1E2A38
+blink:
+  min_interval_s: 4.0     # blink every 4–7 s, randomised
+  max_interval_s: 7.0
+  duration_s: 0.14
+tween:
+  min_ms: 250             # every state change tweens 250–400 ms
+  max_ms: 400

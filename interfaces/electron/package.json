@@ -1,7 +1,7 @@
 {
   "name": "deck-os-win",
   "version": "1.0.0",
-  "description": "Deck OS — JARVIS Command Center (Windows desktop app)",
+  "description": "DeckOS Atlas — personal AI operating system (Windows desktop app)",
   "main": "main.js",
   "private": true,
   "scripts": {
@@ -18,7 +18,7 @@
   },
   "build": {
     "appId": "com.decin.roberts.deckos",
-    "productName": "Deck OS",
+    "productName": "DeckOS Atlas",
     "copyright": "Copyright © 2025 Devin C Roberts",
     "directories": {
       "output": "dist-win"
@@ -42,7 +42,7 @@
       "allowToChangeInstallationDirectory": true,
       "installerIcon": "build/icon.png",
       "uninstallerIcon": "build/icon.png",
-      "shortcutName": "Deck OS"
+      "shortcutName": "DeckOS Atlas"
     },
     "extraResources": [
       { "from": "api-dist", "to": "api-dist" },

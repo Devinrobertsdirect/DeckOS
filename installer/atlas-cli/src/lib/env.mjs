@@ -38,7 +38,7 @@ export async function ensureEnvFile(repoDir) {
     ok('Created .env from .env.example');
   } else {
     const defaultEnv = [
-      '# Deck OS environment configuration',
+      '# DeckOS Atlas environment configuration',
       `DATABASE_URL=postgresql://deckos:deckos@localhost:5432/deckos`,
       `SESSION_SECRET=${randomHex(32)}`,
       `PORT=8080`,

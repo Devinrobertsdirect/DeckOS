@@ -14,6 +14,8 @@ import {
   getInferenceState,
   resolveBestModel,
   MODEL_CONFIG,
+  CLAUDE_MODELS,
+  getClaudeModel,
 } from "../lib/inference.js";
 import { bus } from "../lib/bus.js";
 import { broadcast } from "../lib/ws-server.js";
@@ -47,6 +49,8 @@ function broadcastOllamaStatus() {
     payload: {
       ollamaAvailable:   state.ollamaAvailable  ?? false,
       openclawAvailable: state.openclawAvailable ?? false,
+      claudeAvailable:   state.claudeAvailable   ?? false,
+      cloudPreference:   state.cloudPreference,
       lastDetectedAt:    state.lastDetected.toISOString(),
     },
     timestamp: new Date().toISOString(),
@@ -124,6 +128,7 @@ router.get("/ai-router/status", async (req, res) => {
   // Use resolved models (from Ollama discovery) so the UI always shows what's actually in use
   const resolvedCortex = resolveBestModel("cortex", MODEL_CONFIG.REASONING);
   const resolvedReflex  = resolveBestModel("reflex",  MODEL_CONFIG.FAST);
+  const resolvedApex    = await getClaudeModel();
   const activeModel     = state.ollamaAvailable ? resolvedCortex : null;
 
   const body = GetAiRouterStatusResponse.parse({
@@ -140,13 +145,18 @@ router.get("/ai-router/status", async (req, res) => {
   res.json({
     ...body,
     openclawAvailable: state.openclawAvailable ?? false,
+    claudeAvailable:   state.claudeAvailable   ?? false,
+    cloudPreference:   state.cloudPreference,
     ollamaModels: state.ollamaModels,
+    claudeModels: CLAUDE_MODELS,
     models: {
+      apex:      resolvedApex,
       cortex:    resolvedCortex,
       reflex:    resolvedReflex,
       autopilot: MODEL_CONFIG.RULE_ENGINE,
     },
     tierStats: {
+      apexRequests:      state.apexRequests,
       cortexRequests:    state.cortexRequests,
       reflexRequests:    state.reflexRequests,
       autopilotRequests: state.autopilotRequests,
@@ -289,6 +299,8 @@ router.post("/ai-router/refresh", async (req, res) => {
   res.json({
     ollamaAvailable:   state.ollamaAvailable  ?? false,
     openclawAvailable: state.openclawAvailable ?? false,
+    claudeAvailable:   state.claudeAvailable   ?? false,
+    cloudPreference:   state.cloudPreference,
     cloudAvailable,
     lastDetectedAt:    state.lastDetected.toISOString(),
   });

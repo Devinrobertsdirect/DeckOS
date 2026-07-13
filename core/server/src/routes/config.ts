@@ -2,7 +2,16 @@ import { Router } from "express";
 import { z } from "zod/v4";
 import { getConfig, setConfig, deleteConfig, getAllConfig } from "../lib/app-config.js";
 import { invalidateConfigCache } from "../lib/app-config.js";
-import { detectOllama, detectOpenWebUI, getInferenceState } from "../lib/inference.js";
+import {
+  detectOllama,
+  detectOpenWebUI,
+  detectClaude,
+  getInferenceState,
+  getClaudeModel,
+  getCloudPreference,
+  CLAUDE_MODELS,
+  DEFAULT_CLAUDE_MODEL,
+} from "../lib/inference.js";
 import { isLocalTtsAvailable } from "../lib/local-tts.js";
 
 const router = Router();
@@ -29,12 +38,24 @@ router.get("/features", async (_req, res) => {
   const owOnline = owHostConfigured ? (state.openWebUIAvailable ?? (await detectOpenWebUI().catch(() => false))) : false;
   const localAiOnline = ollamaOnline || owOnline;
 
+  const claudeOnline = state.claudeAvailable ?? (await detectClaude().catch(() => false));
+  const [claudeModel, cloudPreference] = await Promise.all([getClaudeModel(), getCloudPreference()]);
+
   res.json({
     inference: {
-      available: localAiOnline,
-      provider: ollamaOnline ? "ollama" : owOnline ? "openwebui" : "rule-engine",
+      available: localAiOnline || claudeOnline,
+      provider: ollamaOnline ? "ollama" : owOnline ? "openwebui" : claudeOnline ? "anthropic" : "rule-engine",
       local: true,
       fallback: "rule-engine",
+    },
+    apex: {
+      available: claudeOnline,
+      provider: claudeOnline ? "anthropic" : null,
+      model: claudeModel,
+      models: CLAUDE_MODELS,
+      cloudPreference,
+      requests: state.apexRequests,
+      local: false,
     },
     tts: {
       available: hasElevenLabs || hasOpenAi || ttsLocal,
@@ -65,13 +86,22 @@ router.get("/config", async (_req, res) => {
 
   // Merge with env defaults so the UI always shows a value
   const merged: Record<string, string> = {
-    OLLAMA_HOST:     process.env["OLLAMA_HOST"]     ?? "http://localhost:11434",
-    REASONING_MODEL: process.env["REASONING_MODEL"] ?? "gemma4",
-    FAST_MODEL:      process.env["FAST_MODEL"]      ?? "phi3",
+    OLLAMA_HOST:       process.env["OLLAMA_HOST"]       ?? "http://localhost:11434",
+    REASONING_MODEL:   process.env["REASONING_MODEL"]   ?? "gemma4",
+    FAST_MODEL:        process.env["FAST_MODEL"]        ?? "phi3",
+    CLAUDE_MODEL:      process.env["CLAUDE_MODEL"]      ?? DEFAULT_CLAUDE_MODEL,
+    CLOUD_PREFERENCE:  process.env["CLOUD_PREFERENCE"]  ?? "local-first",
+    CLAUDE_MAX_TOKENS: process.env["CLAUDE_MAX_TOKENS"] ?? "4096",
     ...config,
   };
 
-  res.json({ config: merged });
+  // claudeModels: valid CLAUDE_MODEL values for the settings UI dropdown;
+  // cloudPreferences: valid CLOUD_PREFERENCE values
+  res.json({
+    config: merged,
+    claudeModels: CLAUDE_MODELS,
+    cloudPreferences: ["local-first", "cloud-first", "local-only"],
+  });
 });
 
 // ── PUT /api/config ─────────────────────────────────────────────────────────

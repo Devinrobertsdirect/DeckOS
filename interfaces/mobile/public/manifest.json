@@ -1,7 +1,7 @@
 {
-  "name": "DeckOS — JARVIS",
-  "short_name": "DeckOS",
-  "description": "AI Command Center — JARVIS Interface",
+  "name": "DeckOS Atlas",
+  "short_name": "Atlas",
+  "description": "DeckOS Atlas — personal AI operating system (mobile companion)",
   "start_url": "/mobile/",
   "display": "standalone",
   "background_color": "#050c1a",

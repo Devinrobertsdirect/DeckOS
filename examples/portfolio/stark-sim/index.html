@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STARK Files - Flight Simulation</title>
+    <style>
+        /* General Styles */
+        body {
+            margin: 0;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        /* Telemetry HUD */
+        #telemetry {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 10;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+        }
+
+        /* UI Controls */
+        label, select, button {
+            position: absolute;
+            left: 10px;
+            font-family: Arial, sans-serif;
+            margin-top: 10px;
+        }
+
+        /* Dropdown Menus */
+        select {
+            background-color: #333;
+            color: white;
+            border: none;
+            padding: 5px;
+        }
+
+        /* Control Buttons */
+        button {
+            background-color: #0055ff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            border-radius: 3px;
+            font-size: 14px;
+        }
+
+            button:hover {
+                background-color: #003bbd;
+            }
+    </style>
+</head>
+<body>
+
+    <!-- Telemetry HUD -->
+    <div id="telemetry">
+        <p>Speed: <span id="speed-value">0</span> m/s</p>
+        <p>Altitude: <span id="altitude-value">0</span> m</p>
+        <p>Thrust Level: <span id="thrust-value">0</span>%</p>
+        <p>Pitch: <span id="pitch-value">0</span>°</p>
+        <p>Yaw: <span id="yaw-value">0</span>°</p>
+        <p>Roll: <span id="roll-value">0</span>°</p>
+        <p>Battery: <span id="battery-status">100</span>%</p>
+        <p>Temperature: <span id="system-temp">20</span>°C</p>
+    </div>
+
+    <!-- Customization and Upgrade Controls -->
+    <label for="edf-select">Select EDF Unit:</label>
+    <select id="edf-select">
+        <option value="default-edf">Standard EDF Unit</option>
+        <option value="high-power-edf">High-Power EDF Unit</option>
+        <option value="lightweight-edf">Lightweight EDF Unit</option>
+    </select>
+
+    <label for="battery-select" style="top: 50px;">Select Battery:</label>
+    <select id="battery-select">
+        <option value="default-battery">Standard Battery</option>
+        <option value="high-capacity-battery">High-Capacity Battery</option>
+        <option value="lightweight-battery">Lightweight Battery</option>
+    </select>
+
+    <label for="upgrade-select" style="top: 100px;">Apply Upgrade:</label>
+    <select id="upgrade-select">
+        <option value="boost-thrust">Boost Thrust</option>
+        <option value="increase-cooling">Increase Cooling Efficiency</option>
+        <option value="extend-battery">Extend Battery Capacity</option>
+    </select>
+    <button id="apply-upgrade-button" style="top: 130px;">Apply Upgrade</button>
+
+    <!-- Flight Mode and Hover Stability Buttons -->
+    <button id="flight-mode-button" style="top: 200px;">Switch to Forward Flight</button>
+    <button id="hover-stability-button" style="top: 250px;">Enable Hover Stability</button>
+    <button id="ai-assist-button" style="top: 300px;">Enable AI Pilot Assist</button>
+    <button id="repair-button" style="top: 350px;">Repair System</button>
+
+    <!-- Include Three.js library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <!-- Your custom JavaScript file -->
+    <script src="app.js"></script>
+</body>
+</html>

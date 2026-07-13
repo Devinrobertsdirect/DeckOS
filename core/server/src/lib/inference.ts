@@ -24,6 +24,12 @@ export type TaskType =
 
 export type InferenceMode = "fast" | "deep" | "none";
 
+/** Routing tiers — apex is the Anthropic Claude cloud tier ("big-brain mode") */
+export type Tier = "apex" | "cortex" | "reflex" | "autopilot";
+
+/** Cloud routing preference — "an edition is a config, not a fork" */
+export type CloudPreference = "local-first" | "cloud-first" | "local-only";
+
 export type InferenceOptions = {
   prompt: string;
   mode: InferenceMode;
@@ -32,7 +38,7 @@ export type InferenceOptions = {
   useCache?: boolean;
   latencyBudgetMs?: number; // if set and < 200, forces fast model
   /** Called synchronously once tier+model are resolved, BEFORE the slow LLM call */
-  onTierResolved?: (tier: "cortex" | "reflex" | "autopilot", model: string) => void;
+  onTierResolved?: (tier: Tier, model: string) => void;
 };
 
 export type InferenceResult = {
@@ -40,7 +46,7 @@ export type InferenceResult = {
   modelUsed: string;
   latencyMs: number;
   fromCache: boolean;
-  tier: "cortex" | "reflex" | "autopilot";
+  tier: Tier;
 };
 
 // ── Model name config (env-driven so users can change without code edits) ──
@@ -58,10 +64,21 @@ export const MODEL_CONFIG = {
   RULE_ENGINE: "rule-engine-v1",
 } as const;
 
+// ── Claude (Apex tier) model catalog — surfaced in the settings UI ──────────
+export const CLAUDE_MODELS = [
+  "claude-fable-5",
+  "claude-opus-4-8",
+  "claude-sonnet-5",
+  "claude-haiku-4-5-20251001",
+] as const;
+
+export const DEFAULT_CLAUDE_MODEL = "claude-sonnet-5";
+
 // ── Inference state ─────────────────────────────────────────────────────────
 const inferenceState: {
   totalRequests: number;
   cacheHits: number;
+  apexRequests: number;
   cortexRequests: number;
   reflexRequests: number;
   autopilotRequests: number;
@@ -69,12 +86,17 @@ const inferenceState: {
   ollamaAvailable: boolean | null;
   openWebUIAvailable: boolean | null;
   openclawAvailable: boolean | null;
+  /** Anthropic Claude (Apex tier) — true when an API key is configured */
+  claudeAvailable: boolean | null;
+  /** Cached CLOUD_PREFERENCE — refreshed by refreshOllamaDetection so the sync gateway can read it */
+  cloudPreference: CloudPreference;
   lastDetected: Date;
   /** Models discovered from Ollama /api/tags — populated on each detection */
   ollamaModels: string[];
 } = {
   totalRequests:      0,
   cacheHits:          0,
+  apexRequests:       0,
   cortexRequests:     0,
   reflexRequests:     0,
   autopilotRequests:  0,
@@ -82,6 +104,8 @@ const inferenceState: {
   ollamaAvailable:    null,
   openWebUIAvailable: null,
   openclawAvailable:  null,
+  claudeAvailable:    null,
+  cloudPreference:    "local-first",
   lastDetected:       new Date(),
   ollamaModels:       [],
 };
@@ -204,8 +228,19 @@ export async function getActiveOllamaBase(): Promise<string | null> {
 }
 
 export async function refreshOllamaDetection(): Promise<void> {
-  [inferenceState.ollamaAvailable, inferenceState.openWebUIAvailable, inferenceState.openclawAvailable] =
-    await Promise.all([detectOllama(), detectOpenWebUI(), detectOpenClaw()]);
+  [
+    inferenceState.ollamaAvailable,
+    inferenceState.openWebUIAvailable,
+    inferenceState.openclawAvailable,
+    inferenceState.claudeAvailable,
+    inferenceState.cloudPreference,
+  ] = await Promise.all([
+    detectOllama(),
+    detectOpenWebUI(),
+    detectOpenClaw(),
+    detectClaude(),
+    getCloudPreference(),
+  ]);
   inferenceState.lastDetected = new Date();
 }
 
@@ -314,6 +349,172 @@ async function callOpenWebUIStreaming(
   return fullText || "[No response from Open WebUI]";
 }
 
+// ── Claude helpers (Apex tier — "big-brain mode") ───────────────────────────
+// Anthropic Messages API via raw fetch — no SDK dependency. Local-first,
+// cloud optional: the tier only activates when an API key is configured.
+
+export async function getAnthropicApiKey(): Promise<string> {
+  try {
+    return (await getConfig("ANTHROPIC_API_KEY")) ?? process.env["ANTHROPIC_API_KEY"] ?? "";
+  } catch {
+    return process.env["ANTHROPIC_API_KEY"] ?? "";
+  }
+}
+
+export async function getClaudeModel(): Promise<string> {
+  try {
+    return (await getConfig("CLAUDE_MODEL")) ?? process.env["CLAUDE_MODEL"] ?? DEFAULT_CLAUDE_MODEL;
+  } catch {
+    return process.env["CLAUDE_MODEL"] ?? DEFAULT_CLAUDE_MODEL;
+  }
+}
+
+export async function getClaudeMaxTokens(): Promise<number> {
+  let raw: string | undefined;
+  try {
+    raw = (await getConfig("CLAUDE_MAX_TOKENS")) ?? process.env["CLAUDE_MAX_TOKENS"];
+  } catch {
+    raw = process.env["CLAUDE_MAX_TOKENS"];
+  }
+  const parsed = raw ? Number.parseInt(raw, 10) : NaN;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 4096;
+}
+
+export async function getCloudPreference(): Promise<CloudPreference> {
+  let raw: string | null | undefined;
+  try {
+    raw = (await getConfig("CLOUD_PREFERENCE")) ?? process.env["CLOUD_PREFERENCE"];
+  } catch {
+    raw = process.env["CLOUD_PREFERENCE"];
+  }
+  return raw === "cloud-first" || raw === "local-only" ? raw : "local-first";
+}
+
+/** Apex availability = a configured API key. No network probe — key presence
+ *  is the signal, so detection stays instant and offline-safe. */
+export async function detectClaude(): Promise<boolean> {
+  return !!(await getAnthropicApiKey());
+}
+
+/** Convert OpenAI-style messages to the Anthropic Messages API shape:
+ *  system messages concatenate into the top-level `system` param; every other
+ *  role maps onto user/assistant. */
+function toClaudePayload(messages: Array<{ role: string; content: string }>): {
+  system: string;
+  messages: Array<{ role: "user" | "assistant"; content: string }>;
+} {
+  const systemParts: string[] = [];
+  const converted: Array<{ role: "user" | "assistant"; content: string }> = [];
+  for (const m of messages) {
+    if (m.role === "system") {
+      systemParts.push(m.content);
+    } else {
+      converted.push({ role: m.role === "assistant" ? "assistant" : "user", content: m.content });
+    }
+  }
+  return { system: systemParts.join("\n\n"), messages: converted };
+}
+
+const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
+
+export async function callClaude(
+  messages: Array<{ role: string; content: string }>,
+  model: string,
+  maxTokens: number,
+): Promise<string> {
+  const apiKey = await getAnthropicApiKey();
+  if (!apiKey) throw new Error("Anthropic API key not configured");
+  const { system, messages: claudeMessages } = toClaudePayload(messages);
+
+  const res = await fetch(ANTHROPIC_API_URL, {
+    method:  "POST",
+    headers: {
+      "x-api-key":         apiKey,
+      "anthropic-version": "2023-06-01",
+      "content-type":      "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: maxTokens,
+      ...(system ? { system } : {}),
+      messages: claudeMessages,
+    }),
+    signal: AbortSignal.timeout(90_000),
+  });
+
+  if (!res.ok) throw new Error(`Claude API ${res.status}: ${res.statusText}`);
+  const data = (await res.json()) as { content?: Array<{ type: string; text?: string }> };
+  const text = (data.content ?? [])
+    .filter((b) => b.type === "text" && typeof b.text === "string")
+    .map((b) => b.text as string)
+    .join("");
+  return text || "[No response from Claude]";
+}
+
+export async function callClaudeStreaming(
+  messages: Array<{ role: string; content: string }>,
+  model: string,
+  maxTokens: number,
+  onToken: (token: string) => void,
+): Promise<string> {
+  const apiKey = await getAnthropicApiKey();
+  if (!apiKey) throw new Error("Anthropic API key not configured");
+  const { system, messages: claudeMessages } = toClaudePayload(messages);
+
+  const res = await fetch(ANTHROPIC_API_URL, {
+    method:  "POST",
+    headers: {
+      "x-api-key":         apiKey,
+      "anthropic-version": "2023-06-01",
+      "content-type":      "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: maxTokens,
+      ...(system ? { system } : {}),
+      messages: claudeMessages,
+      stream: true,
+    }),
+    signal: AbortSignal.timeout(90_000),
+  });
+
+  if (!res.ok) throw new Error(`Claude API ${res.status}: ${res.statusText}`);
+  if (!res.body) throw new Error("No response body from Claude");
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let fullText = "";
+  let stopped = false;
+
+  while (!stopped) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? ""; // keep partial line for the next chunk
+    for (const line of lines) {
+      if (!line.startsWith("data: ")) continue;
+      const payload = line.slice(6).trim();
+      if (!payload) continue;
+      try {
+        const event = JSON.parse(payload) as {
+          type?: string;
+          delta?: { type?: string; text?: string };
+        };
+        if (event.type === "content_block_delta" && typeof event.delta?.text === "string") {
+          fullText += event.delta.text;
+          onToken(event.delta.text);
+        } else if (event.type === "message_stop") {
+          stopped = true;
+          break;
+        }
+      } catch { /* skip malformed SSE lines */ }
+    }
+  }
+  return fullText || "[No response from Claude]";
+}
+
 // Build an OpenAI-style messages array (compatible with Ollama + Open WebUI)
 function buildMessages(
   prompt: string,
@@ -329,23 +530,48 @@ function buildMessages(
 
 // ── MODEL ROUTING GATEWAY ───────────────────────────────────────────────────
 //
-// Priority: RULE ENGINE → FAST (phi3) → CORTEX (Gemma) → Cloud
+// Priority: RULE ENGINE → FAST (phi3) → CORTEX (Gemma) → APEX (Claude)
 //
 //  Tier        Model       When to use
 //  ──────────  ──────────  ─────────────────────────────────────────
 //  autopilot   rule-engine system checks, device polling, safety fallback
 //  reflex      phi3        classification, routing, commands, <200ms budget
 //  cortex      gemma3:9b   chat, planning, reasoning, summarization, briefing
+//  apex        claude      "deep" mode, or cortex-class tasks when cloud-first
 //
-type Tier = "cortex" | "reflex" | "autopilot";
+// Apex only engages when an Anthropic key is configured AND CLOUD_PREFERENCE
+// allows it ("local-only" disables cloud entirely). Failover: apex → cortex →
+// reflex → OpenWebUI → rule engine. It never goes silent.
 
-function resolveGateway(task: TaskType | undefined, mode: InferenceMode, latencyBudgetMs?: number): Tier {
-  // No local AI available (Ollama, OpenClaw, or Open WebUI) → autopilot (rule engine)
+/** Cortex-class tasks — reasoning-heavy work eligible for the apex tier */
+const CORTEX_CLASS_TASKS: ReadonlySet<TaskType> = new Set([
+  "chat", "reasoning", "planning", "summarization", "prediction", "briefing",
+]);
+
+function resolveGateway(
+  task: TaskType | undefined,
+  mode: InferenceMode,
+  latencyBudgetMs?: number,
+  cloudPreference?: CloudPreference,
+): Tier {
+  const pref = cloudPreference ?? inferenceState.cloudPreference;
   const hasLocalAI = inferenceState.ollamaAvailable || inferenceState.openclawAvailable || inferenceState.openWebUIAvailable;
-  if (mode === "none" || !hasLocalAI) return "autopilot";
+  const apexReady = !!inferenceState.claudeAvailable && pref !== "local-only";
 
-  // Strict latency budget under 200ms → reflex
+  // Deterministic mode, or nothing intelligent to route to → autopilot (rule engine)
+  if (mode === "none" || (!hasLocalAI && !apexReady)) return "autopilot";
+
+  // Strict latency budget under 200ms → reflex (cloud round-trips need not apply)
   if (latencyBudgetMs !== undefined && latencyBudgetMs < 200) return "reflex";
+
+  // Apex (Claude): explicit "deep" mode, or cortex-class tasks under cloud-first
+  const isCortexClass = task !== undefined ? CORTEX_CLASS_TASKS.has(task) : mode === "deep";
+  if (apexReady && ((pref === "cloud-first" && isCortexClass) || mode === "deep")) {
+    return "apex";
+  }
+
+  // No local AI (and apex not selected) → autopilot
+  if (!hasLocalAI) return "autopilot";
 
   // Route by task type
   switch (task) {
@@ -381,6 +607,7 @@ function resolveGateway(task: TaskType | undefined, mode: InferenceMode, latency
 
 function tierToModel(tier: Tier): string {
   switch (tier) {
+    case "apex":      return DEFAULT_CLAUDE_MODEL;
     case "cortex":    return MODEL_CONFIG.REASONING;
     case "reflex":    return MODEL_CONFIG.FAST;
     case "autopilot": return MODEL_CONFIG.RULE_ENGINE;
@@ -522,13 +749,20 @@ export async function runInferenceStreaming(
   const { prompt, mode, task, context = [], latencyBudgetMs, onTierResolved } = opts;
   inferenceState.totalRequests++;
 
-  const tier = resolveGateway(task, mode, latencyBudgetMs);
+  // Resolve cloud preference up-front (resolveGateway is sync) and cache it
+  const cloudPreference = await getCloudPreference();
+  inferenceState.cloudPreference = cloudPreference;
+
+  const tier = resolveGateway(task, mode, latencyBudgetMs, cloudPreference);
+  const claudeModel = tier === "apex" ? await getClaudeModel() : null;
   // Use discovered Ollama models when available — never use hardcoded defaults blindly
-  const model = tier === "cortex"
-    ? resolveBestModel("cortex", MODEL_CONFIG.REASONING)
-    : tier === "reflex"
-      ? resolveBestModel("reflex", MODEL_CONFIG.FAST)
-      : MODEL_CONFIG.RULE_ENGINE;
+  const model = tier === "apex" && claudeModel
+    ? `claude:${claudeModel}`
+    : tier === "cortex"
+      ? resolveBestModel("cortex", MODEL_CONFIG.REASONING)
+      : tier === "reflex"
+        ? resolveBestModel("reflex", MODEL_CONFIG.FAST)
+        : MODEL_CONFIG.RULE_ENGINE;
   if (onTierResolved) onTierResolved(tier, model);
 
   const start = Date.now();
@@ -536,7 +770,7 @@ export async function runInferenceStreaming(
   let modelUsed: string = MODEL_CONFIG.RULE_ENGINE;
   let usedTier: Tier = "autopilot";
 
-  // Priority: Ollama → OpenClaw (Ollama-compatible on :18789) → OpenWebUI → rule engine
+  // Priority: Claude (apex) → Ollama → OpenClaw (Ollama-compatible on :18789) → OpenWebUI → rule engine
   const ollamaBase    = inferenceState.ollamaAvailable   ? await getOllamaBaseUrl() : null;
   const openClawBase  = !ollamaBase && inferenceState.openclawAvailable ? OPENCLAW_BASE : null;
   const useOpenWebUI  = !ollamaBase && !openClawBase && !!inferenceState.openWebUIAvailable;
@@ -546,52 +780,74 @@ export async function runInferenceStreaming(
   const modelLabel = (base: string, m: string) =>
     base === OPENCLAW_BASE ? `openclaw:${m}` : m;
 
-  try {
-    if (tier === "autopilot" || !activeBase && !useOpenWebUI) {
-      response  = await streamRuleBasedResponse(prompt, onToken);
-      modelUsed = MODEL_CONFIG.RULE_ENGINE;
-      usedTier  = "autopilot";
-      inferenceState.autopilotRequests++;
-    } else if (activeBase) {
-      response  = await callOllamaStreaming(prompt, model, context, onToken, activeBase);
-      modelUsed = modelLabel(activeBase, model);
-      usedTier  = tier;
-      if (tier === "cortex") inferenceState.cortexRequests++;
-      if (tier === "reflex") inferenceState.reflexRequests++;
-    } else if (useOpenWebUI) {
-      response  = await callOpenWebUIStreaming(msgs, model, onToken);
-      modelUsed = `openwebui:${model}`;
-      usedTier  = tier;
-      if (tier === "cortex") inferenceState.cortexRequests++;
-      if (tier === "reflex") inferenceState.reflexRequests++;
-    }
-  } catch {
-    // Graceful degradation: cortex→reflex→OpenWebUI→rule engine
-    let recovered = false;
-    if (tier === "cortex" && activeBase) {
-      try {
-        response  = await callOllamaStreaming(prompt, MODEL_CONFIG.FAST, context, onToken, activeBase);
-        modelUsed = modelLabel(activeBase, MODEL_CONFIG.FAST);
-        usedTier  = "reflex";
-        inferenceState.reflexRequests++;
-        recovered = true;
-      } catch { /* fall through */ }
-    }
-    if (!recovered && inferenceState.openWebUIAvailable) {
-      try {
-        response  = await callOpenWebUIStreaming(msgs, model, onToken);
-        modelUsed = `openwebui:${model}`;
-        usedTier  = tier;
-        if (tier === "cortex") inferenceState.cortexRequests++;
-        if (tier === "reflex") inferenceState.reflexRequests++;
-        recovered = true;
-      } catch { /* fall through */ }
-    }
-    if (!recovered) {
-      response  = await streamRuleBasedResponse(prompt, onToken);
-      modelUsed = MODEL_CONFIG.RULE_ENGINE;
-      usedTier  = "autopilot";
-      inferenceState.autopilotRequests++;
+  // ── Apex tier: Claude first, failover into the local chain below ──────────
+  let done = false;
+  let localTier: Tier = tier;
+  let localModel = model;
+  if (tier === "apex") {
+    // Pre-arm the failover: apex failure falls to cortex — the existing chain
+    // continues: cortex → reflex → OpenWebUI → rule engine. It never goes silent.
+    localTier  = "cortex";
+    localModel = resolveBestModel("cortex", MODEL_CONFIG.REASONING);
+    try {
+      const apexModel = claudeModel || DEFAULT_CLAUDE_MODEL;
+      const maxTokens = await getClaudeMaxTokens();
+      response  = await callClaudeStreaming(msgs, apexModel, maxTokens, onToken);
+      modelUsed = `claude:${apexModel}`;
+      usedTier  = "apex";
+      inferenceState.apexRequests++;
+      done = true;
+    } catch { /* fall through to local chain */ }
+  }
+
+  if (!done) {
+    try {
+      if (localTier === "autopilot" || !activeBase && !useOpenWebUI) {
+        response  = await streamRuleBasedResponse(prompt, onToken);
+        modelUsed = MODEL_CONFIG.RULE_ENGINE;
+        usedTier  = "autopilot";
+        inferenceState.autopilotRequests++;
+      } else if (activeBase) {
+        response  = await callOllamaStreaming(prompt, localModel, context, onToken, activeBase);
+        modelUsed = modelLabel(activeBase, localModel);
+        usedTier  = localTier;
+        if (localTier === "cortex") inferenceState.cortexRequests++;
+        if (localTier === "reflex") inferenceState.reflexRequests++;
+      } else if (useOpenWebUI) {
+        response  = await callOpenWebUIStreaming(msgs, localModel, onToken);
+        modelUsed = `openwebui:${localModel}`;
+        usedTier  = localTier;
+        if (localTier === "cortex") inferenceState.cortexRequests++;
+        if (localTier === "reflex") inferenceState.reflexRequests++;
+      }
+    } catch {
+      // Graceful degradation: cortex→reflex→OpenWebUI→rule engine
+      let recovered = false;
+      if (localTier === "cortex" && activeBase) {
+        try {
+          response  = await callOllamaStreaming(prompt, MODEL_CONFIG.FAST, context, onToken, activeBase);
+          modelUsed = modelLabel(activeBase, MODEL_CONFIG.FAST);
+          usedTier  = "reflex";
+          inferenceState.reflexRequests++;
+          recovered = true;
+        } catch { /* fall through */ }
+      }
+      if (!recovered && inferenceState.openWebUIAvailable) {
+        try {
+          response  = await callOpenWebUIStreaming(msgs, localModel, onToken);
+          modelUsed = `openwebui:${localModel}`;
+          usedTier  = localTier;
+          if (localTier === "cortex") inferenceState.cortexRequests++;
+          if (localTier === "reflex") inferenceState.reflexRequests++;
+          recovered = true;
+        } catch { /* fall through */ }
+      }
+      if (!recovered) {
+        response  = await streamRuleBasedResponse(prompt, onToken);
+        modelUsed = MODEL_CONFIG.RULE_ENGINE;
+        usedTier  = "autopilot";
+        inferenceState.autopilotRequests++;
+      }
     }
   }
 
@@ -604,10 +860,15 @@ export async function runInference(opts: InferenceOptions): Promise<InferenceRes
   const { prompt, mode, task, context = [], useCache = true, latencyBudgetMs, onTierResolved } = opts;
   inferenceState.totalRequests++;
 
-  // Read dynamic model overrides from DB/env
-  const dynModels = await getDynamicModels();
-  const tier  = resolveGateway(task, mode, latencyBudgetMs);
-  const model = tier === "cortex"  ? dynModels.reasoning
+  // Read dynamic model overrides from DB/env; resolve cloud preference up-front
+  // (resolveGateway is sync) and cache it for other sync callers
+  const [dynModels, cloudPreference] = await Promise.all([getDynamicModels(), getCloudPreference()]);
+  inferenceState.cloudPreference = cloudPreference;
+
+  const tier = resolveGateway(task, mode, latencyBudgetMs, cloudPreference);
+  const claudeModel = tier === "apex" ? await getClaudeModel() : null;
+  const model = tier === "apex"    ? `claude:${claudeModel || DEFAULT_CLAUDE_MODEL}`
+              : tier === "cortex"  ? dynModels.reasoning
               : tier === "reflex"  ? dynModels.fast
               : MODEL_CONFIG.RULE_ENGINE;
 
@@ -634,7 +895,7 @@ export async function runInference(opts: InferenceOptions): Promise<InferenceRes
   let modelUsed: string = MODEL_CONFIG.RULE_ENGINE;
   let usedTier: Tier = "autopilot";
 
-  // Priority: Ollama → OpenClaw (Ollama-compatible on :18789) → OpenWebUI → rule engine
+  // Priority: Claude (apex) → Ollama → OpenClaw (Ollama-compatible on :18789) → OpenWebUI → rule engine
   const ollamaBase2   = inferenceState.ollamaAvailable   ? await getOllamaBaseUrl() : null;
   const openClawBase2 = !ollamaBase2 && inferenceState.openclawAvailable ? OPENCLAW_BASE : null;
   const useOpenWebUI2 = !ollamaBase2 && !openClawBase2 && !!inferenceState.openWebUIAvailable;
@@ -644,52 +905,74 @@ export async function runInference(opts: InferenceOptions): Promise<InferenceRes
   const modelLabel2 = (base: string, m: string) =>
     base === OPENCLAW_BASE ? `openclaw:${m}` : m;
 
-  try {
-    if (tier === "autopilot" || !activeBase2 && !useOpenWebUI2) {
-      response  = generateRuleBasedResponse(prompt);
-      modelUsed = MODEL_CONFIG.RULE_ENGINE;
-      usedTier  = "autopilot";
-      inferenceState.autopilotRequests++;
-    } else if (activeBase2) {
-      response  = await callOllama(prompt, model, context, activeBase2);
-      modelUsed = modelLabel2(activeBase2, model);
-      usedTier  = tier;
-      if (tier === "cortex") inferenceState.cortexRequests++;
-      if (tier === "reflex") inferenceState.reflexRequests++;
-    } else if (useOpenWebUI2) {
-      response  = await callOpenWebUI(msgs, model);
-      modelUsed = `openwebui:${model}`;
-      usedTier  = tier;
-      if (tier === "cortex") inferenceState.cortexRequests++;
-      if (tier === "reflex") inferenceState.reflexRequests++;
-    }
-  } catch {
-    // Graceful degradation: cortex→reflex→OpenWebUI→rule engine
-    let recovered = false;
-    if (tier === "cortex" && activeBase2) {
-      try {
-        response  = await callOllama(prompt, dynModels.fast, context, activeBase2);
-        modelUsed = modelLabel2(activeBase2, dynModels.fast);
-        usedTier  = "reflex";
-        inferenceState.reflexRequests++;
-        recovered = true;
-      } catch { /* fall through */ }
-    }
-    if (!recovered && inferenceState.openWebUIAvailable) {
-      try {
-        response  = await callOpenWebUI(msgs, model);
-        modelUsed = `openwebui:${model}`;
-        usedTier  = tier;
-        if (tier === "cortex") inferenceState.cortexRequests++;
-        if (tier === "reflex") inferenceState.reflexRequests++;
-        recovered = true;
-      } catch { /* fall through */ }
-    }
-    if (!recovered) {
-      response  = generateRuleBasedResponse(prompt);
-      modelUsed = MODEL_CONFIG.RULE_ENGINE;
-      usedTier  = "autopilot";
-      inferenceState.autopilotRequests++;
+  // ── Apex tier: Claude first, failover into the local chain below ──────────
+  let done = false;
+  let localTier: Tier = tier;
+  let localModel = model;
+  if (tier === "apex") {
+    // Pre-arm the failover: apex failure falls to cortex — the existing chain
+    // continues: cortex → reflex → OpenWebUI → rule engine. It never goes silent.
+    localTier  = "cortex";
+    localModel = dynModels.reasoning;
+    try {
+      const apexModel = claudeModel || DEFAULT_CLAUDE_MODEL;
+      const maxTokens = await getClaudeMaxTokens();
+      response  = await callClaude(msgs, apexModel, maxTokens);
+      modelUsed = `claude:${apexModel}`;
+      usedTier  = "apex";
+      inferenceState.apexRequests++;
+      done = true;
+    } catch { /* fall through to local chain */ }
+  }
+
+  if (!done) {
+    try {
+      if (localTier === "autopilot" || !activeBase2 && !useOpenWebUI2) {
+        response  = generateRuleBasedResponse(prompt);
+        modelUsed = MODEL_CONFIG.RULE_ENGINE;
+        usedTier  = "autopilot";
+        inferenceState.autopilotRequests++;
+      } else if (activeBase2) {
+        response  = await callOllama(prompt, localModel, context, activeBase2);
+        modelUsed = modelLabel2(activeBase2, localModel);
+        usedTier  = localTier;
+        if (localTier === "cortex") inferenceState.cortexRequests++;
+        if (localTier === "reflex") inferenceState.reflexRequests++;
+      } else if (useOpenWebUI2) {
+        response  = await callOpenWebUI(msgs, localModel);
+        modelUsed = `openwebui:${localModel}`;
+        usedTier  = localTier;
+        if (localTier === "cortex") inferenceState.cortexRequests++;
+        if (localTier === "reflex") inferenceState.reflexRequests++;
+      }
+    } catch {
+      // Graceful degradation: cortex→reflex→OpenWebUI→rule engine
+      let recovered = false;
+      if (localTier === "cortex" && activeBase2) {
+        try {
+          response  = await callOllama(prompt, dynModels.fast, context, activeBase2);
+          modelUsed = modelLabel2(activeBase2, dynModels.fast);
+          usedTier  = "reflex";
+          inferenceState.reflexRequests++;
+          recovered = true;
+        } catch { /* fall through */ }
+      }
+      if (!recovered && inferenceState.openWebUIAvailable) {
+        try {
+          response  = await callOpenWebUI(msgs, localModel);
+          modelUsed = `openwebui:${localModel}`;
+          usedTier  = localTier;
+          if (localTier === "cortex") inferenceState.cortexRequests++;
+          if (localTier === "reflex") inferenceState.reflexRequests++;
+          recovered = true;
+        } catch { /* fall through */ }
+      }
+      if (!recovered) {
+        response  = generateRuleBasedResponse(prompt);
+        modelUsed = MODEL_CONFIG.RULE_ENGINE;
+        usedTier  = "autopilot";
+        inferenceState.autopilotRequests++;
+      }
     }
   }
 

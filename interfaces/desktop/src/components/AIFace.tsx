@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { attachAmplitudeAnalyser, readAmplitude } from "@/lib/audioAnalyser";
+import { AtlasFace, type FaceState } from "@/components/faces/AtlasFace";
 
-export type FaceStyle = "vocoder" | "oscilloscope" | "iris" | "spectrum";
+export type FaceStyle = "atlas" | "neural" | "vocoder" | "oscilloscope" | "iris" | "spectrum";
+
+/** Styles rendered on a square canvas (round face). */
+export function isSquareFace(style: FaceStyle): boolean {
+  return style === "iris" || style === "atlas" || style === "neural";
+}
 export { attachAmplitudeAnalyser };
 
 interface Props {
@@ -10,6 +16,10 @@ interface Props {
   size?: number;
   color?: string;
   className?: string;
+  /** Rich expression state — used by the atlas/neural faces. */
+  state?: FaceState;
+  /** 0..1 how hard the brain is working — drives the neural cluster. */
+  activity?: number;
 }
 
 const TAU = Math.PI * 2;
@@ -396,12 +406,20 @@ function SpectrumFace({ speaking, size, color }: { speaking: boolean; size: numb
   );
 }
 
-export function AIFace({ style, speaking = false, size = 120, color = "#3f84f3", className = "" }: Props) {
-  const isSquare = style === "iris";
+export function AIFace({ style, speaking = false, size = 120, color = "#3f84f3", className = "", state, activity = 0 }: Props) {
+  const isSquare = isSquareFace(style);
   const resolvedColor = useMemo(() => resolveCanvasColor(color), [color]);
 
   return (
     <div className={className} style={{ width: size, height: isSquare ? size : Math.round(size * 0.55) }}>
+      {(style === "atlas" || style === "neural") && (
+        <AtlasFace
+          mode={style === "neural" ? "neural" : "auto"}
+          state={state ?? (speaking ? "talking" : "idle")}
+          size={size}
+          activity={activity}
+        />
+      )}
       {style === "vocoder" && <VocoderFace speaking={speaking} size={size} color={resolvedColor} />}
       {style === "oscilloscope" && <OscilloscopeFace speaking={speaking} size={size} color={resolvedColor} />}
       {style === "iris" && <IrisFace speaking={speaking} size={size} color={resolvedColor} />}
@@ -410,11 +428,11 @@ export function AIFace({ style, speaking = false, size = 120, color = "#3f84f3",
   );
 }
 
-const VALID_FACE_STYLES: FaceStyle[] = ["vocoder", "oscilloscope", "iris", "spectrum"];
+const VALID_FACE_STYLES: FaceStyle[] = ["atlas", "neural", "vocoder", "oscilloscope", "iris", "spectrum"];
 
 function readFaceStyle(): FaceStyle {
   const raw = localStorage.getItem("deckos_face_style");
-  return (VALID_FACE_STYLES.includes(raw as FaceStyle) ? raw : "vocoder") as FaceStyle;
+  return (VALID_FACE_STYLES.includes(raw as FaceStyle) ? raw : "atlas") as FaceStyle;
 }
 
 export function saveFaceStyle(style: FaceStyle) {

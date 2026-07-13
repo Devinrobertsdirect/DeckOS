@@ -2,7 +2,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { applyColor, getStoredColor, getStoredConfig, type ColorScheme } from "@/components/Onboarding";
 import { useAiName } from "@/hooks/useAiName";
 import { useUserName } from "@/hooks/useUserName";
-import { AIFace, useFaceStyle } from "@/components/AIFace";
+import { AIFace, useFaceStyle, isSquareFace } from "@/components/AIFace";
 import { Link, useLocation } from "wouter";
 import { useAceraConnect } from "@/hooks/useAceraConnect";
 import { AceraOverlay } from "@/components/AceraOverlay";
@@ -446,11 +446,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <div className="flex items-center gap-3">
           <img
             src={`${import.meta.env.BASE_URL}logo.png`}
-            alt="Deck OS"
+            alt="DeckOS Atlas"
             className="w-8 h-8 object-contain pulse-glow"
           />
           <div>
-            <h1 className="text-xl font-bold text-primary tracking-widest uppercase m-0 leading-none">Deck OS</h1>
+            <h1 className="text-xl font-bold text-primary tracking-widest uppercase m-0 leading-none">DeckOS Atlas</h1>
             <p className="text-xs text-primary/50 font-mono">SYS.VER.9.4.2 // {aiName}</p>
           </div>
         </div>
@@ -522,8 +522,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
           {/* Color switcher */}
           <div className="hidden sm:flex items-center gap-1.5">
-            {(["blue", "green", "yellow", "red"] as ColorScheme[]).map((c) => {
-              const HEX: Record<ColorScheme, string> = { blue: "#3f84f3", green: "#11d97a", yellow: "#ffc820", red: "#f03248" };
+            {(["steel", "ice", "blue", "green", "yellow", "red"] as ColorScheme[]).map((c) => {
+              const HEX: Record<ColorScheme, string> = { steel: "#4A7FB5", ice: "#C9DCF0", blue: "#3f84f3", green: "#11d97a", yellow: "#ffc820", red: "#f03248" };
               return (
                 <button
                   key={c}
@@ -609,14 +609,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <div
               className="flex items-center justify-center transition-all"
               style={{
-                padding: faceStyle === "iris" ? "4px" : "6px 0",
+                padding: isSquareFace(faceStyle) ? "4px" : "6px 0",
                 filter: aiSpeaking ? "drop-shadow(0 0 6px rgba(var(--primary-rgb),0.6))" : "none",
               }}
             >
               <AIFace
                 style={faceStyle}
                 speaking={aiSpeaking}
-                size={faceStyle === "iris" ? 48 : 80}
+                size={isSquareFace(faceStyle) ? 48 : 80}
                 color="var(--color-primary)"
               />
             </div>

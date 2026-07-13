@@ -1,0 +1,8 @@
+# Atlas robot brain — Python 3.12
+pyyaml>=6.0
+
+# Optional extras — the runtime degrades gracefully without each of these.
+# Uncomment what you need (or: pip install pygame httpx websockets):
+# pygame>=2.5        # desktop face simulator window (robot/display/face_sim.py)
+# httpx>=0.27        # Anthropic / Ollama completions (robot/ai/llm.py)
+# websockets>=12.0   # desktop bridge (robot/web/bridge.py)

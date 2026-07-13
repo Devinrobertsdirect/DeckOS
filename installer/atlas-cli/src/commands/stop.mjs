@@ -39,11 +39,11 @@ export async function stopCmd(opts = {}) {
   }
 
   if (stopped === 0 && Object.keys(state).length === 0) {
-    warn('No running Deck OS processes found.');
+    warn('No running DeckOS Atlas processes found.');
     info('If services are still running, stop them manually or use: docker compose down');
   } else {
     console.log('');
-    ok(chalk.bold('Deck OS stopped.'));
+    ok(chalk.bold('DeckOS Atlas stopped.'));
   }
   console.log('');
 }

@@ -94,6 +94,24 @@
 }
 
 /* ── COLOR THEMES ────────────────────────────────────── */
+[data-color="steel"] {
+  /* Atlas Steel — #4A7FB5, the DeckOS Atlas signature accent */
+  --primary: 210 42% 50%; --primary-rgb: 74, 127, 181;
+  --foreground: 210 50% 82%; --border: 210 40% 28%;
+  --card-foreground: 210 50% 82%; --card-border: 210 40% 28%;
+  --popover-foreground: 210 50% 82%; --popover-border: 210 40% 28%;
+  --muted-foreground: 210 30% 68%; --accent: 210 50% 18%;
+  --accent-foreground: 210 60% 90%; --ring: 210 42% 50%; --input: 210 40% 28%;
+}
+[data-color="ice"] {
+  /* Atlas Ice — #C9DCF0, the eyes ice-blue */
+  --primary: 211 57% 86%; --primary-rgb: 201, 220, 240;
+  --foreground: 211 55% 90%; --border: 211 35% 34%;
+  --card-foreground: 211 55% 90%; --card-border: 211 35% 34%;
+  --popover-foreground: 211 55% 90%; --popover-border: 211 35% 34%;
+  --muted-foreground: 211 30% 74%; --accent: 211 45% 22%;
+  --accent-foreground: 211 60% 94%; --ring: 211 57% 86%; --input: 211 35% 34%;
+}
 [data-color="blue"] {
   --primary: 217 88% 60%; --primary-rgb: 63, 132, 243;
   --foreground: 217 70% 80%; --border: 217 60% 28%;

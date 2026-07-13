@@ -16,7 +16,7 @@ async function checkHttp(url) {
 
 export async function statusCmd() {
   console.log('');
-  console.log(chalk.bold('  Deck OS — Service Status\n'));
+  console.log(chalk.bold('  DeckOS Atlas — Service Status\n'));
   printDivider();
   console.log('');
 

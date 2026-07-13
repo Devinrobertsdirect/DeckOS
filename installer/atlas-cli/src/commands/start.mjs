@@ -23,6 +23,7 @@ export async function startCmd(opts = {}) {
 
   // ── 1. Prerequisites ─────────────────────────────────────────────────────
   step(1, TOTAL_STEPS, 'Checking prerequisites...');
+  // (First run doubles as install — clone, env, deps, migrations all happen below.)
   const { ok: depsOk, docker, dockerCompose } = await doctorCmd({ silent: true });
   if (!depsOk) {
     console.log('');
@@ -33,7 +34,7 @@ export async function startCmd(opts = {}) {
   ok('Prerequisites met');
 
   // ── 2. Locate / clone repo ──────────────────────────────────────────────
-  step(2, TOTAL_STEPS, 'Locating Deck OS...');
+  step(2, TOTAL_STEPS, 'Locating DeckOS Atlas...');
   let repoDir = findRepoRoot();
 
   if (!repoDir) {
@@ -42,9 +43,9 @@ export async function startCmd(opts = {}) {
       repoDir = installDir;
       ok(`Found existing install at ${chalk.cyan(repoDir)}`);
     } else {
-      info(`Cloning Deck OS to ${chalk.cyan(installDir)}...`);
+      info(`Cloning DeckOS Atlas to ${chalk.cyan(installDir)}...`);
       const gitVer = gitVersion();
-      if (!gitVer) fail('git is required to clone Deck OS. Install from https://git-scm.com');
+      if (!gitVer) fail('git is required to clone DeckOS Atlas. Install from https://git-scm.com');
 
       if (GITHUB_REPO.includes('your-username')) {
         console.log('');
@@ -52,13 +53,13 @@ export async function startCmd(opts = {}) {
         console.log('');
         console.log('  To fix this, publish the repo and set DECKOS_REPO in your environment:');
         console.log('');
-        console.log(chalk.cyan('    export DECKOS_REPO=https://github.com/your-username/deck-os'));
-        console.log(chalk.cyan('    npx deckos start'));
+        console.log(chalk.cyan('    export DECKOS_REPO=https://github.com/Devinrobertsdirect/DeckOS-Atlas'));
+        console.log(chalk.cyan('    atlas start'));
         console.log('');
         console.log('  Or clone manually and run from inside the repo:');
         console.log('');
-        console.log(chalk.cyan('    git clone https://github.com/your-username/deck-os'));
-        console.log(chalk.cyan('    cd deck-os && npx deckos start'));
+        console.log(chalk.cyan('    git clone https://github.com/Devinrobertsdirect/DeckOS-Atlas'));
+        console.log(chalk.cyan('    cd DeckOS-Atlas && atlas start'));
         console.log('');
         process.exit(1);
       }
@@ -85,7 +86,7 @@ export async function startCmd(opts = {}) {
   const bothRunning = apiProc && isAlive(apiProc.pid) && webProc && isAlive(webProc.pid);
   if (bothRunning) {
     console.log('');
-    ok(chalk.bold('Deck OS is already running!'));
+    ok(chalk.bold('DeckOS Atlas is already running!'));
     printUrls(loadEnvFile(repoDir));
     if (doOpen) openBrowser('http://localhost:3000');
     return;
@@ -117,12 +118,12 @@ export async function startCmd(opts = {}) {
     step(6, TOTAL_STEPS, 'Done!');
     console.log('');
     printDivider();
-    ok(chalk.bold.green('Deck OS is running via Docker!'));
+    ok(chalk.bold.green('DeckOS Atlas is running via Docker!'));
     console.log('');
     console.log(`  ${chalk.cyan('Frontend')}  →  ${chalk.underline('http://localhost:3000')}`);
     console.log(`  ${chalk.cyan('API')}       →  ${chalk.underline('http://localhost:8080')}`);
     console.log(`  ${chalk.gray('Logs:')}       docker compose logs -f`);
-    console.log(`  ${chalk.gray('Stop:')}       ${chalk.cyan('npx deckos stop')}`);
+    console.log(`  ${chalk.gray('Stop:')}       ${chalk.cyan('atlas stop')}`);
     console.log('');
     if (doOpen) openBrowser('http://localhost:3000');
     return;
@@ -161,7 +162,7 @@ export async function startCmd(opts = {}) {
       console.log('');
       warn('Migration failed. Check DATABASE_URL in .env and ensure PostgreSQL is running.');
       warn(e.message);
-      fail('Fix the database issue and re-run: npx deckos start');
+      fail('Fix the database issue and re-run: atlas start');
     }
   }
 
@@ -190,7 +191,7 @@ export async function startCmd(opts = {}) {
   printDivider();
   console.log('');
   if (apiReady) {
-    ok(chalk.bold.green('Deck OS is running!'));
+    ok(chalk.bold.green('DeckOS Atlas is running!'));
   } else {
     warn('Services started but health check timed out.');
     info('The API may still be building. Check logs or try again in a moment.');
@@ -198,8 +199,8 @@ export async function startCmd(opts = {}) {
   console.log('');
   console.log(`  ${chalk.cyan('Frontend')}  →  ${chalk.underline(`http://localhost:${webPort}`)}`);
   console.log(`  ${chalk.cyan('API')}       →  ${chalk.underline(`http://localhost:${apiPort}`)}`);
-  console.log(`  ${chalk.gray('Stop:')}       ${chalk.cyan('npx deckos stop')}`);
-  console.log(`  ${chalk.gray('Logs:')}       ${chalk.cyan('npx deckos logs')}`);
+  console.log(`  ${chalk.gray('Stop:')}       ${chalk.cyan('atlas stop')}`);
+  console.log(`  ${chalk.gray('Status:')}     ${chalk.cyan('atlas status')}`);
   console.log('');
 
   if (doOpen) {

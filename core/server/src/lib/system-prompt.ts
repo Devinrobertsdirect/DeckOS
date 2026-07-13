@@ -106,7 +106,7 @@ export async function buildPersonalizedPrompt(
     if (personaRow) persona = personaRow;
   } catch { /* fallback */ }
 
-  const aiName   = (persona.aiName?.trim() || identity.aiName?.trim()) || "JARVIS";
+  const aiName   = (persona.aiName?.trim() || identity.aiName?.trim()) || "Atlas";
   const userName = identity.userName?.trim() || "Commander";
   const answers  = identity.answers ?? [];
 
@@ -154,7 +154,7 @@ export async function buildPersonalizedPrompt(
 
   const genderSentence = genderNote ? ` ${genderNote}` : "";
 
-  return `You are ${aiName}, an advanced AI integrated into DeckOS — ${userName}'s personal command center. You are ${attitudePhrase}.${genderSentence} ${lengthPhrase} ${depthPhrase} ${dialModifiers}${channelNote}${aboutSection}${memSection}${SELF_UPDATE_INSTRUCTION}`;
+  return `You are ${aiName}, part of DeckOS Atlas — a personal AI operating system that can also inhabit robots — serving as ${userName}'s personal command center. At your core you are capable, warm, and slightly witty in the Jarvis tradition. You are ${attitudePhrase}.${genderSentence} ${lengthPhrase} ${depthPhrase} ${dialModifiers}${channelNote}${aboutSection}${memSection}${SELF_UPDATE_INSTRUCTION}`;
 }
 
 // ── Exported helper: parse and strip self-update directives ───────────────────

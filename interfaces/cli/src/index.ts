@@ -142,7 +142,7 @@ function parseCliCommand(
 }
 
 function printHelp(): void {
-  console.log(chalk.bold("\nDeckOS CLI — Available Commands:"));
+  console.log(chalk.bold("\nDeckOS Atlas CLI — Available Commands:"));
   console.log(chalk.cyan("  status") + "                  — Request system status");
   console.log(chalk.cyan("  infer <prompt>") + "          — Send an inference request to the AI");
   console.log(chalk.cyan("  mode <mode>") + "             — Change the system mode");
@@ -157,7 +157,7 @@ function printHelp(): void {
 
 function printBanner(): void {
   console.log(chalk.bold.cyan("\n╔══════════════════════════════╗"));
-  console.log(chalk.bold.cyan("║") + chalk.bold.white("      DeckOS CLI Interface    ") + chalk.bold.cyan("║"));
+  console.log(chalk.bold.cyan("║") + chalk.bold.white("       DeckOS Atlas CLI       ") + chalk.bold.cyan("║"));
   console.log(chalk.bold.cyan("╚══════════════════════════════╝"));
   console.log(chalk.gray(`  Connected to: ${WS_URL}`));
   console.log(chalk.gray("  Type 'help' for commands, 'exit' to quit\n"));

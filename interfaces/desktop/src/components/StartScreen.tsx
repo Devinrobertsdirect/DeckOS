@@ -13,12 +13,16 @@ interface Props {
 }
 
 const COLOR_HEX: Record<ColorScheme, string> = {
+  steel:  "#4A7FB5",
+  ice:    "#C9DCF0",
   blue:   "#3f84f3",
   green:  "#11d97a",
   yellow: "#ffc820",
   red:    "#f03248",
 };
 const COLOR_NAME: Record<ColorScheme, string> = {
+  steel:  "ATLAS STEEL",
+  ice:    "ATLAS ICE",
   blue:   "COBALT",
   green:  "EMERALD",
   yellow: "AMBER",
@@ -49,8 +53,8 @@ function HudCorners() {
   );
 }
 
-const TITLE = "DECK OS";
-const SUBTITLE = "INTELLIGENCE COMMAND SYSTEM";
+const TITLE = "ATLAS";
+const SUBTITLE = "DECKOS ATLAS — PERSONAL AI OPERATING SYSTEM";
 
 export function StartScreen({ onStart }: Props) {
   const [settingsOpen, setSettingsOpen]   = useState(false);
@@ -286,7 +290,7 @@ export function StartScreen({ onStart }: Props) {
             <div className="flex items-center justify-between">
               <span className="text-primary/40 uppercase tracking-widest">SYSTEM COLOR</span>
               <div className="flex gap-2">
-                {(["blue", "green", "yellow", "red"] as ColorScheme[]).map(c => (
+                {(["steel", "ice", "blue", "green", "yellow", "red"] as ColorScheme[]).map(c => (
                   <button
                     key={c}
                     title={COLOR_NAME[c]}

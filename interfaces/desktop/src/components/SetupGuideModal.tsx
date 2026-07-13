@@ -38,11 +38,11 @@ const STEPS: StepDef[] = [
     achievement: "orientation",
     icon: Terminal,
     tag: "BOOT.SEQUENCE",
-    title: "Welcome to Deck OS",
+    title: "Welcome to DeckOS Atlas",
     content: (
       <div className="space-y-4">
         <p className="text-primary/75 leading-relaxed">
-          You are now connected to <span className="text-primary font-bold">Deck OS</span> — a fully local
+          You are now connected to <span className="text-primary font-bold">DeckOS Atlas</span> — a fully local
           AI command center modeled after Tony Stark's JARVIS interface. Think of it as a
           personal AI assistant that lives on your computer, remembers everything you tell it, and
           can be extended with hundreds of capabilities.
@@ -64,13 +64,13 @@ const STEPS: StepDef[] = [
           <div className="text-primary/40 text-[9px] uppercase tracking-widest mb-2">PRIVACY GUARANTEE</div>
           <div className="flex items-start gap-2 text-primary/60">
             <Shield className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
-            Your data never leaves your machine. Deck OS uses local AI models (Ollama) by default.
+            Your data never leaves your machine. DeckOS Atlas uses local AI models (Ollama) by default.
             No cloud required. No subscriptions.
           </div>
         </div>
       </div>
     ),
-    tip: "Deck OS is designed to get smarter about you the more you use it.",
+    tip: "DeckOS Atlas is designed to get smarter about you the more you use it.",
   },
   {
     module: "ORIENTATION",
@@ -81,7 +81,7 @@ const STEPS: StepDef[] = [
     content: (
       <div className="space-y-4">
         <p className="text-primary/75 leading-relaxed">
-          Deck OS uses a JARVIS-style HUD (Heads Up Display). Everything uses the same visual language:
+          DeckOS Atlas uses a JARVIS-style HUD (Heads Up Display). Everything uses the same visual language:
         </p>
         <div className="space-y-2 font-mono text-xs">
           {[
@@ -190,7 +190,7 @@ const STEPS: StepDef[] = [
     content: (
       <div className="space-y-4">
         <p className="text-primary/75 leading-relaxed">
-          Deck OS runs on an <span className="text-primary font-bold">event bus</span> — everything
+          DeckOS Atlas runs on an <span className="text-primary font-bold">event bus</span> — everything
           that happens (AI responses, device updates, plugin actions, sensor readings) fires as a
           live event. Press <kbd className="border border-primary/40 px-1.5 py-0.5 font-mono text-primary text-xs">E</kbd> anywhere
           to open the event log and watch in real time.
@@ -216,7 +216,7 @@ const STEPS: StepDef[] = [
         </p>
       </div>
     ),
-    tip: "The event log is the best way to understand what Deck OS is doing behind the scenes.",
+    tip: "The event log is the best way to understand what DeckOS Atlas is doing behind the scenes.",
   },
 
   // ══ MODULE 3 — AI CORE ══════════════════════════════════════════════════
@@ -251,7 +251,7 @@ const STEPS: StepDef[] = [
           <div className="space-y-1 text-primary/60">
             <div>1. Download Ollama from <span className="text-primary">ollama.com</span> (free)</div>
             <div>2. Open a terminal and run: <span className="text-primary bg-black/60 px-1">ollama pull gemma4</span></div>
-            <div>3. Deck OS auto-detects it — the AI status turns green</div>
+            <div>3. DeckOS Atlas auto-detects it — the AI status turns green</div>
           </div>
         </div>
       </div>
@@ -342,7 +342,7 @@ const STEPS: StepDef[] = [
       <div className="space-y-4">
         <p className="text-primary/75 leading-relaxed">
           The <span className="text-primary font-bold">Plugin Store</span> gives you access to 70+
-          skills across 11 categories. Each skill adds new capabilities to Deck OS — from weather
+          skills across 11 categories. Each skill adds new capabilities to DeckOS Atlas — from weather
           monitoring to home automation, security scanning, media control, and more.
         </p>
         <div className="grid grid-cols-3 gap-1 font-mono text-[9px]">
@@ -392,7 +392,7 @@ const STEPS: StepDef[] = [
         </div>
       </div>
     ),
-    tip: "Routines are how you turn Deck OS from a tool into a true assistant.",
+    tip: "Routines are how you turn DeckOS Atlas from a tool into a true assistant.",
   },
   {
     module: "OPS TOOLS",
@@ -433,7 +433,7 @@ const STEPS: StepDef[] = [
         <p className="text-primary/75 leading-relaxed">
           The <span className="text-primary font-bold">Console</span> is a direct command interface.
           You can run system commands, query the event bus, trigger plugin actions, and inspect
-          Deck OS internals — all from a JARVIS-style terminal.
+          DeckOS Atlas internals — all from a JARVIS-style terminal.
         </p>
         <div className="space-y-2 font-mono text-xs">
           <div className="text-primary/40 text-[9px] uppercase tracking-widest mb-1">EXAMPLE COMMANDS</div>
@@ -452,7 +452,7 @@ const STEPS: StepDef[] = [
         </div>
       </div>
     ),
-    tip: "The Console is for power users — you don't need it to use Deck OS normally.",
+    tip: "The Console is for power users — you don't need it to use DeckOS Atlas normally.",
   },
 
   // ══ MODULE 5 — ADVANCED SYSTEMS ════════════════════════════════════════
@@ -466,7 +466,7 @@ const STEPS: StepDef[] = [
       <div className="space-y-4">
         <p className="text-primary/75 leading-relaxed">
           <span className="text-primary font-bold">ACERA</span> (Augmented Command and Environmental
-          Response Architecture) lets you control Deck OS with hand gestures using your webcam.
+          Response Architecture) lets you control DeckOS Atlas with hand gestures using your webcam.
           No touching required.
         </p>
         <div className="grid grid-cols-2 gap-2 font-mono text-xs">
@@ -503,7 +503,7 @@ const STEPS: StepDef[] = [
         <p className="text-primary/75 leading-relaxed">
           <span className="text-primary font-bold">Stark Protocol</span> connects to bioelectric
           sensors (like the Upside Down Labs BioAmp) via USB. It reads your muscle signals (EMG),
-          heart rate (EKG), and brainwaves (EEG) — and lets you control Deck OS with your body.
+          heart rate (EKG), and brainwaves (EEG) — and lets you control DeckOS Atlas with your body.
         </p>
         <div className="grid grid-cols-3 gap-2 text-center font-mono text-[10px]">
           {[
@@ -573,14 +573,14 @@ const STEPS: StepDef[] = [
       <div className="space-y-4">
         <p className="text-primary/75 leading-relaxed">
           <span className="text-primary font-bold">DEVICES</span> shows all hardware connected to
-          Deck OS — smart home devices, sensors, actuators, and simulated devices. You can
+          DeckOS Atlas — smart home devices, sensors, actuators, and simulated devices. You can
           view live readings, send commands, and set up automation rules.
         </p>
         <div className="space-y-2 font-mono text-xs">
           <div className="text-primary/40 text-[9px] uppercase tracking-widest mb-1">CONNECTION PROTOCOLS</div>
           {[
             ["MQTT",     "For smart home devices (home automation standard)"],
-            ["WEBSOCKET","For the Deck OS mobile app and browser devices"],
+            ["WEBSOCKET","For the DeckOS Atlas mobile app and browser devices"],
             ["SIMULATED","Built-in test devices — always running, no hardware needed"],
           ].map(([proto, desc]) => (
             <div key={proto} className="border border-primary/10 bg-black/20 px-3 py-2 flex gap-3">
@@ -606,8 +606,8 @@ const STEPS: StepDef[] = [
     content: (
       <div className="space-y-4">
         <p className="text-primary/75 leading-relaxed">
-          <span className="text-primary font-bold">DeckOS Mobile</span> is a companion app that
-          streams your phone's sensors back to Deck OS — GPS location, battery level, network info,
+          <span className="text-primary font-bold">Atlas Mobile</span> is a companion app that
+          streams your phone's sensors back to DeckOS Atlas — GPS location, battery level, network info,
           and more. It also gives you a JARVIS chat interface on your phone.
         </p>
         <div className="space-y-2 font-mono text-xs">
@@ -643,7 +643,7 @@ const STEPS: StepDef[] = [
     content: (
       <div className="space-y-4">
         <p className="text-primary/75 leading-relaxed">
-          You now have full operational knowledge of Deck OS. Your recommended first mission:
+          You now have full operational knowledge of DeckOS Atlas. Your recommended first mission:
         </p>
         <div className="space-y-2 font-mono text-xs">
           {[

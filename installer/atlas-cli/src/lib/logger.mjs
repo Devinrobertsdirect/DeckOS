@@ -1,6 +1,8 @@
 import chalk from 'chalk';
 
-const prefix = chalk.bold.cyan('[deck-os]');
+// Steel-blue accent (#4A7FB5); chalk degrades gracefully on basic terminals.
+const steel = typeof chalk.hex === 'function' ? chalk.hex('#4A7FB5') : chalk.cyan;
+const prefix = steel.bold('[atlas]');
 
 export const log   = (...args) => console.log(`  ${prefix}`, ...args);
 export const ok    = (...args) => console.log(`  ${chalk.green('✓')}`, ...args);
@@ -13,7 +15,7 @@ export function spinner(msg) {
   const frames = ['⠋','⠙','⠹','⠸','⠼','⠴','⠦','⠧','⠇','⠏'];
   let i = 0;
   const id = setInterval(() => {
-    process.stdout.write(`\r  ${chalk.cyan(frames[i++ % frames.length])} ${msg}`);
+    process.stdout.write(`\r  ${steel(frames[i++ % frames.length])} ${msg}`);
   }, 80);
   return {
     stop(doneMsg) {

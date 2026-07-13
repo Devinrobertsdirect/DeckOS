@@ -1,0 +1,14 @@
+{
+  "chainer": {
+    "in": [ "x" ],
+    "out": [ "y" ],
+    "pipe": [
+      {
+        "class_name": "deeppavlov.models.vectorizers.hashing_tfidf_vectorizer.HashingTfIdfVectorizer",
+        "vocab_filename": "path/to/vocabulary.txt",
+        "ngram_range": [ 1, 2 ],
+        "hash_size": 16777216
+      }
+    ]
+  }
+}

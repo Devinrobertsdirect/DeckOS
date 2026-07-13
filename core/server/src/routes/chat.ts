@@ -51,10 +51,10 @@ router.post("/chat", async (req, res) => {
     payload: { message: message.substring(0, 200), channel, sessionId },
   });
 
-  // store user message
+  // store user message (non-fatal: chat must answer even with no database)
   await db.insert(chatMessagesTable).values({
     sessionId, role: "user", content: message, channel,
-  });
+  }).catch(() => {});
 
   // fetch recent memory for context
   const recentMemory = await db
@@ -62,14 +62,16 @@ router.post("/chat", async (req, res) => {
     .from(memoryEntriesTable)
     .where(eq(memoryEntriesTable.type, "short_term"))
     .orderBy(desc(memoryEntriesTable.createdAt))
-    .limit(5);
+    .limit(5)
+    .catch(() => []);
 
   const recentHistory = await db
     .select()
     .from(chatMessagesTable)
     .where(eq(chatMessagesTable.sessionId, sessionId))
     .orderBy(desc(chatMessagesTable.createdAt))
-    .limit(10);
+    .limit(10)
+    .catch(() => []);
 
   const context = recentHistory.reverse().map((m) => ({
     role: m.role as "user" | "assistant",
@@ -78,14 +80,15 @@ router.post("/chat", async (req, res) => {
 
   // ── Easter eggs — check before touching the LLM ────────────────────────
   // Fetch persona once so we have the AI name + gender for honourifics.
-  const personaRows = await db.select().from(aiPersonaTable).limit(1);
+  const personaRows = await db.select().from(aiPersonaTable).limit(1).catch(() => []);
   const personaCtx = personaRows.length > 0
     ? { aiName: personaRows[0]!.aiName, gender: personaRows[0]!.gender }
     : { aiName: "JARVIS", gender: "neutral" };
 
   const eggResponse = checkEasterEgg(message, personaCtx);
 
-  const baseSystemPrompt = await buildPersonalizedPrompt(recentMemory.map((m) => m.content), channel);
+  const baseSystemPrompt = await buildPersonalizedPrompt(recentMemory.map((m) => m.content), channel)
+    .catch(() => "You are Atlas, the AI core of DeckOS Atlas. Be concise, capable, and warm.");
   const aceraCtx = getAceraContext();
   const starkCtx = getStarkContext();
   let systemPrompt = baseSystemPrompt;
@@ -157,19 +160,19 @@ router.post("/chat", async (req, res) => {
     } catch { /* non-fatal */ }
   }
 
-  // store AI response
+  // store AI response (non-fatal without a database)
   await db.insert(chatMessagesTable).values({
     sessionId, role: "assistant", content: response, channel, modelUsed, latencyMs,
-  });
+  }).catch(() => {});
 
-  // store in memory
+  // store in memory (non-fatal without a database)
   await db.insert(memoryEntriesTable).values({
     type: "short_term",
     content: `[${channel}] USER: ${message.substring(0, 200)} | AI: ${response.substring(0, 200)}`,
     keywords: ["chat", channel, sessionId],
     source: `chat.${channel}`,
     expiresAt: new Date(Date.now() + 3 * 60 * 60 * 1000), // 3h TTL
-  });
+  }).catch(() => {});
 
   bus.emit({
     source: "ai-router",

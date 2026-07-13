@@ -17,8 +17,22 @@ if (isDaemon) {
   logger.info({ daemon: true }, "Starting in daemon mode — JSON-only stdout logging enabled");
 }
 
+process.on("unhandledRejection", (reason) => {
+  logger.error(
+    { err: reason instanceof Error ? reason.message : String(reason) },
+    "Unhandled rejection — continuing (local-first: the brain never goes silent)",
+  );
+});
+
 async function main() {
-  await bootstrap();
+  try {
+    await bootstrap();
+  } catch (err) {
+    logger.warn(
+      { err: err instanceof Error ? err.message : String(err) },
+      "Bootstrap degraded — continuing without full persistence (is the database running?)",
+    );
+  }
 
   const server = http.createServer(app);
   attachWebSocketServer(server);

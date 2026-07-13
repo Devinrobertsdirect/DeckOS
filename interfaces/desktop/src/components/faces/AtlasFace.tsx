@@ -73,6 +73,8 @@ interface AtlasFaceProps {
   eyeColorOverride?: string | null;
   /** Momentary disc tint "r,g,b" — the face literally reddens when angry. */
   discTint?: string | null;
+  /** Momentary accent glyph flashed above the eyes (e.g. "❤", "!", "✨"). */
+  emoji?: string | null;
   className?: string;
 }
 
@@ -87,6 +89,7 @@ export function AtlasFace({
   activity = 0,
   eyeColorOverride = null,
   discTint = null,
+  emoji = null,
   className = "",
 }: AtlasFaceProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -94,8 +97,8 @@ export function AtlasFace({
   const theme = useFaceTheme();
 
   // Keep latest props in refs so the RAF loop never restarts.
-  const propsRef = useRef({ mode, state, activity, theme, eyeColorOverride, discTint });
-  propsRef.current = { mode, state, activity, theme, eyeColorOverride, discTint };
+  const propsRef = useRef({ mode, state, activity, theme, eyeColorOverride, discTint, emoji });
+  propsRef.current = { mode, state, activity, theme, eyeColorOverride, discTint, emoji };
 
   useEffect(() => {
     if (!engineRef.current) engineRef.current = new AtlasFaceEngine();
@@ -114,7 +117,7 @@ export function AtlasFace({
       const canvas = canvasRef.current;
       const ctx = canvas?.getContext("2d");
       if (canvas && ctx) {
-        const { mode: m, state: s, activity: a, theme: th, eyeColorOverride: eco, discTint: dt } = propsRef.current;
+        const { mode: m, state: s, activity: a, theme: th, eyeColorOverride: eco, discTint: dt, emoji: em } = propsRef.current;
         engine.setMode(m);
         engine.setState(s, now);
         engine.draw(ctx, now, {
@@ -124,6 +127,7 @@ export function AtlasFace({
           eyeRgb: eco ?? th.eyeRgb ?? accent,
           tintRgb: dt ?? undefined,
           tintStrength: dt ? 0.4 : undefined,
+          emoji: em,
           theme: th,
         });
       }

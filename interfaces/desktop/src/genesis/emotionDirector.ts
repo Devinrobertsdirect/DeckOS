@@ -1,4 +1,5 @@
 import type { FaceState } from "@/components/faces/AtlasFace";
+import { glyphFor } from "@/components/faces/atlasFaceEngine";
 
 /**
  * Emotion director — makes Atlas *act* while it talks.
@@ -18,7 +19,15 @@ export type Emotion =
   | "suspicious"
   | "sad"
   | "confused"
-  | "thinking";
+  | "thinking"
+  | "love"
+  | "surprised"
+  | "proud"
+  | "playful"
+  | "grateful"
+  | "celebrating"
+  | "curious"
+  | "cool";
 
 export interface EmotionStyle {
   expression: FaceState;
@@ -26,18 +35,31 @@ export interface EmotionStyle {
   eyeColor: string | null;
   /** "r,g,b" disc tint, or null. */
   discTint: string | null;
+  /** Optional accent glyph flashed above the eyes (from EMOJI_PACKS core). */
+  emoji?: string;
 }
 
-// Mood → face. Eye colours are deliberately restrained; only anger reddens the disc.
+// Mood → face. Eye colours are deliberately restrained; only anger reddens the
+// disc. Several moods also carry an accent glyph from EMOJI_PACKS core — the
+// face flashes it above the eyes while the eyes hold the base pose.
 export const EMOTION_STYLE: Record<Emotion, EmotionStyle> = {
   neutral:    { expression: "talking",    eyeColor: null,          discTint: null },
-  happy:      { expression: "happy",      eyeColor: null,          discTint: null },
-  excited:    { expression: "excited",    eyeColor: "255,214,120", discTint: null },
+  happy:      { expression: "happy",      eyeColor: null,          discTint: null, emoji: glyphFor("star") ?? undefined },
+  excited:    { expression: "excited",    eyeColor: "255,214,120", discTint: null, emoji: glyphFor("sparkle") ?? undefined },
   angry:      { expression: "angry",      eyeColor: "232,74,58",   discTint: "150,36,30" },
   suspicious: { expression: "suspicious", eyeColor: "214,182,110", discTint: null },
   sad:        { expression: "sad",        eyeColor: "126,158,196", discTint: null },
-  confused:   { expression: "confused",   eyeColor: null,          discTint: null },
+  confused:   { expression: "confused",   eyeColor: null,          discTint: null, emoji: glyphFor("question") ?? undefined },
   thinking:   { expression: "thinking",   eyeColor: null,          discTint: null },
+  // Widened spectrum — each reuses an existing pose plus an accent glyph.
+  love:       { expression: "happy",      eyeColor: "236,138,160", discTint: null, emoji: glyphFor("love") ?? undefined },
+  surprised:  { expression: "excited",    eyeColor: "255,214,120", discTint: null, emoji: glyphFor("exclaim") ?? undefined },
+  proud:      { expression: "happy",      eyeColor: null,          discTint: null, emoji: glyphFor("ok") ?? undefined },
+  playful:    { expression: "happy",      eyeColor: null,          discTint: null, emoji: glyphFor("wink") ?? undefined },
+  grateful:   { expression: "happy",      eyeColor: "236,138,160", discTint: null, emoji: glyphFor("love") ?? undefined },
+  celebrating:{ expression: "excited",    eyeColor: "255,214,120", discTint: null, emoji: glyphFor("sparkle") ?? undefined },
+  curious:    { expression: "listening",  eyeColor: null,          discTint: null, emoji: glyphFor("question") ?? undefined },
+  cool:       { expression: "idle",       eyeColor: "150,180,205", discTint: null, emoji: glyphFor("cool") ?? undefined },
 };
 
 // Keyword lexicon. Matched case-insensitively as substrings/word-ish hits.
@@ -59,10 +81,25 @@ const LEXICON: Record<Exclude<Emotion, "neutral">, string[]> = {
     "what do you mean", "no idea", "puzzl", "strange"],
   thinking: ["let me think", "thinking", "one moment", "calculating", "working on it",
     "give me a second", "let me check", "let me see", "hmm, let"],
+  love: ["i love you", "adorable", "my favorite", "aww"],
+  surprised: ["what?!", "no way", "really?!", "surprising", "whoa", "didn't expect"],
+  proud: ["well done", "proud of you", "great job", "you nailed it", "impressive"],
+  playful: ["haha", "lol", "just kidding", "kidding", "teasing", "tease", "fun"],
+  grateful: ["thank you so much", "grateful", "appreciate it", "means a lot"],
+  celebrating: ["congratulations", "congrats", "we did it", "hooray", "let's celebrate"],
+  curious: ["interesting", "tell me more", "i wonder", "curious", "what if"],
+  cool: ["no problem", "got it", "easy", "sure thing", "on it", "cool"],
 };
 
+// Order = tie-break priority (earlier wins on equal score). More specific /
+// compound-phrase moods sit ahead of generic ones so e.g. "great job" reads
+// proud (not happy) and "thank you so much" reads grateful (not happy), while
+// existing anger/suspicion behaviour is preserved ("no way"→angry, "i wonder"
+// →suspicious). Punctuation still lets "whoa!" resolve excited over surprised.
 const ORDER: Exclude<Emotion, "neutral">[] = [
-  "angry", "suspicious", "sad", "excited", "happy", "confused", "thinking",
+  "angry", "suspicious", "surprised", "love", "grateful", "proud", "sad",
+  "excited", "celebrating", "playful", "curious", "cool", "happy",
+  "confused", "thinking",
 ];
 
 /** Classify one sentence into an emotion. */

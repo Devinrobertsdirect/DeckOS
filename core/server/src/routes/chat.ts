@@ -19,6 +19,13 @@ const ChatRequestSchema = z.object({
   channel: z.enum(["web", "mobile", "whatsapp", "voice", "console"]).default("web"),
   sessionId: z.string().default("default"),
   requestId: z.string().optional(),
+  // Optional client-supplied context — lets the caller carry conversation state
+  // and remembered facts in addition to anything the server pulls from the DB.
+  history: z.array(z.object({
+    role: z.enum(["user", "assistant"]),
+    content: z.string(),
+  })).optional(),
+  facts: z.array(z.string()).optional(),
 });
 
 const VoiceIdentityUpdateSchema = z.object({
@@ -37,7 +44,7 @@ router.post("/chat", async (req, res) => {
     return;
   }
 
-  const { message, channel, sessionId, requestId } = parsed.data;
+  const { message, channel, sessionId, requestId, history, facts } = parsed.data;
   const startMs = Date.now();
 
   // record user presence
@@ -95,6 +102,15 @@ router.post("/chat", async (req, res) => {
   if (aceraCtx) systemPrompt += `\n\n--- ACERA SCENE CONTEXT ---\n${aceraCtx}\n---`;
   if (starkCtx) systemPrompt += `\n\n--- STARK BIOELECTRIC CONTEXT ---\n${starkCtx}\n---`;
 
+  // Prepend any client-supplied remembered facts so Atlas can reference them,
+  // in addition to the DB-derived memory folded in above.
+  if (facts && facts.length > 0) {
+    const factsBlock =
+      "Here is what you remember about the user:\n" +
+      facts.map((f) => `- ${f}`).join("\n");
+    systemPrompt = `${factsBlock}\n\n${systemPrompt}`;
+  }
+
   let response: string;
   let modelUsed: string;
   let fromCache: boolean;
@@ -111,7 +127,11 @@ router.post("/chat", async (req, res) => {
       prompt:   message,
       mode:     "deep",
       task:     "chat",
-      context:  [{ role: "system", content: systemPrompt }, ...context.slice(-8)],
+      context:  [
+        { role: "system", content: systemPrompt },
+        ...context.slice(-8),
+        ...(history ?? []).slice(-12),
+      ],
       useCache: false, // conversations shouldn't be cached
       onTierResolved: requestId
         ? (resolvedTier, model) => {

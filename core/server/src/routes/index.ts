@@ -14,6 +14,7 @@ import predictionsRouter from "./predictions";
 import autonomyRouter from "./autonomy";
 import traceRouter from "./trace";
 import chatRouter from "./chat";
+import chatStreamRouter from "./chat-stream";
 import presenceRouter from "./presence";
 import visionRouter from "./vision";
 import whatsappRouter from "./whatsapp";
@@ -36,6 +37,7 @@ import genesisRouter from "./genesis";
 const router: IRouter = Router();
 
 router.use(chatRouter);
+router.use("/chat", chatStreamRouter);
 router.use(healthRouter);
 router.use(aiRouterRouter);
 router.use(pluginsRouter);

@@ -20,6 +20,8 @@ export interface ProviderDef {
   testable: boolean;
   /** Honest status: real API wired vs. connector stub pending an official API. */
   status: "wired" | "stub";
+  /** A recommended tool to connect first (shown highlighted in setup). */
+  primary?: boolean;
 }
 
 export const PROVIDERS: ProviderDef[] = [
@@ -32,6 +34,7 @@ export const PROVIDERS: ProviderDef[] = [
     keysUrl: "https://console.anthropic.com/settings/keys",
     testable: true,
     status: "wired",
+    primary: true,
   },
   {
     id: "gemini",
@@ -72,6 +75,7 @@ export const PROVIDERS: ProviderDef[] = [
     keysUrl: "https://elevenlabs.io/app/settings/api-keys",
     testable: true,
     status: "wired",
+    primary: true,
   },
   {
     id: "midjourney",

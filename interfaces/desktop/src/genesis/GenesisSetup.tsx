@@ -611,6 +611,11 @@ function ProviderCard({
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="font-medium text-[#F7F5F0]">{p.name}</span>
+            {p.primary && (
+              <span className="rounded bg-[#4A7FB5]/25 px-1.5 py-0.5 text-[10px] font-medium text-[#C9DCF0]">
+                Recommended
+              </span>
+            )}
             {p.status === "stub" && (
               <span className="rounded bg-white/5 px-1.5 py-0.5 text-[10px] text-white/40">
                 connector — no official API yet

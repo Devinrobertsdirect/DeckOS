@@ -50,6 +50,34 @@ export const FACE_THEMES: FaceTheme[] = [
 
 export const FACE_DISC_RGB = "30,42,56"; // #1E2A38 smoked-glass navy
 
+// ── Emoji overlay packs ──────────────────────────────────────────────────────
+// A future "pack" system (mirrors the eye-pack idea): each pack is a named
+// dictionary of short glyphs keyed by a stable semantic name. The face flashes
+// one of these near the top as a momentary accent — the eyes stay the star.
+export const EMOJI_PACKS: Record<string, { name: string; glyphs: Record<string, string> }> = {
+  core: {
+    name: "Core",
+    glyphs: {
+      love: "❤",
+      star: "★",
+      music: "♪",
+      idea: "💡",
+      sparkle: "✨",
+      question: "?",
+      exclaim: "!",
+      sleepy: "z",
+      cool: "😎",
+      wink: ";)",
+      ok: "👍",
+    },
+  },
+};
+
+/** Look up a glyph by semantic name in a pack (defaults to "core"). */
+export function glyphFor(name: string, pack = "core"): string | null {
+  return EMOJI_PACKS[pack]?.glyphs[name] ?? null;
+}
+
 // ── Eye geometry per state ───────────────────────────────────────────────────
 // All lengths are fractions of the face diameter D. Left/right eyes may differ
 // (confused). "shape" crossfades; numeric fields tween.
@@ -271,6 +299,8 @@ export interface EngineDrawOpts {
   /** Optional disc/rim tint "r,g,b" — e.g. red when angry ("it turns red"). 0..1 strength. */
   tintRgb?: string;
   tintStrength?: number;
+  /** Optional momentary glyph flashed above the eyes (an accent, not the eyes). 1–2 chars. */
+  emoji?: string | null;
   theme: FaceTheme;
 }
 
@@ -295,6 +325,10 @@ export class AtlasFaceEngine {
   private cluster = buildCluster();
   private pulses: ThoughtPulse[] = [];
   private lastT = 0;
+
+  // Emoji overlay — track the current glyph + when it appeared (for fade-in).
+  private emojiValue: string | null = null;
+  private emojiSince = 0;
 
   setMode(mode: FaceMode) {
     this.mode = mode;
@@ -390,6 +424,41 @@ export class AtlasFaceEngine {
     if (eyeAlpha > 0.02) this.drawEyes(ctx, now, D, cx, cy, eyeAlpha, opts);
     if (this.neuralBlend > 0.02) this.drawCluster(ctx, now, dt, D, cx, cy, this.neuralBlend, opts);
 
+    // ── Emoji overlay ─────────────────────────────────────────────────────────
+    // A momentary accent glyph near the top of the face; the eyes stay the star.
+    const emoji = opts.emoji && opts.emoji.trim() ? opts.emoji.trim() : null;
+    if (emoji !== this.emojiValue) {
+      this.emojiValue = emoji;
+      this.emojiSince = now;
+    }
+    if (emoji) this.drawEmoji(ctx, now, D, cx, emoji, opts);
+
+    ctx.restore();
+  }
+
+  // ── Emoji overlay ─────────────────────────────────────────────────────────
+
+  private drawEmoji(
+    ctx: CanvasRenderingContext2D,
+    now: number,
+    D: number,
+    cx: number,
+    glyph: string,
+    opts: EngineDrawOpts,
+  ) {
+    // Fade-in over ~260 ms, plus a gentle vertical bob so it feels alive.
+    const fadeIn = Math.min(1, (now - this.emojiSince) / 260);
+    const bob = Math.sin(now * 0.004) * D * 0.012;
+    const y = D * 0.18 + bob;
+    ctx.save();
+    ctx.globalAlpha *= 0.9 * fadeIn;
+    ctx.fillStyle = `rgb(${opts.eyeRgb})`;
+    ctx.shadowColor = `rgb(${opts.eyeRgb})`;
+    ctx.shadowBlur = D * 0.03;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = `${(D * 0.22).toFixed(1)}px "Segoe UI Emoji", "Apple Color Emoji", system-ui, sans-serif`;
+    ctx.fillText(glyph, cx, y);
     ctx.restore();
   }
 

@@ -6,9 +6,12 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Layout } from "@/components/Layout";
 import { VisualModeProvider } from "@/contexts/VisualMode";
 import { WebSocketProvider } from "@/contexts/WebSocketContext";
-import { Onboarding, isInitialized, applyColor, applyHexColor, getStoredColor } from "@/components/Onboarding";
+import { applyColor, applyHexColor, getStoredColor } from "@/components/Onboarding";
 import { StartScreen } from "@/components/StartScreen";
-import { CinematicOnboarding, isCinematicDone } from "@/components/CinematicOnboarding";
+import { GenesisSetup } from "@/genesis/GenesisSetup";
+import { GenesisIntro } from "@/genesis/GenesisIntro";
+import { PetShell } from "@/pet/PetShell";
+import { isSetupDone, isIntroDone, useUiMode, setUiMode } from "@/lib/uiMode";
 import { SetupGuideModal } from "@/components/SetupGuideModal";
 import { TutorialProvider } from "@/contexts/TutorialContext";
 import { TutorialOverlay } from "@/components/TutorialOverlay";
@@ -72,17 +75,15 @@ function Router() {
 
 function App() {
   const [started, setStarted] = useState(() => sessionStorage.getItem("deckos_session") === "1");
-  const [cinematicDone, setCinematicDone] = useState(() => isCinematicDone());
-  const [initialized, setInitialized] = useState(() => isInitialized());
+  // The Genesis sequence: set everything up, THEN a single fullscreen talking
+  // face, THEN the app (Pet mode by default, Developer mode on demand).
+  const [setupDone, setSetupDone] = useState(() => isSetupDone());
+  const [introDone, setIntroDone] = useState(() => isIntroDone());
+  const [uiMode] = useUiMode();
 
   function handleStart() {
     sessionStorage.setItem("deckos_session", "1");
     setStarted(true);
-  }
-
-  function handleCinematicComplete() {
-    setCinematicDone(true);
-    setInitialized(true);
   }
 
   return (
@@ -92,10 +93,15 @@ function App() {
           <TooltipProvider>
             {!started ? (
               <StartScreen onStart={handleStart} />
-            ) : !cinematicDone ? (
-              <CinematicOnboarding onComplete={handleCinematicComplete} />
-            ) : !initialized ? (
-              <Onboarding onComplete={() => setInitialized(true)} />
+            ) : !setupDone ? (
+              <GenesisSetup onComplete={() => setSetupDone(true)} />
+            ) : !introDone ? (
+              <GenesisIntro onComplete={() => setIntroDone(true)} />
+            ) : uiMode === "pet" ? (
+              <PetShell
+                onOpenDeveloper={() => setUiMode("developer")}
+                onOpenSettings={() => setUiMode("developer")}
+              />
             ) : (
               <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
                 <TutorialProvider>

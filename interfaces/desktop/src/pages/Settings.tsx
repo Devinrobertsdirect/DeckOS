@@ -7,6 +7,7 @@ import {
   Activity, Brain, Plug, Unplug, Heart, Trash2, ShieldAlert, RotateCw,
   Smartphone, Copy,
 } from "lucide-react";
+import { setUiMode, resetGenesis } from "@/lib/uiMode";
 import { ACERA_KEY } from "@/hooks/useAceraConnect";
 import { STARK_KEY } from "@/hooks/useStarkConnect";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -652,6 +653,29 @@ export default function Settings() {
         <SettingsIcon className="w-4 h-4 text-primary" />
         <span>SYSTEM.SETTINGS // CONFIGURATION &amp; CONNECTIONS // DECK OS</span>
       </div>
+
+      {/* Experience: Pet vs Developer, replay the Genesis intro */}
+      <Card className="border-primary/20 bg-primary/5">
+        <CardHeader className="pb-3">
+          <CardTitle className="font-mono text-xs text-primary/80 uppercase tracking-widest flex items-center gap-2">
+            <Heart className="w-3.5 h-3.5" /> Experience
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-3">
+          <button
+            onClick={() => setUiMode("pet")}
+            className="flex items-center gap-2 px-3 py-2 border border-primary/30 text-primary hover:bg-primary/10 transition-all font-mono text-xs"
+          >
+            <Heart className="w-3.5 h-3.5" /> Switch to Pet mode
+          </button>
+          <button
+            onClick={() => { resetGenesis(); window.location.reload(); }}
+            className="flex items-center gap-2 px-3 py-2 border border-primary/20 text-primary/70 hover:bg-primary/10 transition-all font-mono text-xs"
+          >
+            <RotateCcw className="w-3.5 h-3.5" /> Replay intro
+          </button>
+        </CardContent>
+      </Card>
 
       {/* Feature status strip */}
       {features && (

@@ -14,8 +14,9 @@ import {
   Activity, HardDrive, Cpu as Microchip, Network, Settings,
   TerminalSquare, AlertTriangle, CheckCircle2,
   ChevronRight, Layers, Eye, Minimize2, Film, List,
-  Camera, CameraOff, Shield, Zap, Map, MapPin, Bot, Clock, Newspaper, Package, GitBranch, Scan,
+  Camera, CameraOff, Shield, Zap, Map, MapPin, Bot, Clock, Newspaper, Package, GitBranch, Scan, Heart,
 } from "lucide-react";
+import { setUiMode } from "@/lib/uiMode";
 import { useCamera } from "@/hooks/useCamera";
 import { useHealthCheck, getHealthCheckQueryKey } from "@workspace/api-client-react";
 import { useTutorial } from "@/contexts/TutorialContext";
@@ -562,6 +563,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
             onClick={() => setNotifOpen((o) => !o)}
             unreadCount={unreadCount}
           />
+          {/* Return to Pet mode (the simple, virtual-pet experience) */}
+          <button
+            onClick={() => setUiMode("pet")}
+            title="Switch to Pet mode"
+            className="flex items-center gap-1.5 px-2 py-1 border border-primary/20 text-primary/40 hover:text-primary/80 hover:border-primary/40 transition-all font-mono text-xs"
+          >
+            <Heart className="w-3 h-3" />
+            <span className="hidden sm:inline">PET</span>
+          </button>
           {/* Event log toggle */}
           <button
             onClick={() => setEventLogOpen((o) => !o)}

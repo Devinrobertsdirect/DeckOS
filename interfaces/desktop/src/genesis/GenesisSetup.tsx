@@ -1,0 +1,607 @@
+import { useEffect, useMemo, useState } from "react";
+import { motion } from "framer-motion";
+
+import { AtlasFace, type FaceState } from "@/components/faces/AtlasFace";
+import {
+  PROVIDERS,
+  providersByCategory,
+  type ProviderCategory,
+  type ProviderDef,
+} from "@/genesis/providers";
+import {
+  useAtlasVoice,
+  getVoiceEngine,
+  setVoiceEngine,
+  type VoiceEngine,
+} from "@/genesis/useAtlasVoice";
+import { setUserName, getUserName, markSetupDone } from "@/lib/uiMode";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+
+/**
+ * Genesis Setup — the very first screen a new Atlas user meets, before any
+ * dashboard exists. Fullscreen, calm, dark navy. Three steps:
+ *   1. Name        → "What should I call you?"
+ *   2. Minds       → connect provider API keys (all optional)
+ *   3. Voice       → pick the default browser voice or the ElevenLabs voice
+ * Finishes by marking setup done and handing control back to the app.
+ *
+ * Nothing is persisted except through the provided helpers (setUserName,
+ * setVoiceEngine, markSetupDone) and the server config API. Every network call
+ * is guarded so the wizard still works end-to-end with the server offline.
+ */
+
+const NAVY = "#0d1420";
+const PAPER = "#F7F5F0";
+
+const INPUT_CLASS =
+  "border-white/15 bg-white/[0.04] text-[#F7F5F0] placeholder:text-white/30 focus-visible:ring-[#4A7FB5]";
+
+const CATEGORY_ORDER: { cat: ProviderCategory; label: string }[] = [
+  { cat: "chat", label: "Chat & reasoning" },
+  { cat: "voice", label: "Voice" },
+  { cat: "image", label: "Image" },
+  { cat: "video", label: "Video" },
+];
+
+type Step = 0 | 1 | 2;
+
+interface TestState {
+  status: "idle" | "loading" | "ok" | "fail";
+  detail?: string;
+}
+
+export function GenesisSetup({ onComplete }: { onComplete: () => void }) {
+  const voice = useAtlasVoice();
+
+  const [step, setStep] = useState<Step>(0);
+  const [direction, setDirection] = useState<number>(1);
+
+  const [name, setName] = useState<string>(() => getUserName());
+  const [nameFocused, setNameFocused] = useState(false);
+
+  // Provider key inputs, keyed by ProviderDef.keyName. Held only in memory
+  // until Next, then PUT to the server config store.
+  const [keys, setKeys] = useState<Record<string, string>>({});
+  const [testResults, setTestResults] = useState<Record<string, TestState>>({});
+
+  const [configHasEleven, setConfigHasEleven] = useState(false);
+  const [selectedEngine, setSelectedEngine] = useState<VoiceEngine>(() => getVoiceEngine());
+
+  // ── ElevenLabs availability ────────────────────────────────────────────────
+  // Unlocked if the user typed a key this session OR the server already has one.
+  const elevenUnlocked = useMemo(
+    () => configHasEleven || !!(keys["ELEVENLABS_API_KEY"] || "").trim(),
+    [configHasEleven, keys],
+  );
+
+  // Ask the server (once) whether an ElevenLabs key is already configured.
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/config")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { config?: Record<string, string> } | null) => {
+        if (!alive || !d) return;
+        if ((d.config || {})["ELEVENLABS_API_KEY"]) setConfigHasEleven(true);
+      })
+      .catch(() => {
+        /* server offline — the wizard still works, just no pre-fill */
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // If ElevenLabs isn't available, never leave the server engine selected.
+  useEffect(() => {
+    if (!elevenUnlocked && selectedEngine === "server") {
+      setSelectedEngine("browser");
+      setVoiceEngine("browser");
+    }
+  }, [elevenUnlocked, selectedEngine]);
+
+  // Stop any speech when we leave the voice step or unmount.
+  useEffect(() => {
+    if (step !== 2) voice.stop();
+  }, [step, voice]);
+  useEffect(() => () => voice.stop(), [voice]);
+
+  // ── Face expression, timed to the step + what's happening ───────────────────
+  const anyTesting = Object.values(testResults).some((t) => t.status === "loading");
+  const faceState: FaceState =
+    step === 0
+      ? nameFocused
+        ? "listening"
+        : "happy"
+      : step === 1
+        ? anyTesting
+          ? "excited"
+          : "thinking"
+        : voice.speaking
+          ? "talking"
+          : "happy";
+
+  // ── Navigation ──────────────────────────────────────────────────────────────
+  function go(next: Step) {
+    setDirection(next > step ? 1 : -1);
+    setStep(next);
+  }
+
+  function saveProviders() {
+    const payload: Record<string, string> = {};
+    for (const p of PROVIDERS) {
+      const v = (keys[p.keyName] || "").trim();
+      if (v) payload[p.keyName] = v;
+    }
+    if (Object.keys(payload).length === 0) return;
+    // Fire-and-forget: never block the wizard on the network.
+    fetch("/api/config", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }).catch(() => {
+      /* offline — keys stay in memory; user can re-enter later in Settings */
+    });
+  }
+
+  function finish() {
+    voice.stop();
+    markSetupDone();
+    onComplete();
+  }
+
+  function handleNext() {
+    if (step === 0) {
+      setUserName(name.trim());
+      go(1);
+    } else if (step === 1) {
+      saveProviders();
+      go(2);
+    } else {
+      finish();
+    }
+  }
+
+  function handleBack() {
+    if (step > 0) go((step - 1) as Step);
+  }
+
+  function onRootKeyDown(e: React.KeyboardEvent) {
+    if (e.key !== "Enter") return;
+    const t = e.target as HTMLElement;
+    const tag = t.tagName;
+    // Let buttons / links / multiline fields handle their own Enter.
+    if (tag === "BUTTON" || tag === "A" || tag === "TEXTAREA") return;
+    e.preventDefault();
+    handleNext();
+  }
+
+  // ── Provider key testing ────────────────────────────────────────────────────
+  async function runTest(p: ProviderDef) {
+    const key = (keys[p.keyName] || "").trim();
+    if (!key) {
+      setTestResults((r) => ({ ...r, [p.id]: { status: "fail", detail: "Enter a key first." } }));
+      return;
+    }
+    setTestResults((r) => ({ ...r, [p.id]: { status: "loading" } }));
+    try {
+      const res = await fetch("/api/providers/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: p.id, key }),
+      });
+      let data: Record<string, unknown> = {};
+      try {
+        data = (await res.json()) as Record<string, unknown>;
+      } catch {
+        /* non-JSON response */
+      }
+      const okFlag = data["ok"] !== false;
+      const ok = res.ok && okFlag;
+      const detail =
+        (data["detail"] as string | undefined) ??
+        (data["error"] as string | undefined) ??
+        (data["message"] as string | undefined) ??
+        (ok ? "Connected." : `Server responded ${res.status}.`);
+      setTestResults((r) => ({ ...r, [p.id]: { status: ok ? "ok" : "fail", detail } }));
+    } catch {
+      setTestResults((r) => ({
+        ...r,
+        [p.id]: { status: "fail", detail: "Couldn't reach the server." },
+      }));
+    }
+  }
+
+  function selectEngine(engine: VoiceEngine) {
+    if (engine === "server" && !elevenUnlocked) return;
+    setSelectedEngine(engine);
+    setVoiceEngine(engine);
+  }
+
+  function hearMe() {
+    const who = name.trim() || "there";
+    void voice.speak(`Hi ${who}, this is how I sound.`, { engine: selectedEngine });
+  }
+
+  // ── Step content ────────────────────────────────────────────────────────────
+  const stepTitle = ["What should I call you?", "Connect your minds", "Give me a voice"][step];
+  const stepSubtitle = [
+    "A name so Atlas can speak to you like a partner, not a product.",
+    "Bring the minds you already use. All optional — add what you like, skip the rest.",
+    "Pick how Atlas sounds. You can always change this later.",
+  ][step];
+
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex flex-col items-center overflow-hidden"
+      style={{ background: NAVY, color: PAPER }}
+      onKeyDown={onRootKeyDown}
+    >
+      <div className="flex h-full w-full max-w-2xl flex-col px-6 py-8 sm:py-10">
+        {/* Presiding face + progress */}
+        <header className="flex shrink-0 flex-col items-center gap-4">
+          <AtlasFace mode="atlas" state={faceState} size={96} />
+          <Progress step={step} />
+          <div className="mt-1 text-center">
+            {/* Keyed remount = the new step mounts immediately; no exit callback
+                to stall (AnimatePresence mode="wait" can hang under React 19). */}
+            <motion.div
+              key={`title-${step}`}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.22 }}
+            >
+              <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">{stepTitle}</h1>
+              <p className="mx-auto mt-1.5 max-w-md text-sm text-white/50">{stepSubtitle}</p>
+            </motion.div>
+          </div>
+        </header>
+
+        {/* Sliding step body */}
+        <div className="relative mt-6 min-h-0 flex-1 overflow-y-auto">
+          <motion.div
+            key={step}
+            initial={{ opacity: 0, x: direction > 0 ? 44 : -44 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.28, ease: "easeOut" }}
+            className="h-full"
+          >
+            {step === 0 && (
+                <NameStep
+                  name={name}
+                  onChange={setName}
+                  onFocus={() => setNameFocused(true)}
+                  onBlur={() => setNameFocused(false)}
+                />
+              )}
+
+              {step === 1 && (
+                <ProvidersStep
+                  keys={keys}
+                  setKey={(keyName, value) =>
+                    setKeys((k) => ({ ...k, [keyName]: value }))
+                  }
+                  testResults={testResults}
+                  onTest={runTest}
+                />
+              )}
+
+              {step === 2 && (
+                <VoiceStep
+                  selected={selectedEngine}
+                  elevenUnlocked={elevenUnlocked}
+                  speaking={voice.speaking}
+                  onSelect={selectEngine}
+                  onHear={hearMe}
+                />
+              )}
+          </motion.div>
+        </div>
+
+        {/* Footer nav */}
+        <footer className="mt-6 flex shrink-0 items-center justify-between gap-3">
+          <div>
+            {step > 0 ? (
+              <Button
+                variant="ghost"
+                className="text-white/55 hover:text-white"
+                onClick={handleBack}
+              >
+                ← Back
+              </Button>
+            ) : (
+              <span className="text-xs text-white/25">Press Enter to continue</span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            {step === 1 && (
+              <Button
+                variant="ghost"
+                className="text-white/45 hover:text-white/80"
+                onClick={() => {
+                  saveProviders();
+                  go(2);
+                }}
+              >
+                Skip for now →
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              className="border-transparent bg-[#4A7FB5] px-6 text-white hover:bg-[#3f6f9f]"
+              onClick={handleNext}
+            >
+              {step === 2 ? "Meet Atlas →" : "Next →"}
+            </Button>
+          </div>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+// ── Progress dots (1 · 2 · 3) ────────────────────────────────────────────────
+function Progress({ step }: { step: number }) {
+  return (
+    <div className="flex items-center gap-2" aria-label={`Step ${step + 1} of 3`}>
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="flex items-center gap-2">
+          <div
+            className={
+              "flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-semibold transition-colors " +
+              (i === step
+                ? "bg-[#4A7FB5] text-white"
+                : i < step
+                  ? "bg-[#4A7FB5]/30 text-[#C9DCF0]"
+                  : "border border-white/15 text-white/35")
+            }
+            aria-current={i === step ? "step" : undefined}
+          >
+            {i + 1}
+          </div>
+          {i < 2 && <span className="text-white/20">·</span>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Step 1: Name ──────────────────────────────────────────────────────────────
+function NameStep({
+  name,
+  onChange,
+  onFocus,
+  onBlur,
+}: {
+  name: string;
+  onChange: (v: string) => void;
+  onFocus: () => void;
+  onBlur: () => void;
+}) {
+  return (
+    <div className="flex h-full flex-col items-center justify-center">
+      <div className="w-full max-w-sm">
+        <label htmlFor="atlas-name" className="mb-2 block text-sm text-white/60">
+          Your name
+        </label>
+        <Input
+          id="atlas-name"
+          autoFocus
+          value={name}
+          onChange={(e) => onChange(e.target.value)}
+          onFocus={onFocus}
+          onBlur={onBlur}
+          placeholder="e.g. Devin"
+          autoComplete="off"
+          spellCheck={false}
+          className={INPUT_CLASS + " h-11 text-base"}
+        />
+        <p className="mt-3 text-center text-xs text-white/30">
+          This is just for us. You can change it any time.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ── Step 2: Providers ─────────────────────────────────────────────────────────
+function ProvidersStep({
+  keys,
+  setKey,
+  testResults,
+  onTest,
+}: {
+  keys: Record<string, string>;
+  setKey: (keyName: string, value: string) => void;
+  testResults: Record<string, TestState>;
+  onTest: (p: ProviderDef) => void;
+}) {
+  return (
+    <div className="space-y-5 pb-2">
+      {CATEGORY_ORDER.map(({ cat, label }) => {
+        const items = providersByCategory(cat);
+        if (items.length === 0) return null;
+        return (
+          <section key={cat}>
+            <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-white/35">
+              {label}
+            </h2>
+            <div className="space-y-3">
+              {items.map((p) => (
+                <ProviderCard
+                  key={p.id}
+                  provider={p}
+                  value={keys[p.keyName] || ""}
+                  onChange={(v) => setKey(p.keyName, v)}
+                  test={testResults[p.id]}
+                  onTest={() => onTest(p)}
+                />
+              ))}
+            </div>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+function ProviderCard({
+  provider,
+  value,
+  onChange,
+  test,
+  onTest,
+}: {
+  provider: ProviderDef;
+  value: string;
+  onChange: (v: string) => void;
+  test: TestState | undefined;
+  onTest: () => void;
+}) {
+  const p = provider;
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+      <div className="flex items-baseline justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-[#F7F5F0]">{p.name}</span>
+            {p.status === "stub" && (
+              <span className="rounded bg-white/5 px-1.5 py-0.5 text-[10px] text-white/40">
+                connector — no official API yet
+              </span>
+            )}
+          </div>
+          <p className="mt-0.5 text-xs text-white/45">{p.blurb}</p>
+        </div>
+        <a
+          href={p.keysUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="shrink-0 text-xs text-[#C9DCF0] underline-offset-2 hover:underline"
+        >
+          Get a key ↗
+        </a>
+      </div>
+
+      <div className="mt-3 flex items-center gap-2">
+        <Input
+          type="password"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={`${p.name} API key`}
+          autoComplete="off"
+          spellCheck={false}
+          className={INPUT_CLASS}
+        />
+        {p.testable && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="shrink-0 border border-white/15 text-[#C9DCF0] hover:bg-white/5"
+            disabled={test?.status === "loading"}
+            onClick={onTest}
+          >
+            {test?.status === "loading" ? "Testing…" : "Test"}
+          </Button>
+        )}
+      </div>
+
+      {test && test.status !== "idle" && test.status !== "loading" && (
+        <p
+          className={
+            "mt-2 text-xs " + (test.status === "ok" ? "text-emerald-300" : "text-rose-300")
+          }
+        >
+          {test.status === "ok" ? "✓ " : "✗ "}
+          {test.detail}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ── Step 3: Voice ─────────────────────────────────────────────────────────────
+function VoiceStep({
+  selected,
+  elevenUnlocked,
+  speaking,
+  onSelect,
+  onHear,
+}: {
+  selected: VoiceEngine;
+  elevenUnlocked: boolean;
+  speaking: boolean;
+  onSelect: (e: VoiceEngine) => void;
+  onHear: () => void;
+}) {
+  return (
+    <div className="flex h-full flex-col items-center justify-center">
+      <div className="grid w-full gap-3 sm:grid-cols-2">
+        <VoiceCard
+          title="Default voice"
+          subtitle="Built-in browser voice. Always available, zero setup."
+          selected={selected === "browser"}
+          onClick={() => onSelect("browser")}
+        />
+        <VoiceCard
+          title="ElevenLabs voice"
+          subtitle={
+            elevenUnlocked
+              ? "A real, natural voice. Uses your ElevenLabs key."
+              : "Add an ElevenLabs key in the previous step to unlock this."
+          }
+          selected={selected === "server"}
+          disabled={!elevenUnlocked}
+          onClick={() => onSelect("server")}
+        />
+      </div>
+
+      <Button
+        variant="ghost"
+        className="mt-5 border border-white/15 text-[#C9DCF0] hover:bg-white/5"
+        onClick={onHear}
+      >
+        {speaking ? "Speaking…" : "🔊 Hear me"}
+      </Button>
+    </div>
+  );
+}
+
+function VoiceCard({
+  title,
+  subtitle,
+  selected,
+  disabled,
+  onClick,
+}: {
+  title: string;
+  subtitle: string;
+  selected: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-pressed={selected}
+      className={
+        "rounded-xl border p-4 text-left transition-all " +
+        (disabled
+          ? "cursor-not-allowed border-white/5 bg-white/[0.01] opacity-50"
+          : selected
+            ? "border-[#4A7FB5] bg-[#4A7FB5]/10 ring-1 ring-[#4A7FB5]"
+            : "border-white/10 bg-white/[0.03] hover:border-white/25")
+      }
+    >
+      <div className="flex items-center justify-between">
+        <span className="font-medium text-[#F7F5F0]">{title}</span>
+        {selected && <span className="text-xs text-[#C9DCF0]">Selected</span>}
+      </div>
+      <p className="mt-1 text-xs text-white/45">{subtitle}</p>
+    </button>
+  );
+}

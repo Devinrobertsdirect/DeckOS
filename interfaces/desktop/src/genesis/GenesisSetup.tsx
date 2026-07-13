@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 
-import { AtlasFace, type FaceState } from "@/components/faces/AtlasFace";
+import {
+  AtlasFace,
+  FACE_THEMES,
+  useFaceTheme,
+  saveFaceTheme,
+  type FaceState,
+} from "@/components/faces/AtlasFace";
 import {
   PROVIDERS,
   providersByCategory,
@@ -15,21 +21,30 @@ import {
   warmUpVoices,
   type VoiceEngine,
 } from "@/genesis/useAtlasVoice";
-import { setUserName, getUserName, markSetupDone } from "@/lib/uiMode";
+import {
+  setUserName,
+  getUserName,
+  getBotName,
+  setBotName,
+  markSetupDone,
+} from "@/lib/uiMode";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 /**
  * Genesis Setup — the very first screen a new Atlas user meets, before any
- * dashboard exists. Fullscreen, calm, dark navy. Three steps:
- *   1. Name        → "What should I call you?"
- *   2. Minds       → connect provider API keys (all optional)
- *   3. Voice       → pick the default browser voice or the ElevenLabs voice
+ * dashboard exists. Fullscreen, calm, dark navy. iPhone-style: the user
+ * configures everything before the AI's intro. Four steps:
+ *   0. Keys        → connect provider API keys (all optional)
+ *   1. Names       → the user's name and the AI's name
+ *   2. Voice       → pick the default browser voice or the ElevenLabs voice
+ *   3. Appearance  → choose the AI's eyes (face theme)
  * Finishes by marking setup done and handing control back to the app.
  *
  * Nothing is persisted except through the provided helpers (setUserName,
- * setVoiceEngine, markSetupDone) and the server config API. Every network call
- * is guarded so the wizard still works end-to-end with the server offline.
+ * setBotName, setVoiceEngine, saveFaceTheme, markSetupDone) and the server
+ * config API. Every network call is guarded so the wizard still works
+ * end-to-end with the server offline.
  */
 
 const NAVY = "#0d1420";
@@ -45,7 +60,7 @@ const CATEGORY_ORDER: { cat: ProviderCategory; label: string }[] = [
   { cat: "video", label: "Video" },
 ];
 
-type Step = 0 | 1;
+type Step = 0 | 1 | 2 | 3;
 
 interface TestState {
   status: "idle" | "loading" | "ok" | "fail";
@@ -59,7 +74,14 @@ export function GenesisSetup({ onComplete }: { onComplete: () => void }) {
   const [direction, setDirection] = useState<number>(1);
 
   const [name, setName] = useState<string>(() => getUserName());
+  // Local bot-name input state. Setter is suffixed so it doesn't shadow the
+  // imported setBotName persistence helper.
+  const [botName, setBotName_] = useState<string>(() => getBotName());
   const [nameFocused, setNameFocused] = useState(false);
+
+  // Whether the user explicitly picked a voice in step 2. If they didn't, finish()
+  // auto-picks (premium ElevenLabs when its key is present, else browser).
+  const [voiceTouched, setVoiceTouched] = useState(false);
 
   // Provider key inputs, keyed by ProviderDef.keyName. Held only in memory
   // until Next, then PUT to the server config store.
@@ -106,12 +128,16 @@ export function GenesisSetup({ onComplete }: { onComplete: () => void }) {
   useEffect(() => () => voice.stop(), [voice]);
 
   // ── Face expression, timed to the step + what's happening ───────────────────
-  // Flow (keys first, per the design): 0 connect · 1 name
+  // Flow (keys first, per the design): 0 connect · 1 names · 2 voice · 3 eyes
   const anyTesting = Object.values(testResults).some((t) => t.status === "loading");
   const faceState: FaceState =
     step === 0
       ? anyTesting ? "excited" : "thinking"
-      : nameFocused ? "listening" : "happy";
+      : step === 1
+        ? nameFocused ? "listening" : "happy"
+        : step === 2
+          ? voice.speaking ? "talking" : "happy"
+          : "happy";
 
   // ── Navigation ──────────────────────────────────────────────────────────────
   function go(next: Step) {
@@ -142,21 +168,29 @@ export function GenesisSetup({ onComplete }: { onComplete: () => void }) {
 
   function finish() {
     voice.stop();
-    // Auto-pick the voice engine — premium ElevenLabs if its key is present,
-    // so Atlas "defaults to loading and using these APIs" for its intro.
-    const hasEleven = configHasEleven || !!(keys["ELEVENLABS_API_KEY"] || "").trim();
-    setVoiceEngine(hasEleven ? "server" : "browser");
+    // Respect the user's explicit choice from step 2. If they never touched it,
+    // auto-pick — premium ElevenLabs if its key is present, so Atlas "defaults to
+    // loading and using these APIs" for its intro — else the browser voice.
+    if (!voiceTouched) {
+      const hasEleven = configHasEleven || !!(keys["ELEVENLABS_API_KEY"] || "").trim();
+      setVoiceEngine(hasEleven ? "server" : "browser");
+    }
     markSetupDone();
     onComplete();
   }
 
   function handleNext() {
     if (step === 0) {
-      saveProviders(); // keys → name
+      saveProviders(); // keys → names
       go(1);
+    } else if (step === 1) {
+      setUserName(name.trim()); // names → voice
+      setBotName(botName.trim());
+      go(2);
+    } else if (step === 2) {
+      go(3); // voice → eyes
     } else {
-      setUserName(name.trim()); // name → done
-      finish();
+      finish(); // eyes → done
     }
   }
 
@@ -212,23 +246,29 @@ export function GenesisSetup({ onComplete }: { onComplete: () => void }) {
 
   function selectEngine(engine: VoiceEngine) {
     if (engine === "server" && !elevenUnlocked) return;
+    setVoiceTouched(true);
     setSelectedEngine(engine);
     setVoiceEngine(engine);
   }
 
   function hearMe() {
     const who = name.trim() || "there";
-    void voice.speak(`Hi ${who}, this is how I sound.`, { engine: selectedEngine });
+    const bot = botName.trim() || "Atlas";
+    void voice.speak(`Hi ${who}, this is how ${bot} sounds.`, { engine: selectedEngine });
   }
 
   // ── Step content ────────────────────────────────────────────────────────────
   const stepTitle = [
     "Do you have any AI keys to plug in?",
-    "What should I call you?",
+    "Let's get acquainted",
+    "Give your AI a voice",
+    "Give your AI its eyes",
   ][step];
   const stepSubtitle = [
     "Connect the AI services you already use — or skip and add them later. Atlas will use them for its own introduction.",
-    "A name so Atlas can speak to you like a partner, not a product.",
+    "A name for you, and a name for your AI — so it can speak to you like a partner, not a product.",
+    "Choose how your AI sounds. Press “Hear me” to preview before you decide.",
+    "Pick the eyes your AI wears. Tap a look to try it on — everything updates live.",
   ][step];
 
 
@@ -279,13 +319,27 @@ export function GenesisSetup({ onComplete }: { onComplete: () => void }) {
               )}
 
               {step === 1 && (
-                <NameStep
-                  name={name}
-                  onChange={setName}
+                <NamesStep
+                  userName={name}
+                  onUserName={setName}
+                  botName={botName}
+                  onBotName={setBotName_}
                   onFocus={() => setNameFocused(true)}
                   onBlur={() => setNameFocused(false)}
                 />
               )}
+
+              {step === 2 && (
+                <VoiceStep
+                  selected={selectedEngine}
+                  elevenUnlocked={elevenUnlocked}
+                  speaking={voice.speaking}
+                  onSelect={selectEngine}
+                  onHear={hearMe}
+                />
+              )}
+
+              {step === 3 && <AppearanceStep />}
           </motion.div>
         </div>
 
@@ -323,7 +377,7 @@ export function GenesisSetup({ onComplete }: { onComplete: () => void }) {
               className="border-transparent bg-[#4A7FB5] px-6 text-white hover:bg-[#3f6f9f]"
               onClick={handleNext}
             >
-              {step === 1 ? "Meet Atlas →" : "Next →"}
+              {step === 3 ? `Meet ${botName.trim() || "Atlas"} →` : "Next →"}
             </Button>
           </div>
         </footer>
@@ -334,7 +388,7 @@ export function GenesisSetup({ onComplete }: { onComplete: () => void }) {
 
 // ── Progress dots ─────────────────────────────────────────────────────────────
 function Progress({ step }: { step: number }) {
-  const steps = [0, 1];
+  const steps = [0, 1, 2, 3];
   return (
     <div className="flex items-center gap-2" aria-label={`Step ${step + 1} of ${steps.length}`}>
       {steps.map((i) => (
@@ -359,7 +413,56 @@ function Progress({ step }: { step: number }) {
   );
 }
 
-// ── Step 1: Name ──────────────────────────────────────────────────────────────
+// ── Step 1: Names — the user's name and the AI's name ─────────────────────────
+function NamesStep({
+  userName,
+  onUserName,
+  botName,
+  onBotName,
+  onFocus,
+  onBlur,
+}: {
+  userName: string;
+  onUserName: (v: string) => void;
+  botName: string;
+  onBotName: (v: string) => void;
+  onFocus: () => void;
+  onBlur: () => void;
+}) {
+  return (
+    <div className="flex h-full flex-col items-center justify-center">
+      <div className="w-full max-w-sm space-y-5">
+        <NameStep
+          name={userName}
+          onChange={onUserName}
+          onFocus={onFocus}
+          onBlur={onBlur}
+        />
+        <div className="w-full">
+          <label htmlFor="atlas-bot-name" className="mb-2 block text-sm text-white/60">
+            Name your AI
+          </label>
+          <Input
+            id="atlas-bot-name"
+            value={botName}
+            onChange={(e) => onBotName(e.target.value)}
+            onFocus={onFocus}
+            onBlur={onBlur}
+            placeholder="Atlas"
+            autoComplete="off"
+            spellCheck={false}
+            className={INPUT_CLASS + " h-11 text-base"}
+          />
+        </div>
+        <p className="text-center text-xs text-white/30">
+          These are just for us. You can change them any time.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// The single "your name" field, reused inside NamesStep.
 function NameStep({
   name,
   onChange,
@@ -372,27 +475,22 @@ function NameStep({
   onBlur: () => void;
 }) {
   return (
-    <div className="flex h-full flex-col items-center justify-center">
-      <div className="w-full max-w-sm">
-        <label htmlFor="atlas-name" className="mb-2 block text-sm text-white/60">
-          Your name
-        </label>
-        <Input
-          id="atlas-name"
-          autoFocus
-          value={name}
-          onChange={(e) => onChange(e.target.value)}
-          onFocus={onFocus}
-          onBlur={onBlur}
-          placeholder="e.g. Devin"
-          autoComplete="off"
-          spellCheck={false}
-          className={INPUT_CLASS + " h-11 text-base"}
-        />
-        <p className="mt-3 text-center text-xs text-white/30">
-          This is just for us. You can change it any time.
-        </p>
-      </div>
+    <div className="w-full">
+      <label htmlFor="atlas-name" className="mb-2 block text-sm text-white/60">
+        Your name
+      </label>
+      <Input
+        id="atlas-name"
+        autoFocus
+        value={name}
+        onChange={(e) => onChange(e.target.value)}
+        onFocus={onFocus}
+        onBlur={onBlur}
+        placeholder="e.g. Devin"
+        autoComplete="off"
+        spellCheck={false}
+        className={INPUT_CLASS + " h-11 text-base"}
+      />
     </div>
   );
 }
@@ -649,5 +747,40 @@ function VoiceCard({
       </div>
       <p className="mt-1 text-xs text-white/45">{subtitle}</p>
     </button>
+  );
+}
+
+// ── Step 4: Appearance — give your AI its eyes ────────────────────────────────
+function AppearanceStep() {
+  // Every AtlasFace reads the active theme from localStorage via useFaceTheme,
+  // so saving one updates the big preview and all card previews at once.
+  const theme = useFaceTheme();
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-6">
+      {/* Large central preview reflecting the currently-selected theme. */}
+      <AtlasFace mode="atlas" state="happy" size={120} />
+      <div className="grid w-full max-w-md grid-cols-3 gap-3">
+        {FACE_THEMES.map((t) => {
+          const selected = t.id === theme.id;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => saveFaceTheme(t.id)}
+              aria-pressed={selected}
+              className={
+                "flex flex-col items-center gap-2 rounded-xl border p-3 transition-all " +
+                (selected
+                  ? "border-[#4A7FB5] bg-[#4A7FB5]/10 ring-1 ring-[#4A7FB5]"
+                  : "border-white/10 bg-white/[0.03] hover:border-white/25")
+              }
+            >
+              <AtlasFace mode="atlas" state="happy" size={72} />
+              <span className="text-center text-xs text-white/70">{t.name}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }

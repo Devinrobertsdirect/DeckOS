@@ -57,6 +57,15 @@ export function setUserName(name: string) {
   localStorage.setItem(NAME_KEY, name);
 }
 
+// What the user named their AI (defaults to "Atlas").
+const BOT_NAME_KEY = "atlas_bot_name";
+export function getBotName(): string {
+  return (localStorage.getItem(BOT_NAME_KEY) || "").trim() || "Atlas";
+}
+export function setBotName(name: string) {
+  localStorage.setItem(BOT_NAME_KEY, (name || "").trim());
+}
+
 /** Reset the whole first-run experience (used by a "replay intro" control). */
 export function resetGenesis() {
   localStorage.removeItem(SETUP_KEY);

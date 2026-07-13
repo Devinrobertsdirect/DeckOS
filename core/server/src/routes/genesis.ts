@@ -28,6 +28,7 @@ type Beat = z.infer<typeof BeatSchema>;
 
 const IntroRequest = z.object({
   name: z.string().max(60).optional().default(""),
+  botName: z.string().max(60).optional().default("Atlas"),
   providers: z.array(z.string().max(40)).max(12).optional().default([]),
 });
 
@@ -45,14 +46,14 @@ function spokenList(items: string[]): string {
 }
 
 /** Hand-written fallback — tighter and more varied than a single tone. */
-function fallbackBeats(name: string, providers: string[], hour: number): Beat[] {
+function fallbackBeats(name: string, providers: string[], hour: number, bot = "Atlas"): Beat[] {
   const who = name.trim() || "friend";
   const greet = timeGreeting(hour);
   const mind = providers.length
     ? `And you already use ${spokenList(providers)}. Good — I'll talk to them for you, so it feels like one assistant, not ten tabs.`
     : `Connect Claude, Gemini, or the tools you love, and I'll talk to them for you — one assistant, not ten tabs.`;
   return [
-    { expression: "happy", text: `${greet}, ${who}. I'm Atlas.` },
+    { expression: "happy", text: `${greet}, ${who}. I'm ${bot}.` },
     { expression: "idle", text: `Think of me less like an app and more like a partner who lives in your machines.` },
     { expression: "listening", text: `Your computer, your phone, your devices — I pull your day into one place and keep it organized.` },
     { expression: "excited", text: mind },
@@ -89,11 +90,12 @@ router.post("/intro", async (req, res) => {
     res.status(400).json({ error: "Body must be { name?, providers?[] }" });
     return;
   }
-  const { name, providers } = parsed.data;
+  const { name, botName, providers } = parsed.data;
+  const bot = (botName || "Atlas").trim() || "Atlas";
   const hour = new Date().getHours();
 
   const system =
-    `You are Atlas, a warm, witty personal AI operating system meeting a new user for the first time. ` +
+    `You are ${bot}, a warm, witty personal AI operating system meeting a new user for the first time. ` +
     `You are speaking out loud, so write natural spoken sentences — no markdown, no lists, no stage directions. ` +
     `You organize the user's day across their computer, phone, devices, and (one day) their robot. ` +
     `You talk to their other AI tools for them so it feels like one seamless assistant. ` +
@@ -123,7 +125,7 @@ router.post("/intro", async (req, res) => {
     /* fall through to the hand-written intro */
   }
 
-  res.json({ beats: fallbackBeats(name, providers, hour), source: "fallback" });
+  res.json({ beats: fallbackBeats(name, providers, hour, bot), source: "fallback" });
 });
 
 export default router;

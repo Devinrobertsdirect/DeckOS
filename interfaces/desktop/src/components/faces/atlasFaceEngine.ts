@@ -17,7 +17,10 @@ export type FaceState =
   | "confused"
   | "excited"
   | "charging"
-  | "sleeping";
+  | "sleeping"
+  | "angry"       // slanted, narrowed eyes (pairs with a red tint)
+  | "suspicious"  // narrowed eyes that dart side to side
+  | "sad";        // downward arcs
 
 export type FaceMode = "atlas" | "neural" | "auto";
 
@@ -51,7 +54,7 @@ export const FACE_DISC_RGB = "30,42,56"; // #1E2A38 smoked-glass navy
 // All lengths are fractions of the face diameter D. Left/right eyes may differ
 // (confused). "shape" crossfades; numeric fields tween.
 
-type EyeShape = "pill" | "arc" | "dash" | "bolt" | "halfLid";
+type EyeShape = "pill" | "arc" | "arcDown" | "dash" | "bolt" | "halfLid";
 
 interface EyeSpec {
   shape: EyeShape;
@@ -59,6 +62,7 @@ interface EyeSpec {
   h: number;      // height /D
   dx: number;     // extra x offset /D
   dy: number;     // extra y offset /D
+  rot?: number;   // per-eye rotation (rad), mirrored L/R — the "angry slant"
 }
 
 interface PoseSpec {
@@ -111,6 +115,24 @@ const POSES: Record<FaceState, PoseSpec> = {
     right: { shape: "dash", w: 0.15, h: 0.032, dx: 0, dy: 0.02 },
     gazeX: 0, gazeY: 0.02, tilt: 0, blink: false, duration: 400,
   },
+  // Slanted, narrowed eyes — inner-top down (angry brow without eyebrows).
+  angry: {
+    left: { shape: "pill", w: 0.16, h: 0.15, dx: 0, dy: 0, rot: 0.5 },
+    right: { shape: "pill", w: 0.16, h: 0.15, dx: 0, dy: 0, rot: 0.5 },
+    gazeX: 0, gazeY: 0.015, tilt: 0, blink: false, duration: 240,
+  },
+  // Narrowed eyes; the whole gaze darts side to side (handled as a state extra).
+  suspicious: {
+    left: { shape: "pill", w: 0.15, h: 0.115, dx: 0, dy: 0 },
+    right: { shape: "pill", w: 0.15, h: 0.115, dx: 0, dy: 0 },
+    gazeX: 0, gazeY: 0, tilt: 0, blink: false, duration: 300,
+  },
+  // Downward arcs + a slightly lowered gaze.
+  sad: {
+    left: { shape: "arcDown", w: 0.16, h: 0.09, dx: 0, dy: 0.02 },
+    right: { shape: "arcDown", w: 0.16, h: 0.09, dx: 0, dy: 0.02 },
+    gazeX: 0, gazeY: 0.03, tilt: 0, blink: false, duration: 320,
+  },
 };
 
 const EYE_OFFSET_X = 0.155; // eye centre distance from face centre /D
@@ -135,6 +157,7 @@ function lerpEye(a: EyeSpec, b: EyeSpec, t: number): EyeSpec {
     h: lerp(a.h, b.h, t),
     dx: lerp(a.dx, b.dx, t),
     dy: lerp(a.dy, b.dy, t),
+    rot: lerp(a.rot ?? 0, b.rot ?? 0, t),
   };
 }
 
@@ -245,6 +268,9 @@ export interface EngineDrawOpts {
   activity: number;
   /** Eye colour "r,g,b" resolved from theme or accent. */
   eyeRgb: string;
+  /** Optional disc/rim tint "r,g,b" — e.g. red when angry ("it turns red"). 0..1 strength. */
+  tintRgb?: string;
+  tintStrength?: number;
   theme: FaceTheme;
 }
 
@@ -330,9 +356,20 @@ export class AtlasFaceEngine {
     ctx.globalAlpha = globalDim;
 
     // ── Disc ────────────────────────────────────────────────────────────────
+    // A mood tint (e.g. red for anger) blends into the smoked-glass navy.
+    const [dr, dg, db] = FACE_DISC_RGB.split(",").map(Number) as [number, number, number];
+    let baseInner = `rgb(${FACE_DISC_RGB})`;
+    let baseOuter = "rgb(16,24,34)";
+    if (opts.tintRgb) {
+      const s = Math.min(1, Math.max(0, opts.tintStrength ?? 0.35)) * (0.5 + 0.5 * (0.5 + 0.5 * Math.sin(now * 0.006)));
+      const [tr, tg, tb] = opts.tintRgb.split(",").map(Number) as [number, number, number];
+      const mix = (a: number, b: number) => Math.round(a + (b - a) * s);
+      baseInner = `rgb(${mix(dr, tr)},${mix(dg, tg)},${mix(db, tb)})`;
+      baseOuter = `rgb(${mix(16, Math.round(tr * 0.6))},${mix(24, Math.round(tg * 0.6))},${mix(34, Math.round(tb * 0.6))})`;
+    }
     const disc = ctx.createRadialGradient(cx, cy - R * 0.25, R * 0.1, cx, cy, R);
-    disc.addColorStop(0, `rgba(${FACE_DISC_RGB},1)`);
-    disc.addColorStop(1, "rgba(16,24,34,1)");
+    disc.addColorStop(0, baseInner);
+    disc.addColorStop(1, baseOuter);
     ctx.beginPath();
     ctx.arc(cx, cy, R - 1, 0, Math.PI * 2);
     ctx.fillStyle = disc;
@@ -387,8 +424,12 @@ export class AtlasFaceEngine {
     }
 
     // Gaze micro-drift — two incommensurate sines read as "alive".
-    const driftX = (Math.sin(now * 0.00023) * 0.012 + Math.sin(now * 0.00007 + 2) * 0.008) * D;
+    let driftX = (Math.sin(now * 0.00023) * 0.012 + Math.sin(now * 0.00007 + 2) * 0.008) * D;
     const driftY = (Math.sin(now * 0.00019 + 1) * 0.009 + Math.sin(now * 0.00005) * 0.006) * D;
+    // Suspicious: eyes dart side to side (shifty side-eye).
+    if (this.state === "suspicious") {
+      driftX += Math.sin(now * 0.006) * 0.06 * D;
+    }
 
     // Talking bounce synced to TTS amplitude (fallback: gentle cadence).
     let bounce = 0;
@@ -419,6 +460,8 @@ export class AtlasFaceEngine {
       const h = spec.h * D * (spec.shape === "pill" ? blinkScale : 1);
       ctx.save();
       ctx.translate(ex, ey);
+      // Per-eye slant (mirrored left/right) — the angry brow.
+      if (spec.rot) ctx.rotate(side * spec.rot);
       switch (spec.shape) {
         case "pill": {
           if (theme.pixelEyes) {
@@ -443,6 +486,15 @@ export class AtlasFaceEngine {
           ctx.lineWidth = Math.max(2, D * 0.045);
           ctx.lineCap = "round";
           ctx.arc(0, h, w * 0.62, Math.PI * 1.15, Math.PI * 1.85);
+          ctx.stroke();
+          break;
+        }
+        case "arcDown": {
+          // Sad "∪" — downward arc.
+          ctx.beginPath();
+          ctx.lineWidth = Math.max(2, D * 0.045);
+          ctx.lineCap = "round";
+          ctx.arc(0, -h, w * 0.62, Math.PI * 0.15, Math.PI * 0.85);
           ctx.stroke();
           break;
         }

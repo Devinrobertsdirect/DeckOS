@@ -24,6 +24,8 @@ export interface GenesisBeat {
 
 export interface GenesisContext {
   name: string;
+  /** What the user named their AI (defaults to "Atlas"). */
+  botName?: string;
   /** Human-readable names of connected chat/media providers, e.g. ["Claude","Gemini"]. */
   providers: string[];
   /** Whether a premium (ElevenLabs) voice is active. */
@@ -53,6 +55,7 @@ function spokenList(items: string[]): string {
  */
 export function buildGenesisScript(ctx: GenesisContext): GenesisBeat[] {
   const name = ctx.name?.trim() || "friend";
+  const bot = ctx.botName?.trim() || "Atlas";
   const greet = timeGreeting(ctx.hour);
   const hasProviders = ctx.providers.length > 0;
   const providerList = spokenList(ctx.providers);
@@ -67,7 +70,7 @@ export function buildGenesisScript(ctx: GenesisContext): GenesisBeat[] {
     },
     {
       expression: "idle",
-      text: `I'm Atlas. From now on, I'm yours — think of me less like an app and more like a new partner who happens to live in your machines.`,
+      text: `I'm ${bot}. From now on, I'm yours — think of me less like an app and more like a new partner who happens to live in your machines.`,
       hold: 400,
     },
     {

@@ -3,7 +3,7 @@ import { AtlasFace, type FaceState } from "@/components/faces/AtlasFace";
 import { useAtlasVoice, getVoiceEngine, warmUpVoices } from "@/genesis/useAtlasVoice";
 import { buildGenesisScript, type GenesisBeat } from "@/genesis/genesisScript";
 import { PROVIDERS } from "@/genesis/providers";
-import { getUserName, markIntroDone } from "@/lib/uiMode";
+import { getUserName, getBotName, markIntroDone } from "@/lib/uiMode";
 
 const AI_BEATS_CACHE = "atlas_intro_beats";
 const VALID_EXPR: FaceState[] = ["idle", "happy", "listening", "thinking", "excited", "confused"];
@@ -36,7 +36,7 @@ async function fetchAiBeats(): Promise<GenesisBeat[] | null> {
     const res = await fetch("/api/genesis/intro", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: getUserName(), providers }),
+      body: JSON.stringify({ name: getUserName(), botName: getBotName(), providers }),
       signal: ctrl.signal,
     });
     clearTimeout(timer);
@@ -93,6 +93,7 @@ export function GenesisIntro({ onComplete }: { onComplete: () => void }) {
     } catch { /* ignore */ }
     return buildGenesisScript({
       name: getUserName(),
+      botName: getBotName(),
       providers: connected,
       premiumVoice: getVoiceEngine() === "server",
       hour: new Date().getHours(),

@@ -1,0 +1,180 @@
+🧠 PART 1 — UI / UX AUDIT (what to triple check)
+
+This is where most systems like this quietly degrade. You want to verify consistency, truthfulness, and latency alignment.
+
+⸻
+
+🔍 1. “Truth Sync” Issues (highest priority)
+
+These happen when UI ≠ system reality.
+
+Check every panel for:
+
+❗ Stale Data Windows
+
+* Dashboard stats updating every X seconds while:
+    * plugins update every 5s
+    * memory sweeps every 60s
+    * predictions maybe on-demand
+
+👉 Fix:
+
+* Show last updated timestamp per panel
+* OR label as:
+    * LIVE
+    * DELAYED
+    * SNAPSHOT
+
+⸻
+
+❗ AI Mode Drift
+
+If user switches AI mode:
+
+* does EVERY component reflect it instantly?
+
+Check:
+
+* HUD
+* AI Router panel
+* Console responses
+* ai_chat plugin behavior
+
+👉 If not:
+
+you have state desynchronization
+
+⸻
+
+❗ Plugin State Mismatch
+
+* Toggle plugin → does UI reflect immediately?
+* Does backend confirm success/failure?
+
+👉 Add:
+
+* “pending” state
+* “failed to start” indicator
+
+⸻
+
+🔍 2. Cognitive Layer UX Clarity
+
+Right now you have a 7-layer cognitive system—that’s powerful, but also overwhelming.
+
+Check:
+
+❗ Are users forced to “understand architecture” to use it?
+
+If yes → too complex.
+
+👉 Fix:
+Add a mode switch:
+
+* SIMPLE MODE → “What do you want to do?”
+* ADVANCED MODE → full system panels
+
+⸻
+
+❗ UCM Editing vs Reality
+
+Right now:
+
+* user edits model manually
+* system also infers things
+
+This can conflict.
+
+👉 Add:
+
+* “source of truth” indicators:
+    * user-defined
+    * system-inferred
+    * confidence score
+
+⸻
+
+🔍 3. Console UX (critical for “Jarvis feel”)
+
+Right now it’s command-based.
+
+Check:
+
+* does it feel like a shell or an assistant?
+
+👉 Fix direction:
+
+* allow both:
+    * > status (command)
+    * > how’s the system doing? (natural language)
+
+And visually distinguish:
+
+* system output
+* AI response
+* event log
+
+⸻
+
+🔍 4. Autonomy Layer Safety UX
+
+You built this correctly technically—but UX can break trust.
+
+Check:
+
+❗ Is it obvious WHY an action was blocked?
+
+Each log should show:
+
+* rule triggered
+* safety level
+* alternative suggestion
+
+⸻
+
+❗ Are users afraid to enable autonomy?
+
+If yes:
+
+your UX is too opaque
+
+👉 Add:
+
+* “simulation mode”
+* “dry run” preview
+
+⸻
+
+🔍 5. Event Bus Visibility
+
+Right now:
+
+* events are logged
+* trace mode exists
+
+But:
+
+👉 Is it understandable?
+
+Most users won’t read raw logs.
+
+Add:
+
+* grouped event summaries:
+    * “AI request processed”
+    * “Memory updated”
+    * “Goal progressed”
+
+⸻
+
+🎨 PART 2 — VISUAL UPGRADE (toggleable “cinematic mode”)
+
+You don’t want just “prettier.”
+
+You want:
+
+perceived intelligence amplification through visuals
+
+⸻
+
+🧩 Add: “VISUAL MODE SYSTEM”

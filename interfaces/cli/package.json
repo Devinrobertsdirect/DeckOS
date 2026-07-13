@@ -1,0 +1,25 @@
+{
+  "name": "@workspace/deck-cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "deck-cli": "./dist/index.mjs"
+  },
+  "scripts": {
+    "build": "node ./build.mjs",
+    "start": "node ./dist/index.mjs",
+    "dev": "pnpm run build && pnpm run start",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "chalk": "^5.4.1",
+    "ws": "^8.20.0"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/ws": "^8.18.1",
+    "esbuild": "^0.27.3",
+    "typescript": "~5.9.2"
+  }
+}

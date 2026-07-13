@@ -1,0 +1,584 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Rajdhani:wght@500;600;700&display=swap');
+
+@import "tailwindcss";
+@import "tw-animate-css";
+@plugin "@tailwindcss/typography";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-card-border: hsl(var(--card-border));
+
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-popover-border: hsl(var(--popover-border));
+
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-primary-border: var(--primary-border);
+
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+
+  --font-sans: 'Rajdhani', sans-serif;
+  --font-serif: Georgia, serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root, .dark {
+  --background: 220 50% 4%;
+  --foreground: 217 55% 93%;
+  --border: 217 60% 32%;
+
+  --card: 220 50% 6%;
+  --card-foreground: 217 55% 93%;
+  --card-border: 217 60% 32%;
+
+  --popover: 220 50% 6%;
+  --popover-foreground: 217 55% 93%;
+  --popover-border: 217 60% 32%;
+
+  --primary: 217 88% 65%;
+  --primary-foreground: 220 50% 4%;
+  --primary-rgb: 77, 144, 246;
+
+  --secondary: 220 60% 15%;
+  --secondary-foreground: 217 55% 93%;
+
+  --muted: 220 40% 12%;
+  --muted-foreground: 217 35% 82%;
+
+  --accent: 217 80% 18%;
+  --accent-foreground: 217 80% 90%;
+
+  --destructive: 0 90% 60%;
+  --destructive-foreground: 0 0% 100%;
+
+  --warning: 45 100% 50%;
+  --success: 120 100% 40%;
+
+  --input: 217 60% 28%;
+  --ring: 217 88% 60%;
+
+  --radius: 0.25rem;
+
+  --app-font-sans: 'Rajdhani', sans-serif;
+  --app-font-mono: 'JetBrains Mono', monospace;
+
+  /* visual mode intensities — overridden per mode */
+  --grid-opacity: 0.03;
+  --scanline-opacity: 0.45;
+  --glow-intensity: 1;
+}
+
+/* ── COLOR THEMES ────────────────────────────────────── */
+[data-color="blue"] {
+  --primary: 217 88% 60%; --primary-rgb: 63, 132, 243;
+  --foreground: 217 70% 80%; --border: 217 60% 28%;
+  --card-foreground: 217 70% 80%; --card-border: 217 60% 28%;
+  --popover-foreground: 217 70% 80%; --popover-border: 217 60% 28%;
+  --muted-foreground: 217 40% 68%; --accent: 217 80% 18%;
+  --accent-foreground: 217 80% 90%; --ring: 217 88% 60%; --input: 217 60% 28%;
+}
+[data-color="green"] {
+  --primary: 145 80% 45%; --primary-rgb: 17, 214, 120;
+  --foreground: 145 70% 78%; --border: 145 60% 26%;
+  --card-foreground: 145 70% 78%; --card-border: 145 60% 26%;
+  --popover-foreground: 145 70% 78%; --popover-border: 145 60% 26%;
+  --muted-foreground: 145 35% 65%; --accent: 145 70% 16%;
+  --accent-foreground: 145 80% 90%; --ring: 145 80% 45%; --input: 145 60% 26%;
+}
+[data-color="yellow"] {
+  --primary: 45 92% 54%; --primary-rgb: 255, 198, 20;
+  --foreground: 45 75% 80%; --border: 45 65% 28%;
+  --card-foreground: 45 75% 80%; --card-border: 45 65% 28%;
+  --popover-foreground: 45 75% 80%; --popover-border: 45 65% 28%;
+  --muted-foreground: 45 35% 65%; --accent: 45 70% 16%;
+  --accent-foreground: 45 80% 90%; --ring: 45 92% 54%; --input: 45 65% 28%;
+}
+[data-color="red"] {
+  --primary: 355 78% 57%; --primary-rgb: 240, 50, 70;
+  --foreground: 355 65% 80%; --border: 355 55% 26%;
+  --card-foreground: 355 65% 80%; --card-border: 355 55% 26%;
+  --popover-foreground: 355 65% 80%; --popover-border: 355 55% 26%;
+  --muted-foreground: 355 30% 65%; --accent: 355 60% 16%;
+  --accent-foreground: 355 70% 90%; --ring: 355 78% 57%; --input: 355 55% 26%;
+}
+
+@layer base {
+  * { @apply border-border; }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+    background-image:
+      linear-gradient(rgba(var(--primary-rgb), var(--grid-opacity)) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(var(--primary-rgb), var(--grid-opacity)) 1px, transparent 1px);
+    background-size: 40px 40px;
+    transition: background-image 0.4s ease;
+  }
+}
+
+.font-mono { font-family: var(--font-mono); }
+
+/* ───────────────────────────────────────────
+   SCANLINE
+─────────────────────────────────────────── */
+.scanline {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: rgba(var(--primary-rgb), 0.6);
+  opacity: var(--scanline-opacity);
+  animation: scanline 5s linear infinite;
+  pointer-events: none;
+  box-shadow: 0 0 8px rgba(var(--primary-rgb), 0.7);
+}
+
+@keyframes scanline {
+  0%   { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+/* ───────────────────────────────────────────
+   HUD TEXT GLOW ON HOVER
+─────────────────────────────────────────── */
+.hud-glow-hover {
+  transition: text-shadow 0.25s ease;
+}
+.hud-glow-hover:hover {
+  text-shadow:
+    0 0 8px  rgba(var(--primary-rgb), 0.6),
+    0 0 20px rgba(var(--primary-rgb), 0.22);
+}
+
+/* ───────────────────────────────────────────
+   GLOW PULSE
+─────────────────────────────────────────── */
+.pulse-glow {
+  animation: pulse-glow 2.5s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%   { box-shadow: 0 0 4px rgba(var(--primary-rgb),0.15); }
+  50%  { box-shadow: 0 0 18px rgba(var(--primary-rgb),0.55); }
+  100% { box-shadow: 0 0 4px rgba(var(--primary-rgb),0.15); }
+}
+
+/* ───────────────────────────────────────────
+   PARTICLE / DATA-STREAM OVERLAY (cinematic)
+─────────────────────────────────────────── */
+.particle-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.55;
+  mix-blend-mode: screen;
+}
+
+/* ───────────────────────────────────────────
+   CINEMATIC EXTRAS — keyframes
+─────────────────────────────────────────── */
+@keyframes card-breathe {
+  0%, 100% { box-shadow: 0 0 8px rgba(var(--primary-rgb),0.10), inset 0 0 14px rgba(var(--primary-rgb),0.04); }
+  50%       { box-shadow: 0 0 28px rgba(var(--primary-rgb),0.35), inset 0 0 30px rgba(var(--primary-rgb),0.10); }
+}
+
+@keyframes value-flicker {
+  0%, 92%, 100% { opacity: 1; }
+  93%           { opacity: 0.6; }
+  95%           { opacity: 1; }
+  97%           { opacity: 0.75; }
+  98%           { opacity: 1; }
+}
+
+@keyframes ambient-float {
+  0%, 100% { transform: translateY(0px); opacity: 0.4; }
+  50%       { transform: translateY(-6px); opacity: 0.7; }
+}
+
+@keyframes blob-drift-1 {
+  0%, 100% { transform: translate(0px,   0px)  scale(1);    opacity: 0.14; }
+  25%       { transform: translate(40px, -30px) scale(1.07); opacity: 0.20; }
+  50%       { transform: translate(20px,  50px) scale(0.95); opacity: 0.10; }
+  75%       { transform: translate(-30px,-20px) scale(1.04); opacity: 0.18; }
+}
+
+@keyframes blob-drift-2 {
+  0%, 100% { transform: translate(0px,  0px)  scale(1);    opacity: 0.10; }
+  33%       { transform: translate(-40px,30px) scale(1.08); opacity: 0.16; }
+  66%       { transform: translate(25px,-40px) scale(0.93); opacity: 0.08; }
+}
+
+@keyframes hud-corner-pulse {
+  0%, 100% { opacity: 0.4; }
+  50%       { opacity: 0.85; }
+}
+
+@keyframes scanline-2 {
+  0%   { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+/* ───────────────────────────────────────────
+   CINEMATIC OVERLAY LAYERS
+   (rendered in Layout as fixed divs, shown only in cinematic mode)
+─────────────────────────────────────────── */
+
+/* Vignette — darkens edges for that cinema aspect feel */
+.cinematic-vignette {
+  display: none;
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 60;
+  background:
+    radial-gradient(ellipse 110% 90% at 50% 50%, transparent 28%, rgba(0,0,6,0.72) 100%);
+}
+
+/* Ambient glow blobs */
+.cinematic-blob {
+  display: none;
+  position: fixed;
+  pointer-events: none;
+  border-radius: 50%;
+  z-index: 1;
+}
+.cinematic-blob-1 {
+  width: 800px; height: 600px;
+  top: -200px; right: -180px;
+  background: radial-gradient(circle, rgba(var(--primary-rgb), 0.28) 0%, transparent 65%);
+  filter: blur(90px);
+  animation: blob-drift-1 22s ease-in-out infinite;
+}
+.cinematic-blob-2 {
+  width: 700px; height: 700px;
+  bottom: -250px; left: -150px;
+  background: radial-gradient(circle, rgba(var(--primary-rgb), 0.18) 0%, transparent 65%);
+  filter: blur(110px);
+  animation: blob-drift-2 30s ease-in-out infinite;
+}
+
+/* Film grain / noise texture */
+.cinematic-noise {
+  display: none;
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 61;
+  opacity: 0.055;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+}
+
+/* Secondary scanline (offset phase) */
+.cinematic-scanline-2 {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent 0%, rgba(var(--primary-rgb),0.5) 50%, transparent 100%);
+  box-shadow: 0 0 10px rgba(var(--primary-rgb), 0.5);
+  animation: scanline-2 9s linear infinite;
+  animation-delay: -4.5s;
+  pointer-events: none;
+  z-index: 55;
+  opacity: 0.4;
+}
+
+/* ───────────────────────────────────────────
+   MODE: MINIMAL — clean, no-animation interface
+─────────────────────────────────────────── */
+html[data-visual-mode="minimal"] {
+  --grid-opacity: 0;
+  --scanline-opacity: 0;
+  --glow-intensity: 0;
+}
+
+html[data-visual-mode="minimal"] .scanline { display: none; }
+
+/* Kill all decorative animations — keep usability transitions */
+html[data-visual-mode="minimal"] .pulse-glow,
+html[data-visual-mode="minimal"] .metric-card-glow,
+html[data-visual-mode="minimal"] .metric-value,
+html[data-visual-mode="minimal"] .cinematic-ambient {
+  animation: none !important;
+  box-shadow: none !important;
+}
+
+html[data-visual-mode="minimal"] .hud-corner { display: none; }
+html[data-visual-mode="minimal"] body { background-image: none; }
+
+/* Clean flat chrome — header / sidebar */
+html[data-visual-mode="minimal"] header {
+  box-shadow: none;
+  border-bottom-color: rgba(var(--primary-rgb), 0.12);
+  backdrop-filter: none;
+  background-color: hsl(var(--card));
+}
+html[data-visual-mode="minimal"] aside {
+  box-shadow: none;
+  border-right-color: rgba(var(--primary-rgb), 0.10);
+}
+html[data-visual-mode="minimal"] .nav-active {
+  box-shadow: none;
+  background: rgba(var(--primary-rgb), 0.07);
+}
+/* Minimal cards: just a quiet border, no glow */
+html[data-visual-mode="minimal"] [class*="border-primary"] {
+  border-color: rgba(var(--primary-rgb), 0.14) !important;
+}
+
+/* ───────────────────────────────────────────
+   MODE: CINEMATIC — full immersion
+─────────────────────────────────────────── */
+html[data-visual-mode="cinematic"] {
+  --grid-opacity: 0.065;
+  --scanline-opacity: 0.7;
+  --glow-intensity: 2.5;
+}
+
+/* Show all cinematic overlay layers */
+html[data-visual-mode="cinematic"] .cinematic-vignette,
+html[data-visual-mode="cinematic"] .cinematic-blob,
+html[data-visual-mode="cinematic"] .cinematic-noise,
+html[data-visual-mode="cinematic"] .cinematic-scanline-2 {
+  display: block;
+}
+
+/* Primary scanline — thicker, brighter, slower */
+html[data-visual-mode="cinematic"] .scanline {
+  height: 3px;
+  background: linear-gradient(90deg, transparent 5%, rgba(var(--primary-rgb),1) 50%, transparent 95%);
+  box-shadow: 0 0 22px rgba(var(--primary-rgb),1), 0 0 60px rgba(var(--primary-rgb),0.5), 0 0 4px white;
+  animation-duration: 4s;
+  opacity: 0.75;
+}
+
+/* Cards breathe in cinematic */
+html[data-visual-mode="cinematic"] .metric-card-glow {
+  animation: card-breathe 2.8s ease-in-out infinite;
+}
+
+/* Metric numbers occasionally flicker like real screens */
+html[data-visual-mode="cinematic"] .metric-value {
+  animation: value-flicker 9s ease-in-out infinite;
+}
+
+/* Orb pulse faster */
+html[data-visual-mode="cinematic"] .pulse-glow {
+  animation: pulse-glow 1.6s ease-in-out infinite;
+  box-shadow: 0 0 20px rgba(var(--primary-rgb),0.6), 0 0 40px rgba(var(--primary-rgb),0.2);
+}
+
+/* HUD corners — visible + slow pulse */
+html[data-visual-mode="cinematic"] .hud-corner {
+  display: block;
+  animation: hud-corner-pulse 3.5s ease-in-out infinite;
+}
+
+/* Header: dramatic underside glow */
+html[data-visual-mode="cinematic"] header {
+  border-bottom-color: rgba(var(--primary-rgb), 0.45);
+  box-shadow:
+    0 1px 0 rgba(var(--primary-rgb), 0.3),
+    0 2px 30px rgba(var(--primary-rgb), 0.18),
+    0 0 80px rgba(var(--primary-rgb), 0.08);
+}
+
+/* Sidebar: subtle side glow */
+html[data-visual-mode="cinematic"] aside {
+  border-right-color: rgba(var(--primary-rgb), 0.25);
+  box-shadow: 2px 0 40px rgba(var(--primary-rgb),0.12), inset -1px 0 0 rgba(var(--primary-rgb),0.15);
+}
+
+/* Active nav items: inset glow + outer halo */
+html[data-visual-mode="cinematic"] .nav-active {
+  box-shadow: inset 0 0 20px rgba(var(--primary-rgb),0.15), 0 0 12px rgba(var(--primary-rgb),0.15);
+}
+
+html[data-visual-mode="cinematic"] .cinematic-ambient {
+  display: block;
+  animation: ambient-float 6s ease-in-out infinite;
+}
+
+/* ───────────────────────────────────────────
+   HUD CORNERS (cinematic only)
+─────────────────────────────────────────── */
+.hud-corner { display: none; }
+
+.hud-corner-tl,
+.hud-corner-tr,
+.hud-corner-bl,
+.hud-corner-br {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-color: rgba(var(--primary-rgb), 0.5);
+  border-style: solid;
+  pointer-events: none;
+}
+.hud-corner-tl { top: 0; left: 0;  border-width: 1px 0 0 1px; }
+.hud-corner-tr { top: 0; right: 0; border-width: 1px 1px 0 0; }
+.hud-corner-bl { bottom: 0; left: 0;  border-width: 0 0 1px 1px; }
+.hud-corner-br { bottom: 0; right: 0; border-width: 0 1px 1px 0; }
+
+/* ───────────────────────────────────────────
+   ONBOARDING ANIMATIONS
+─────────────────────────────────────────── */
+@keyframes ob-glow-in {
+  0%   { opacity: 0; text-shadow: none; transform: translateY(4px); }
+  40%  { opacity: 0.6; text-shadow: 0 0 20px rgba(var(--primary-rgb),0.6); }
+  100% { opacity: 1; text-shadow: 0 0 40px rgba(var(--primary-rgb),0.4), 0 0 80px rgba(var(--primary-rgb),0.2); transform: translateY(0); }
+}
+
+@keyframes ob-slide-in {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes ob-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes ob-btn-pulse {
+  0%, 100% { box-shadow: 0 0 16px rgba(var(--primary-rgb),0.2); }
+  50%       { box-shadow: 0 0 40px rgba(var(--primary-rgb),0.5); }
+}
+
+/* ───────────────────────────────────────────
+   GLITCH (kept as utility)
+─────────────────────────────────────────── */
+.glitch { animation: glitch 1s linear infinite; }
+
+@keyframes glitch {
+  2%, 64% { transform: translate(2px,0) skew(0deg); }
+  4%, 60%  { transform: translate(-2px,0) skew(0deg); }
+  62%      { transform: translate(0,0) skew(5deg); }
+}
+
+/* ───────────────────────────────────────────
+   AI THINKING PIPELINE (cinematic)
+─────────────────────────────────────────── */
+@keyframes pipeline-flow {
+  0%   { width: 0%; opacity: 0.5; }
+  60%  { width: 100%; opacity: 1; }
+  100% { width: 100%; opacity: 0; }
+}
+
+/* ───────────────────────────────────────────
+   VOICE / SPEAKING ANIMATIONS
+─────────────────────────────────────────── */
+@keyframes speaking-bar {
+  from { height: 2px;  opacity: 0.5; }
+  to   { height: 14px; opacity: 1;   }
+}
+@keyframes rec-wave {
+  from { height: 3px;  opacity: 0.6; }
+  to   { height: 20px; opacity: 1;   }
+}
+@keyframes ob-panel-pulse {
+  0%,100% { box-shadow: 0 0 0   0   rgba(var(--primary-rgb),0);   }
+  50%     { box-shadow: 0 0 24px 2px rgba(var(--primary-rgb),0.12); }
+}
+
+/* ───────────────────────────────────────────
+   START SCREEN ANIMATIONS
+─────────────────────────────────────────── */
+@keyframes ff-drift {
+  0%,100% { transform: translate(0,0) scale(1);   opacity: 0.15; }
+  33%      { transform: translate(var(--dx1,40px), var(--dy1,-30px)) scale(1.3); opacity: 0.75; }
+  66%      { transform: translate(var(--dx2,-25px), var(--dy2,45px)) scale(0.8); opacity: 0.45; }
+}
+
+@keyframes ss-logo-pulse {
+  0%,100% { text-shadow: 0 0 30px rgba(var(--primary-rgb),0.7), 0 0 80px rgba(var(--primary-rgb),0.3); }
+  50%      { text-shadow: 0 0 60px rgba(var(--primary-rgb),1),   0 0 140px rgba(var(--primary-rgb),0.6); }
+}
+
+@keyframes ss-start-blink {
+  0%,49% { box-shadow: 0 0 18px rgba(var(--primary-rgb),0.8), inset 0 0 20px rgba(var(--primary-rgb),0.1); border-color: rgba(var(--primary-rgb),0.9); }
+  50%,100%{ box-shadow: 0 0 6px  rgba(var(--primary-rgb),0.3), inset 0 0 0   transparent;                  border-color: rgba(var(--primary-rgb),0.3); }
+}
+
+@keyframes ss-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.pipeline-bar {
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(var(--primary-rgb),0.9), rgba(170,136,255,0.7));
+  animation: pipeline-flow 1.2s ease-out forwards;
+}
+
+/* ── Leaflet map dark-theme overrides ─────────────────────────────────── */
+
+.deck-map .leaflet-tile-pane { filter: invert(1) hue-rotate(195deg) brightness(0.75) contrast(1.05) saturate(0.7); }
+
+.deck-map .leaflet-control-zoom a {
+  background: rgba(10,14,26,0.9) !important;
+  color: rgba(var(--primary-rgb),0.8) !important;
+  border-color: rgba(var(--primary-rgb),0.3) !important;
+  font-size: 16px !important;
+}
+.deck-map .leaflet-control-zoom a:hover {
+  background: rgba(var(--primary-rgb),0.15) !important;
+  color: rgba(var(--primary-rgb),1) !important;
+}
+.deck-map .leaflet-bar {
+  border: 1px solid rgba(var(--primary-rgb),0.25) !important;
+  border-radius: 6px !important;
+  overflow: hidden;
+}
+
+.leaflet-popup-content-wrapper {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+.leaflet-popup-tip { display: none !important; }
+.leaflet-popup-content { margin: 0 !important; }
+
+.leaflet-attribution-flag { display: none !important; }
+.leaflet-control-attribution {
+  background: rgba(10,14,26,0.6) !important;
+  color: rgba(var(--primary-rgb),0.3) !important;
+  font-size: 9px !important;
+}
+.leaflet-control-attribution a { color: rgba(var(--primary-rgb),0.4) !important; }
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}

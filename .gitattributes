@@ -1,0 +1,7 @@
+# Auto-detect text files and normalize line endings
+* text=auto
+
+# Windows scripts must use CRLF
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+*.cmd text eol=crlf

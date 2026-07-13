@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/mobile/"
+title = "DeckOS Mobile — JARVIS Chat"
+version = "1.0.0"
+id = "artifacts/deck-mobile"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/mobile/" ]
+localPort = 26138
+
+[services.development]
+run = "pnpm --filter @workspace/deck-mobile run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/deck-mobile", "run", "build" ]
+publicDir = "artifacts/deck-mobile/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "26138"
+BASE_PATH = "/mobile/"

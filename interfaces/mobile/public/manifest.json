@@ -1,0 +1,19 @@
+{
+  "name": "DeckOS — JARVIS",
+  "short_name": "DeckOS",
+  "description": "AI Command Center — JARVIS Interface",
+  "start_url": "/mobile/",
+  "display": "standalone",
+  "background_color": "#050c1a",
+  "theme_color": "#050c1a",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/mobile/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["productivity", "utilities"]
+}

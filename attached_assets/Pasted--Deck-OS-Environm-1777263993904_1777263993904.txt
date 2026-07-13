@@ -1,0 +1,119 @@
+# ────────────────────────────────────────────────────────────────────────────
+# Deck OS — Environment Variables Reference
+# Copy this file to .env and fill in your values before running locally.
+#   cp .env.example .env
+# ────────────────────────────────────────────────────────────────────────────
+
+# ── Database ──────────────────────────────────────────────────────────────────
+# [REQUIRED] PostgreSQL connection string.
+# When using docker-compose this is set automatically.
+# Generate a fresh DB on Replit or set up local Postgres manually.
+DATABASE_URL=postgresql://deckos:deckos@localhost:5432/deckos
+
+# ── API Server ────────────────────────────────────────────────────────────────
+# [OPTIONAL] Port the Express API server listens on. Default: 8080
+PORT=8080
+
+# ── Frontend (Vite / deck-os) ─────────────────────────────────────────────────
+# [REQUIRED by Vite] Base URL path for the frontend. Use "/" for local dev.
+# Set to your deployment sub-path (e.g. "/deck-os") when hosting under a prefix.
+BASE_PATH=/
+
+# [OPTIONAL] Node environment — set to "production" when deploying
+NODE_ENV=development
+
+# [OPTIONAL] Log level: trace | debug | info | warn | error  Default: info
+LOG_LEVEL=info
+
+# [OPTIONAL] Set to "on" to enable verbose inference trace logging (TRACE_MODE=on)
+TRACE_MODE=
+
+# ── Session Security ──────────────────────────────────────────────────────────
+# [OPTIONAL] Secret for signing session cookies.
+# Generate: openssl rand -hex 32
+SESSION_SECRET=change-me-to-a-random-string-at-least-32-chars
+
+# ── Local AI — 3-Tier Model Routing ──────────────────────────────────────────
+# Deck OS routes tasks across three cognitive tiers automatically:
+#
+#   CORTEX  (Thinking layer)   — chat, reasoning, planning, summarization
+#   REFLEX  (Fast layer)       — classification, routing, commands
+#   AUTOPILOT (Rule engine)    — system checks, device polling, offline fallback
+#
+# Models must be available in your local Ollama installation.
+#   ollama list            — see installed models
+#   ollama pull gemma3:9b  — install the default cortex model
+#   ollama pull phi3       — install the default reflex model
+#
+REASONING_MODEL=gemma3:9b
+FAST_MODEL=phi3
+
+# ── Local AI — Ollama ─────────────────────────────────────────────────────────
+# [OPTIONAL] Ollama API base URL. Default: http://localhost:11434
+# Change if Ollama runs on a different host or port.
+OLLAMA_HOST=http://localhost:11434
+
+# ── Local AI — Open WebUI ("Openclaw") ───────────────────────────────────────
+# [OPTIONAL] Open WebUI base URL — leave blank to disable.
+# Example: http://localhost:3000
+OPENWEBUI_HOST=
+
+# [OPTIONAL] Open WebUI API key (if your instance requires one)
+OPENWEBUI_API_KEY=
+
+# ── Cloud AI — OpenAI ─────────────────────────────────────────────────────────
+# [OPTIONAL] OpenAI API key. Used for Whisper STT, vision, cloud LLM fallback.
+# Deck OS runs fully offline without this key.
+OPENAI_API_KEY=
+
+# [REQUIRED when OPENAI_API_KEY is set] OpenAI integration adapter vars.
+# Outside of Replit, set these to the same value as OPENAI_API_KEY and the
+# standard OpenAI base URL. The internal AI client reads these names.
+AI_INTEGRATIONS_OPENAI_API_KEY=       # copy the value from OPENAI_API_KEY
+AI_INTEGRATIONS_OPENAI_BASE_URL=https://api.openai.com/v1
+
+# ── Cloud AI — Anthropic ──────────────────────────────────────────────────────
+# [OPTIONAL] Anthropic Claude API key.
+# Used as a secondary cloud fallback when Ollama is offline.
+ANTHROPIC_API_KEY=
+
+# ── Voice — ElevenLabs ────────────────────────────────────────────────────────
+# [OPTIONAL] ElevenLabs API key for text-to-speech voice output.
+# Configure voice selection inside Settings → Voice in the app.
+ELEVENLABS_API_KEY=
+ELEVENLABS_VOICE_ID=pNInz6obpgDQGcFmaJgB
+
+# ── IoT / Devices ─────────────────────────────────────────────────────────────
+# [OPTIONAL] MQTT broker URL for IoT device integration.
+# Leave blank to run in simulation-only mode (simulated devices still work).
+# Examples:  mqtt://localhost:1883   mqtt://192.168.1.100:1883
+MQTT_BROKER_URL=
+
+# [OPTIONAL] WebSocket port for direct device WebSocket connections.
+# Leave blank to disable the WS device transport.
+WS_DEVICE_PORT=
+
+# ── Messaging — Twilio WhatsApp ───────────────────────────────────────────────
+# [OPTIONAL] Twilio credentials for WhatsApp alert notifications.
+TWILIO_ACCOUNT_SID=
+TWILIO_AUTH_TOKEN=
+TWILIO_WHATSAPP_FROM=whatsapp:+14155238886
+
+# ── Webhooks ──────────────────────────────────────────────────────────────────
+# [OPTIONAL] Secret key required in X-Webhook-Key header for the inbound
+# webhook event endpoint (/api/events/webhook). Leave blank to disable auth.
+WEBHOOK_API_KEY=
+
+# ── System Monitor ────────────────────────────────────────────────────────────
+# [OPTIONAL] How often (ms) the system monitor checks resource usage.
+# Default: 5000 (every 5 seconds)
+SYSTEM_MONITOR_INTERVAL_MS=5000
+
+# ── Electron / Desktop ────────────────────────────────────────────────────────
+# [OPTIONAL] Set automatically to "1" when running inside the Electron wrapper.
+# Tells the API server to also serve the built frontend at the root path.
+# Do not set this manually in normal development.
+ELECTRON_STATIC=
+
+
+DATABASE_URL=postgresql://neondb_owner:npg_AQTEGRCXM32x@ep-little-rice-am4ign3h.c-5.us-east-1.aws.neon.tech/neondb?sslmode=require

@@ -1,0 +1,239 @@
+This connects to:
+
+* your behavior profile (Level 5)
+* your UCM
+* your feedback engine
+
+⸻
+
+RESULT:
+
+Voice evolves with the user.
+
+⸻
+
+🧩 PART 3 — “CALLABLE” SYSTEM (real Jarvis moment)
+
+You want:
+
+“Hey Deck” → system responds
+
+⸻
+
+⚙️ Architecture:
+
+Option A — Local Voice Loop
+
+* mic input
+* wake word detection
+* STT → event bus
+* response → TTS output
+
+⸻
+
+Option B — Phone Call Access
+
+Use:
+
+* Twilio Voice API
+
+Flow:
+
+1. User calls number
+2. Twilio streams audio
+3. STT → DeckOS
+4. AI response → TTS
+5. streamed back in call
+
+⸻
+
+⚠️ Constraint:
+
+Real-time voice requires:
+
+* low latency (<500ms ideal)
+* streaming inference
+
+So start simple:
+
+push-to-talk > full duplex later
+
+⸻
+
+🧩 PART 4 — CONTEXT SYNCHRONIZATION (THIS IS EVERYTHING)
+
+This is where most builds fail.
+
+You must ensure:
+
+ALL channels share ONE brain
+
+⸻
+
+🔁 Required:
+
+Every interaction (WhatsApp, voice, console):
+
+→ becomes an event
+→ updates memory
+→ updates UCM
+→ updates goals
+
+⸻
+
+If you don’t do this:
+
+You’ll get:
+
+* “different personalities per channel”
+* broken memory continuity
+
+⸻
+
+🧩 PART 5 — PRESENCE ENGINE (advanced but important)
+
+This is what makes it feel alive.
+
+Add:
+
+presence_manager.ts
+
+Tracks:
+
+* last interaction time
+* active channel
+* user availability
+* preferred modality (text vs voice)
+
+⸻
+
+Behavior examples:
+
+* If user is on phone → prefer short responses
+* If user is coding → reduce interruptions
+* If user inactive → shift to passive mode
+
+⸻
+
+🧩 PART 6 — PROACTIVE COMMUNICATION
+
+Now you unlock:
+
+* “You haven’t touched your goal today”
+* “You’re low on groceries”
+* “Reminder: meeting in 10 minutes”
+
+Delivered via:
+
+* WhatsApp
+* push notification
+* voice prompt (optional)
+
+⸻
+
+⚠️ HARD RULES (don’t skip)
+
+1. Consent-first system
+
+User must control:
+
+* when system speaks
+* when it messages
+* autonomy level
+
+⸻
+
+2. Interruptibility
+
+User must be able to:
+
+* stop voice instantly
+* mute system
+* switch modes quickly
+
+⸻
+
+3. Channel awareness
+
+System must know:
+
+* where the user is interacting from
+
+⸻
+
+🚀 IMPLEMENTATION ORDER (DO THIS EXACTLY)
+
+STEP 1
+
+Add:
+
+* WebSocket real-time layer (if not done)
+
+⸻
+
+STEP 2
+
+Add:
+
+* Mobile PWA chat interface
+
+⸻
+
+STEP 3
+
+Add:
+
+* WhatsApp via Twilio
+
+⸻
+
+STEP 4
+
+Add:
+
+* TTS (start with local like Piper)
+
+⸻
+
+STEP 5
+
+Add:
+
+* STT (Whisper)
+
+⸻
+
+STEP 6
+
+Add:
+
+* voice loop (push-to-talk)
+
+⸻
+
+STEP 7
+
+Add:
+
+* presence manager
+
+⸻
+
+🧠 FINAL INSIGHT (this is the real answer)
+
+You’re not adding “communication features.”
+
+You’re building:
+
+a persistent, multi-modal interface to a single evolving intelligence
+
+The moment:
+
+* memory is shared
+* personality is consistent
+* responses adapt over time
+* voice matches identity
+
+…it stops feeling like software and starts feeling like:
+
+a continuous entity you interact with

@@ -1,0 +1,144 @@
+🔥 CINEMATIC MODE FEATURES
+
+1. Live Data Pulse (subtle, not gimmicky)
+
+* CPU/memory bars “breathe”
+* slight glow intensity changes
+* no flashing—smooth interpolation
+
+⸻
+
+2. Event Stream Visualization
+
+Instead of logs:
+
+* flowing lines or pulses
+* nodes lighting up:
+    * AI
+    * memory
+    * plugins
+    * devices
+
+Think:
+
+system “thinking” visually
+
+⸻
+
+3. AI Thinking Indicator (huge impact)
+
+When AI is processing:
+
+* show:
+    * “routing → model selection → inference → response”
+* animated pipeline
+
+This alone makes it feel 10x smarter
+
+⸻
+
+4. Goal Progress Visualization
+
+Instead of list:
+
+* radial progress
+* dependency lines
+* step activation highlighting
+
+⸻
+
+5. Prediction Layer UI Upgrade
+
+Make predictions feel like:
+
+system intuition
+
+* fade-in cards
+* confidence as visual weight
+* “suggested action” glowing subtly
+
+⸻
+
+6. Voice Integration Visual Hook
+
+Even before full voice:
+
+* add “voice-ready UI”:
+    * mic icon
+    * waveform placeholder
+    * speaking indicator
+
+⸻
+
+7. Scanline / HUD polish (be careful)
+
+You already have:
+
+* scanline overlay
+* neon palette
+
+Make sure:
+
+* it’s subtle (opacity < 5–8%)
+* doesn’t affect readability
+* toggleable
+
+⸻
+
+⚠️ What NOT to do visually
+
+Avoid:
+
+* constant motion everywhere
+* flashing alerts
+* over-saturated glow
+* cluttered panels
+
+Rule:
+
+motion = meaning, not decoration
+
+⸻
+
+🧠 THE REAL UPGRADE (this is the important insight)
+
+Right now DeckOS is:
+
+technically intelligent
+
+What you’re doing next is making it:
+
+perceptually intelligent
+
+That comes from:
+
+* clarity of system state
+* visible reasoning steps
+* smooth responsiveness
+* confidence signaling
+
+⸻
+
+🚀 Highest Impact Moves (in order)
+
+If you only do a few things:
+
+1. WebSocket real-time updates (you already identified)
+
+→ biggest realism boost
+
+2. AI “thinking pipeline” visualization
+
+→ makes intelligence feel real
+
+3. UCM auto-population
+
+→ makes system feel alive
+
+4. Natural language console
+
+→ removes friction instantly
+
+5. Cinematic mode toggle
+
+→ wow factor without sacrificing usability

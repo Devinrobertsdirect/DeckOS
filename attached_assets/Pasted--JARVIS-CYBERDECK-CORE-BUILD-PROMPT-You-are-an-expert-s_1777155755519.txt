@@ -1,0 +1,103 @@
+🧠 JARVIS CYBERDECK CORE BUILD PROMPT
+
+You are an expert systems architect building a local-first AI assistant system called “Jarvis Core” designed to run on a cyberdeck, laptop, or Raspberry Pi.
+
+The system must NOT depend on any cloud runtime or platform-specific services. It must be fully portable and capable of running 100% locally.
+
+CORE GOAL
+
+Build a modular, event-driven AI assistant that can:
+
+* Run locally as a persistent service
+* Interface with IoT devices via MQTT or WebSockets
+* Support plugin-based “skills” (modular capability system)
+* Maintain memory (local database or file-based store)
+* Accept commands via CLI, Web UI, and WebSocket API
+* Optionally connect to cloud AI APIs but must function without them
+
+ARCHITECTURE REQUIREMENTS
+
+Design the system with these layers:
+
+1. Core Runtime (Jarvis Brain)
+
+* Event loop based architecture
+* Central message bus (pub/sub system)
+* Skill router (dispatch commands to modules)
+* State manager (in-memory + persistent storage)
+
+2. Skills System (Plugins)
+
+Each skill must be:
+
+* Isolated module
+* Independently loadable/unloadable
+* Able to register commands and event listeners
+
+Example skills:
+
+* device_control
+* system_monitor
+* file_manager
+* ai_chat
+* automation_scheduler
+
+3. Device Layer
+
+* MQTT or WebSocket client for IoT communication
+* Abstraction layer for:
+    * sensors
+    * actuators
+    * external devices
+* Must support simulated devices for testing
+
+4. Memory System
+
+* Local-first storage using SQLite or JSON files
+* Must support:
+    * short-term session memory
+    * long-term persistent memory
+    * retrieval by keywords
+
+5. Interfaces
+
+Implement at least:
+
+* CLI interface (primary control)
+* WebSocket API server
+* Simple web dashboard UI (optional but recommended)
+
+OFFLINE REQUIREMENT
+
+System must:
+
+* Fully run without internet
+* Degrade gracefully if AI API is unavailable
+* Continue functioning with rule-based logic fallback
+
+CYBERDECK MODE
+
+Optimize for:
+
+* low resource usage
+* fast startup
+* ability to run on Raspberry Pi or laptop
+* modular expansion (hardware upgrades later)
+
+DESIGN STYLE
+
+This system should feel like:
+
+* Iron Man JARVIS (Hacksmith-style UI thinking)
+* Crash Makerspace cybernetic hardware control systems
+* Hackspace modular engineering mindset
+
+OUTPUT REQUIREMENTS
+
+When generating code:
+
+* Provide full project folder structure
+* Include runnable entry point
+* Include at least one working “skill” module
+* Include a simulated device controller
+* Ensure everything runs locally with one command

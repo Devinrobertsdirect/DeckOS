@@ -1,0 +1,263 @@
+You are finalizing DeckOS into a cohesive, production-ready, local-first cognitive operating system.
+
+This is NOT a prototype phase. You must consolidate, connect, and harden all existing systems into a unified architecture that runs reliably both locally and in development environments.
+
+⸻
+
+🎯 PRIMARY OBJECTIVE
+
+Transform DeckOS into a fully integrated system with:
+
+- Persistent cognitive loop (continuous thinking even when idle)
+- Multi-channel communication (CLI, Web UI, mobile-ready, WhatsApp-ready)
+- Real-time event streaming (WebSocket-based)
+- Spatial awareness (device tracking + map system)
+- Voice-ready architecture (STT/TTS hooks, not necessarily full UI)
+- Exportable, local-first runtime (must run without Replit)
+
+⸻
+
+🧠 SYSTEM INTEGRATION REQUIREMENTS
+
+1. UNIFIED EVENT BUS (MANDATORY)
+
+- All systems must communicate ONLY through the event bus
+- Enforce canonical event schema across:
+  - AI
+  - Memory
+  - Goals
+  - Devices
+  - Voice
+  - External channels
+- Add validation layer for all emitted events
+- Add event replay capability (reconstruct system state from logs)
+
+⸻
+
+2. PERSISTENT COGNITIVE LOOP
+
+Implement a background process:
+
+Loop cycle (runs every 5–15 seconds):
+
+- Evaluate active goals
+- Evaluate predictions
+- Check device state (location, status)
+- Update user cognitive model
+- Generate new predictions if needed
+- Decide whether to emit:
+  - notification.send
+  - autonomy.action.request
+
+This loop must run even without user interaction.
+
+⸻
+
+3. WEBSOCKET REAL-TIME LAYER
+
+- Replace all frontend polling with WebSocket subscriptions
+- Stream:
+  - system stats
+  - memory updates
+  - device updates
+  - AI responses
+  - predictions
+  - autonomy logs
+- Ensure reconnect + state resync on disconnect
+
+⸻
+
+4. SPATIAL DEVICE SYSTEM (TRACKING LAYER)
+
+Implement full device tracking support:
+
+Backend:
+- device.location.updated event handling
+- device registry with:
+  - id
+  - type
+  - last known coordinates
+  - battery
+  - status
+- geofencing support (enter/exit zones)
+
+Frontend:
+- Add MAP panel using either Mapbox or Leaflet
+- Render:
+  - live device markers
+  - movement trails
+  - status indicators
+- Clicking a device shows:
+  - live stats
+  - last seen
+  - quick actions
+
+⸻
+
+5. COMMUNICATION LAYER (ABSTRACTION)
+
+Create a channel adapter system:
+
+Channels:
+- CLI (existing)
+- Web UI (existing)
+- WhatsApp-ready (webhook stub)
+- Voice-ready (STT/TTS hooks)
+
+Each channel must:
+- translate input → canonical events
+- listen for output events → render response
+
+DO NOT duplicate logic per channel.
+
+⸻
+
+6. VOICE HOOKS (FOUNDATION ONLY)
+
+Add:
+- voice.transcription.completed event
+- voice.speak.request event
+
+Stub integrations:
+- STT placeholder (Whisper-compatible)
+- TTS placeholder (Piper/Coqui-compatible)
+
+Ensure pipeline works end-to-end even if mocked.
+
+⸻
+
+7. PRESENCE + INITIATIVE ENGINE
+
+Add module:
+
+presence_manager:
+- tracks last activity
+- active channel
+- session state
+
+initiative_engine:
+- consumes predictions
+- decides if/when to notify user
+- respects:
+  - cooldowns
+  - priority thresholds
+  - user preferences
+
+⸻
+
+8. NATURAL LANGUAGE CONSOLE
+
+Upgrade console:
+
+- Accept both:
+  - commands (status, plugins, etc.)
+  - natural language input
+- Route natural language → ai.chat.request
+- Maintain command fallback
+
+⸻
+
+9. MEMORY + UCM AUTO-ENRICHMENT
+
+Add background inference:
+
+- analyze:
+  - memory entries
+  - feedback signals
+  - command patterns
+
+- update:
+  - preferences
+  - behaviorPatterns
+  - context
+
+Mark entries as:
+- system_inferred
+- user_defined
+
+⸻
+
+10. AUTONOMY PIPELINE COMPLETION
+
+Connect:
+
+prediction.generated
+→ initiative_engine
+→ autonomy.action.request
+→ autonomy_controller
+→ execution or confirmation
+
+Ensure:
+- full logging
+- safety enforcement
+- UI visibility
+
+⸻
+
+11. SELF-MAINTENANCE TASKS
+
+Add background jobs:
+
+- memory cleanup optimization
+- stale goal decay
+- event log pruning (configurable)
+- system health checks
+
+⸻
+
+⚙️ LOCAL-FIRST EXPORT REQUIREMENTS
+
+Prepare system for local execution:
+
+- Add docker-compose setup OR simple npm scripts:
+  - start backend
+  - start frontend
+- Ensure:
+  - no Replit-specific dependencies
+  - environment variables documented (.env.example)
+- Replace PostgreSQL with:
+  - SQLite fallback OR
+  - configurable DB adapter
+
+⸻
+
+📁 OUTPUT REQUIREMENTS
+
+You MUST produce:
+
+1. Final folder structure
+2. All backend modules wired together
+3. WebSocket server implementation
+4. Device tracking + map integration
+5. Communication adapter layer
+6. Background cognitive loop
+7. Updated frontend hooks for real-time data
+8. Local run instructions (step-by-step)
+
+⸻
+
+🚫 HARD CONSTRAINTS
+
+- Do NOT redesign the system
+- Do NOT remove existing features
+- Do NOT introduce unnecessary UI complexity
+- Everything must remain modular and event-driven
+
+⸻
+
+🏁 FINAL GOAL
+
+DeckOS must function as:
+
+A persistent, local-first, multi-modal cognitive operating system that:
+
+- continues thinking when idle
+- understands user context over time
+- tracks real-world devices spatially
+- communicates across channels
+- safely executes actions
+- runs entirely on a local machine when exported
+
+This is a system finalization task. Not a prototype. Not a demo. Not a UI project.
+
+Proceed.

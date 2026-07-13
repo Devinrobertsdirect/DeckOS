@@ -1,0 +1,54 @@
+
+  ██████╗ ███████╗ ██████╗██╗  ██╗     ██████╗ ███████╗
+  ██╔══██╗██╔════╝██╔════╝██║ ██╔╝    ██╔═══██╗██╔════╝
+  ██║  ██║█████╗  ██║     █████╔╝     ██║   ██║███████╗
+  ██║  ██║██╔══╝  ██║     ██╔═██╗     ██║   ██║╚════██║
+  ██████╔╝███████╗╚██████╗██║  ██╗    ╚██████╔╝███████║
+  ╚═════╝ ╚══════╝ ╚═════╝╚═╝  ╚═╝     ╚═════╝ ╚══════╝
+
+  JARVIS Command Center — AI-powered local dashboard
+
+  [1/6] Checking prerequisites...
+  ✓ Prerequisites met
+  [2/6] Locating Deck OS...
+  ✓ Using repo at C:\Users\devin\Downloads\DeckOSCapstone-main\DeckOSCapstone-main
+  [3/6] Setting up environment...
+  ✓ .env already exists
+  [4/6] Installing dependencies...
+Scope: all 15 workspace projects
+Lockfile is up to date, resolution step is skipped
+Already up to date
+Done in 735ms using pnpm v10.33.2
+  ✓ Dependencies installed
+  [5/6] Running database migrations...
+
+> @workspace/db@0.0.0 push C:\Users\devin\Downloads\DeckOSCapstone-main\DeckOSCapstone-main\lib\db
+> drizzle-kit push --config ./drizzle.config.ts
+
+Reading config file 'C:\Users\devin\Downloads\DeckOSCapstone-main\DeckOSCapstone-main\lib\db\drizzle.config.ts'
+Using 'pg' driver for database querying
+[⣷] Pulling schema from database...
+(node:29472) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+
+To prepare for this change:
+- If you want the current behavior, explicitly use 'sslmode=verify-full'
+- If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+
+See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+[✓] Pulling schema from database...
+[✓] Changes applied
+  ✓ Database schema up to date
+  [6/6] Starting services...
+
+  ──────────────────────────────────────────────────────────
+
+  ⚠ Services started but health check timed out.
+  ℹ The API may still be building. Check logs or try again in a moment.
+
+  Frontend  →  http://localhost:3000
+  API       →  http://localhost:8080
+  Stop:       npx deckos stop
+  Logs:       npx deckos logs
+
+PS C:\Users\devin\Downloads\DeckOSCapstone-main\DeckOSCapstone-main>

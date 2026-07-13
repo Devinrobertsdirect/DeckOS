@@ -1,0 +1,23 @@
+Right now DeckOS requires a ritual. Open tab → authenticate → navigate → interact. Every one of those steps is friction, and friction is the enemy of invisibility. The system is built around you going to it. Invisible systems come to you.
+
+Here's where each "no-interface" channel actually stands:
+
+Voice — 80% there, wrong placement
+The TTS/STT infrastructure exists and works. But it only works inside the browser tab. True voice invisibility means you walk into a room and speak — not that you open a website and click a microphone button. The capability is built. The delivery mechanism is wrong.
+
+WhatsApp — 10% there, but highest value
+The channel type "whatsapp" is literally in the codebase. The chat API already accepts it and would handle it correctly. But the wire isn't connected — there's no inbound hook receiving WhatsApp messages and routing them to the AI. This is the single highest-leverage invisibility unlock. WhatsApp is already on your phone. You already open it 40 times a day. Once that wire is connected, JARVIS is always one message away with zero interface at all.
+
+Presence — half-built, wrong direction
+The presence system detects active/idle/passive but it's reactive — it watches you and updates a UI nobody looks at. For invisibility, presence needs to run in the other direction: JARVIS notices you've been idle and proactively surfaces something useful. Or notices you've left a location and adjusts context. Right now presence informs a dashboard. It should inform behavior.
+
+Mobile — closest to invisible, just needs push
+The mobile app is the best candidate for invisibility because it's already on your phone. But it still requires you to open it. One addition — push notifications from JARVIS — and it becomes something that appears when it needs you instead of waiting for you to appear.
+
+What "invisibility" actually requires, in order:
+
+WhatsApp connection — You text from anywhere, JARVIS responds. No DeckOS tab required, ever. The architecture already handles it. This is a connector away.
+JARVIS reaches out, not just responds — When the Initiative Engine fires a nudge, it should have an output channel. Right now nudges update a counter on a dashboard. They should become a WhatsApp message or push notification.
+Mobile PWA + background push — Make the mobile app installable, add web push. JARVIS can surface things to your phone without you initiating anything.
+Voice without the screen — Long-term: wake word or always-listening mode. Short-term: voice note → WhatsApp → JARVIS responds in voice. That's actually achievable with what's built.
+The WhatsApp wire is the move. Want me to connect it? Once that's in, DeckOS becomes something you never need to open — you just text a number and JARVIS is there.

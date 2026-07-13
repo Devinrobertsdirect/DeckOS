@@ -1,0 +1,135 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Deck OS — Docker Compose
+#
+# Usage:
+#   docker-compose up -d           — start all services in the background
+#   docker-compose logs -f         — follow logs from all services
+#   docker-compose logs -f api     — follow API server logs only
+#   docker-compose down            — stop and remove containers
+#   docker-compose down -v         — also remove the Postgres data volume
+#
+# Prerequisites:
+#   - Docker Desktop ≥ 4.x  (or Docker Engine + Compose plugin)
+#   - Copy .env.example → .env and fill in any optional API keys you want
+#     (DATABASE_URL is wired automatically — do not set it in your .env)
+#
+# Ollama note:
+#   Ollama runs on the host machine, not inside Docker.
+#   OLLAMA_HOST defaults to http://host.docker.internal:11434 so the
+#   containerised API server can reach your local Ollama installation.
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: deckos
+      POSTGRES_PASSWORD: deckos
+      POSTGRES_DB: deckos
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U deckos -d deckos"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ── DB Migrations ────────────────────────────────────────────────────────────
+  # Runs drizzle-kit push once on startup, then exits. API waits for it.
+  migrate:
+    build:
+      context: .
+      dockerfile: core/server/Dockerfile
+    command: ["sh", "-c", "cd /app && pnpm --filter @workspace/db run push"]
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://deckos:deckos@postgres:5432/deckos
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # ── API Server ──────────────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: core/server/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "8080:8080"
+    environment:
+      NODE_ENV: production
+      PORT: "8080"
+      DATABASE_URL: postgresql://deckos:deckos@postgres:5432/deckos
+      SESSION_SECRET: ${SESSION_SECRET:-change-me-in-production}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      TRACE_MODE: ${TRACE_MODE:-}
+      # Local AI
+      OLLAMA_HOST: ${OLLAMA_HOST:-http://host.docker.internal:11434}
+      REASONING_MODEL: ${REASONING_MODEL:-gemma4}
+      FAST_MODEL: ${FAST_MODEL:-phi3}
+      # Open WebUI
+      OPENWEBUI_HOST: ${OPENWEBUI_HOST:-}
+      OPENWEBUI_API_KEY: ${OPENWEBUI_API_KEY:-}
+      # Cloud AI (optional)
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # OpenAI integration adapter — required by the internal AI client when
+      # OPENAI_API_KEY is set. Defaults to the standard OpenAI endpoint.
+      AI_INTEGRATIONS_OPENAI_API_KEY: ${AI_INTEGRATIONS_OPENAI_API_KEY:-${OPENAI_API_KEY:-}}
+      AI_INTEGRATIONS_OPENAI_BASE_URL: ${AI_INTEGRATIONS_OPENAI_BASE_URL:-https://api.openai.com/v1}
+      # Voice
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+      ELEVENLABS_VOICE_ID: ${ELEVENLABS_VOICE_ID:-pNInz6obpgDQGcFmaJgB}
+      # IoT
+      MQTT_BROKER_URL: ${MQTT_BROKER_URL:-}
+      WS_DEVICE_PORT: ${WS_DEVICE_PORT:-}
+      # Messaging
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_WHATSAPP_FROM: ${TWILIO_WHATSAPP_FROM:-whatsapp:+14155238886}
+      # Webhooks
+      WEBHOOK_API_KEY: ${WEBHOOK_API_KEY:-}
+      # System monitor
+      SYSTEM_MONITOR_INTERVAL_MS: ${SYSTEM_MONITOR_INTERVAL_MS:-5000}
+    # Allows the container to reach Ollama / Open WebUI running on the host
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  # ── Deck OS Frontend ─────────────────────────────────────────────────────────
+  web:
+    build:
+      context: .
+      dockerfile: interfaces/desktop/Dockerfile
+      args:
+        # Vite config requires PORT and BASE_PATH at build time.
+        PORT: "80"
+        BASE_PATH: "${BASE_PATH:-/}"
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "3000:80"
+
+volumes:
+  postgres_data:
+    driver: local

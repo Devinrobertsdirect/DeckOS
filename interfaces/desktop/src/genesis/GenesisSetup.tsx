@@ -12,6 +12,7 @@ import {
   useAtlasVoice,
   getVoiceEngine,
   setVoiceEngine,
+  warmUpVoices,
   type VoiceEngine,
 } from "@/genesis/useAtlasVoice";
 import { setUserName, getUserName, markSetupDone } from "@/lib/uiMode";
@@ -44,7 +45,7 @@ const CATEGORY_ORDER: { cat: ProviderCategory; label: string }[] = [
   { cat: "video", label: "Video" },
 ];
 
-type Step = 0 | 1 | 2;
+type Step = 0 | 1 | 2 | 3;
 
 interface TestState {
   status: "idle" | "loading" | "ok" | "fail";
@@ -100,26 +101,26 @@ export function GenesisSetup({ onComplete }: { onComplete: () => void }) {
     }
   }, [elevenUnlocked, selectedEngine]);
 
-  // Stop any speech when we leave the voice step or unmount.
+  // Warm up the speech engine so the first "Hear me" is instant.
+  useEffect(() => { warmUpVoices(); }, []);
+
+  // Stop any speech when we leave the voice step (step 3) or unmount.
   useEffect(() => {
-    if (step !== 2) voice.stop();
+    if (step !== 3) voice.stop();
   }, [step, voice]);
   useEffect(() => () => voice.stop(), [voice]);
 
   // ── Face expression, timed to the step + what's happening ───────────────────
+  // 0 name · 1 explainer · 2 connect · 3 voice
   const anyTesting = Object.values(testResults).some((t) => t.status === "loading");
   const faceState: FaceState =
     step === 0
-      ? nameFocused
-        ? "listening"
-        : "happy"
+      ? nameFocused ? "listening" : "happy"
       : step === 1
-        ? anyTesting
-          ? "excited"
-          : "thinking"
-        : voice.speaking
-          ? "talking"
-          : "happy";
+        ? "idle"
+        : step === 2
+          ? anyTesting ? "excited" : "thinking"
+          : voice.speaking ? "talking" : "happy";
 
   // ── Navigation ──────────────────────────────────────────────────────────────
   function go(next: Step) {
@@ -129,10 +130,14 @@ export function GenesisSetup({ onComplete }: { onComplete: () => void }) {
 
   function saveProviders() {
     const payload: Record<string, string> = {};
+    const connectedNames: string[] = [];
     for (const p of PROVIDERS) {
       const v = (keys[p.keyName] || "").trim();
-      if (v) payload[p.keyName] = v;
+      if (v) { payload[p.keyName] = v; connectedNames.push(p.name); }
     }
+    // Remember which minds are connected so the intro can name them even if the
+    // AI-generated script falls back to the static one.
+    try { sessionStorage.setItem("atlas_connected_providers", JSON.stringify(connectedNames)); } catch { /* ignore */ }
     if (Object.keys(payload).length === 0) return;
     // Fire-and-forget: never block the wizard on the network.
     fetch("/api/config", {
@@ -155,8 +160,10 @@ export function GenesisSetup({ onComplete }: { onComplete: () => void }) {
       setUserName(name.trim());
       go(1);
     } else if (step === 1) {
+      go(2); // explainer → connect
+    } else if (step === 2) {
       saveProviders();
-      go(2);
+      go(3);
     } else {
       finish();
     }
@@ -224,9 +231,15 @@ export function GenesisSetup({ onComplete }: { onComplete: () => void }) {
   }
 
   // ── Step content ────────────────────────────────────────────────────────────
-  const stepTitle = ["What should I call you?", "Connect your minds", "Give me a voice"][step];
+  const stepTitle = [
+    "What should I call you?",
+    "How Atlas gets smart",
+    "Connect your minds",
+    "Give me a voice",
+  ][step];
   const stepSubtitle = [
     "A name so Atlas can speak to you like a partner, not a product.",
+    "A one-minute plain-English primer — then you decide what to plug in.",
     "Bring the minds you already use. All optional — add what you like, skip the rest.",
     "Pick how Atlas sounds. You can always change this later.",
   ][step];
@@ -276,7 +289,9 @@ export function GenesisSetup({ onComplete }: { onComplete: () => void }) {
                 />
               )}
 
-              {step === 1 && (
+              {step === 1 && <ExplainerStep />}
+
+              {step === 2 && (
                 <ProvidersStep
                   keys={keys}
                   setKey={(keyName, value) =>
@@ -287,7 +302,7 @@ export function GenesisSetup({ onComplete }: { onComplete: () => void }) {
                 />
               )}
 
-              {step === 2 && (
+              {step === 3 && (
                 <VoiceStep
                   selected={selectedEngine}
                   elevenUnlocked={elevenUnlocked}
@@ -316,13 +331,13 @@ export function GenesisSetup({ onComplete }: { onComplete: () => void }) {
           </div>
 
           <div className="flex items-center gap-2">
-            {step === 1 && (
+            {step === 2 && (
               <Button
                 variant="ghost"
                 className="text-white/45 hover:text-white/80"
                 onClick={() => {
                   saveProviders();
-                  go(2);
+                  go(3);
                 }}
               >
                 Skip for now →
@@ -333,7 +348,7 @@ export function GenesisSetup({ onComplete }: { onComplete: () => void }) {
               className="border-transparent bg-[#4A7FB5] px-6 text-white hover:bg-[#3f6f9f]"
               onClick={handleNext}
             >
-              {step === 2 ? "Meet Atlas →" : "Next →"}
+              {step === 3 ? "Meet Atlas →" : "Next →"}
             </Button>
           </div>
         </footer>
@@ -342,11 +357,12 @@ export function GenesisSetup({ onComplete }: { onComplete: () => void }) {
   );
 }
 
-// ── Progress dots (1 · 2 · 3) ────────────────────────────────────────────────
+// ── Progress dots (1 · 2 · 3 · 4) ────────────────────────────────────────────
 function Progress({ step }: { step: number }) {
+  const steps = [0, 1, 2, 3];
   return (
-    <div className="flex items-center gap-2" aria-label={`Step ${step + 1} of 3`}>
-      {[0, 1, 2].map((i) => (
+    <div className="flex items-center gap-2" aria-label={`Step ${step + 1} of ${steps.length}`}>
+      {steps.map((i) => (
         <div key={i} className="flex items-center gap-2">
           <div
             className={
@@ -361,7 +377,7 @@ function Progress({ step }: { step: number }) {
           >
             {i + 1}
           </div>
-          {i < 2 && <span className="text-white/20">·</span>}
+          {i < steps.length - 1 && <span className="text-white/20">·</span>}
         </div>
       ))}
     </div>
@@ -406,7 +422,55 @@ function NameStep({
   );
 }
 
-// ── Step 2: Providers ─────────────────────────────────────────────────────────
+// ── Step 2: Explainer — what "connecting minds" actually means ────────────────
+function ExplainerStep() {
+  const points: { icon: string; title: string; body: string }[] = [
+    {
+      icon: "🔌",
+      title: "Atlas is the hub — the AIs are the power",
+      body: "On its own, Atlas organizes your day. Plugged into services like Claude or Gemini, it gets dramatically smarter — you choose which ones.",
+    },
+    {
+      icon: "🔑",
+      title: "A key is just a private password",
+      body: "Each service gives you a key — a long password that lets Atlas use your account. You paste it once. Atlas does the talking from then on.",
+    },
+    {
+      icon: "🏠",
+      title: "Your keys stay on your machine",
+      body: "Keys are stored locally, never shared, never sent anywhere but the service they belong to. You can remove them any time in Settings.",
+    },
+    {
+      icon: "⏭️",
+      title: "Totally optional — skip and add later",
+      body: "Atlas already works with the free brain running on your computer. Connect nothing now if you like; everything on the next screen can wait.",
+    },
+  ];
+  return (
+    <div className="mx-auto flex h-full max-w-xl flex-col justify-center gap-3">
+      <p className="mb-1 text-center text-sm text-white/55">
+        Think of the next screen like giving Atlas a phone book of brilliant
+        friends it can call for you.
+      </p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {points.map((p) => (
+          <div
+            key={p.title}
+            className="rounded-lg border border-white/10 bg-white/[0.03] p-4"
+          >
+            <div className="mb-1.5 flex items-center gap-2">
+              <span className="text-lg" aria-hidden>{p.icon}</span>
+              <h3 className="text-sm font-semibold text-[#C9DCF0]">{p.title}</h3>
+            </div>
+            <p className="text-xs leading-relaxed text-white/55">{p.body}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Step 3: Providers ─────────────────────────────────────────────────────────
 function ProvidersStep({
   keys,
   setKey,

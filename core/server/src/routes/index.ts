@@ -31,6 +31,7 @@ import openclawRouter from "./openclaw";
 import lieDetectorRouter from "./lie-detector";
 import pairingRouter from "./pairing";
 import providersRouter from "./providers";
+import genesisRouter from "./genesis";
 
 const router: IRouter = Router();
 
@@ -66,5 +67,6 @@ router.use(openclawRouter);
 router.use(lieDetectorRouter);
 router.use(pairingRouter);
 router.use("/providers", providersRouter);
+router.use("/genesis", genesisRouter);
 
 export default router;

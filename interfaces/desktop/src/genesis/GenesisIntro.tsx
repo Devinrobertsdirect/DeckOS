@@ -1,9 +1,62 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AtlasFace, type FaceState } from "@/components/faces/AtlasFace";
-import { useAtlasVoice, getVoiceEngine } from "@/genesis/useAtlasVoice";
+import { useAtlasVoice, getVoiceEngine, warmUpVoices } from "@/genesis/useAtlasVoice";
 import { buildGenesisScript, type GenesisBeat } from "@/genesis/genesisScript";
 import { PROVIDERS } from "@/genesis/providers";
 import { getUserName, markIntroDone } from "@/lib/uiMode";
+
+const AI_BEATS_CACHE = "atlas_intro_beats";
+const VALID_EXPR: FaceState[] = ["idle", "happy", "listening", "thinking", "excited", "confused"];
+
+/** Fetch Atlas's own AI-written introduction. Returns null on any failure. */
+async function fetchAiBeats(): Promise<GenesisBeat[] | null> {
+  // A reload shouldn't re-pay generation — reuse this session's script.
+  try {
+    const cached = sessionStorage.getItem(AI_BEATS_CACHE);
+    if (cached) {
+      const beats = JSON.parse(cached) as GenesisBeat[];
+      if (Array.isArray(beats) && beats.length >= 3) return beats;
+    }
+  } catch { /* ignore */ }
+
+  let providers: string[] = [];
+  try {
+    const cfg = await fetch("/api/config");
+    if (cfg.ok) {
+      const { config } = (await cfg.json()) as { config: Record<string, string> };
+      providers = PROVIDERS.filter(
+        (p) => typeof config[p.keyName] === "string" && config[p.keyName]!.trim().length > 0,
+      ).map((p) => p.name);
+    }
+  } catch { /* offline */ }
+
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 22000);
+    const res = await fetch("/api/genesis/intro", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: getUserName(), providers }),
+      signal: ctrl.signal,
+    });
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    const { beats } = (await res.json()) as { beats?: Array<{ expression: string; text: string }> };
+    if (!Array.isArray(beats) || beats.length < 3) return null;
+    const mapped: GenesisBeat[] = beats
+      .filter((b) => b && typeof b.text === "string" && b.text.trim())
+      .map((b) => ({
+        expression: (VALID_EXPR.includes(b.expression as FaceState) ? b.expression : "idle") as FaceState,
+        text: b.text.trim(),
+        hold: 180,
+      }));
+    if (mapped.length < 3) return null;
+    try { sessionStorage.setItem(AI_BEATS_CACHE, JSON.stringify(mapped)); } catch { /* ignore */ }
+    return mapped;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * The Genesis intro — the single fullscreen moment where Atlas wakes, finds
@@ -22,27 +75,41 @@ export function GenesisIntro({ onComplete }: { onComplete: () => void }) {
   const [finishing, setFinishing] = useState(false);
   const cancelledRef = useRef(false);
   const beatsRef = useRef<GenesisBeat[]>([]);
+  // Atlas's AI-written intro is fetched on mount so it's ready by the time the
+  // user taps to wake it (fast cloud models arrive in a couple of seconds).
+  const aiBeatsRef = useRef<GenesisBeat[] | null>(null);
 
-  // Build the script once, weaving in the name + which minds are connected.
-  const prepare = useCallback(async () => {
+  useEffect(() => {
+    warmUpVoices();
+    void fetchAiBeats().then((b) => { aiBeatsRef.current = b; });
+  }, []);
+
+  // Static hand-written fallback, used if the AI intro isn't ready in time.
+  const staticBeats = useCallback((): GenesisBeat[] => {
     let connected: string[] = [];
     try {
-      const res = await fetch("/api/config");
-      if (res.ok) {
-        const { config } = (await res.json()) as { config: Record<string, string> };
-        connected = PROVIDERS.filter(
-          (p) => typeof config[p.keyName] === "string" && config[p.keyName]!.trim().length > 0,
-        ).map((p) => p.name);
-      }
-    } catch { /* offline — narrate the generic path */ }
-
-    beatsRef.current = buildGenesisScript({
+      const raw = sessionStorage.getItem("atlas_connected_providers");
+      if (raw) connected = JSON.parse(raw);
+    } catch { /* ignore */ }
+    return buildGenesisScript({
       name: getUserName(),
       providers: connected,
       premiumVoice: getVoiceEngine() === "server",
       hour: new Date().getHours(),
     });
   }, []);
+
+  const prepare = useCallback(async () => {
+    // Give the AI intro a brief chance to land, then fall back to static — the
+    // user never waits on a slow model.
+    if (!aiBeatsRef.current) {
+      await Promise.race([
+        (async () => { while (!aiBeatsRef.current) await new Promise((r) => setTimeout(r, 150)); })(),
+        new Promise((r) => setTimeout(r, 2500)),
+      ]);
+    }
+    beatsRef.current = aiBeatsRef.current ?? staticBeats();
+  }, [staticBeats]);
 
   const finish = useCallback(() => {
     cancelledRef.current = true;
@@ -54,8 +121,20 @@ export function GenesisIntro({ onComplete }: { onComplete: () => void }) {
   }, [stop, onComplete]);
 
   const runBeats = useCallback(async () => {
-    for (const beat of beatsRef.current) {
+    const beats = beatsRef.current;
+    // A rotating "glance" before each line keeps the eyes from repeating and
+    // makes Atlas feel like it's thinking between sentences.
+    const GLANCES: FaceState[] = ["listening", "thinking", "idle", "happy"];
+    for (let i = 0; i < beats.length; i++) {
       if (cancelledRef.current) return;
+      const beat = beats[i]!;
+
+      if (i > 0 && beat.text) {
+        setFaceState(GLANCES[i % GLANCES.length]!);
+        await new Promise((r) => setTimeout(r, 150));
+        if (cancelledRef.current) return;
+      }
+
       // While speaking, a plain "idle" beat gets talking-cadence motion; the
       // expressive poses (happy, excited, thinking…) are shown as-authored.
       const speakingState: FaceState = beat.expression === "idle" ? "talking" : beat.expression;
@@ -66,9 +145,10 @@ export function GenesisIntro({ onComplete }: { onComplete: () => void }) {
         await speak(beat.text);
       }
       if (cancelledRef.current) return;
-      // settle back toward the authored expression, then hold a beat of silence
+      // brief settle, capped so the whole intro stays brisk
       setFaceState(beat.expression);
-      if (beat.hold) await new Promise((r) => setTimeout(r, beat.hold));
+      const hold = beat.hold ?? 0;
+      if (hold) await new Promise((r) => setTimeout(r, Math.min(hold, 240)));
     }
     if (!cancelledRef.current) finish();
   }, [speak, finish]);

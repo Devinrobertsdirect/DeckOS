@@ -189,3 +189,33 @@ Two edits keep the manifest and the backend in agreement:
 
 Keep the two in sync: a `ProviderDef` with no backend connector should stay
 `status: "stub"` so the wizard is honest about what actually works.
+
+## AI-powered intro (v2)
+
+The intro narration is generated live the first time Atlas meets a user, so the
+"banter" is written by the model, not hard-coded:
+
+- `POST /api/genesis/intro { name, providers?[] }` → `{ beats:[{expression,text}], source:"ai"|"fallback" }`.
+  Server (`core/server/src/routes/genesis.ts`) prompts the gateway for a JSON
+  array of expression+text beats, validates them (expressions must be one of
+  idle/happy/listening/thinking/excited/confused), and returns a hand-written
+  fallback if generation or JSON parsing fails.
+- The client (`GenesisIntro.tsx`) pre-fetches on mount (cached in sessionStorage
+  as `atlas_intro_beats`) so it's ready by the time the user taps to wake Atlas.
+  If the model is slow (local Ollama can take ~40–100s), it falls back to the
+  static `buildGenesisScript` after ~2.5s — the user never waits. A fast cloud
+  model (Claude Haiku, Gemini Flash) returns in a couple of seconds and the
+  spoken intro is fully personalized (it names the providers you connected).
+
+## Setup wizard (4 steps)
+
+Name → **How Atlas gets smart** (a plain-language API/keys explainer, added so a
+non-technical user understands *before* the connect screen) → Connect your minds
+→ Give me a voice. All before the intro.
+
+## Voice
+
+`useAtlasVoice` picks the clearest installed English voice and speaks a touch
+faster (rate 1.08) for clarity; `warmUpVoices()` is called on the setup and
+intro screens so the first utterance isn't delayed by async voice loading.
+ElevenLabs remains the premium upgrade (amplitude-driven mouth motion).

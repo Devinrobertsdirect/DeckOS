@@ -23,6 +23,42 @@ export function getVoiceEngine(): VoiceEngine {
   return (localStorage.getItem(VOICE_ENGINE_KEY) as VoiceEngine) || "browser";
 }
 
+/**
+ * getVoices() is populated asynchronously — kick it once so a voice is ready by
+ * the time we first speak (call this on app mount / the setup screen).
+ */
+export function warmUpVoices() {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+  try {
+    window.speechSynthesis.getVoices();
+    window.speechSynthesis.onvoiceschanged = () => {
+      window.speechSynthesis.getVoices();
+    };
+  } catch { /* ignore */ }
+}
+
+/** Choose the clearest available English voice, ranked by known-good engines. */
+function pickClearVoice(synth: SpeechSynthesis): SpeechSynthesisVoice | null {
+  const voices = synth.getVoices();
+  if (!voices.length) return null;
+  const en = voices.filter((v) => /^en([-_]|$)/i.test(v.lang));
+  const pool = en.length ? en : voices;
+  // Higher score = clearer/more natural, based on common OS/browser voices.
+  const score = (v: SpeechSynthesisVoice): number => {
+    const n = v.name.toLowerCase();
+    let s = 0;
+    if (/natural|neural|premium|enhanced/.test(n)) s += 50;
+    if (/google/.test(n)) s += 30;
+    if (/(aria|jenny|guy|libby|sonia|ryan)/.test(n)) s += 25; // MS online neural
+    if (/(zira|david|mark|hazel)/.test(n)) s += 12;           // MS local
+    if (/(samantha|alex|daniel|karen|moira)/.test(n)) s += 20; // Apple
+    if (/en[-_]?us/i.test(v.lang)) s += 6;
+    if (v.localService) s += 2; // lower latency, no network hiccup
+    return s;
+  };
+  return [...pool].sort((a, b) => score(b) - score(a))[0] ?? null;
+}
+
 export function setVoiceEngine(engine: VoiceEngine) {
   localStorage.setItem(VOICE_ENGINE_KEY, engine);
 }
@@ -77,23 +113,30 @@ export function useAtlasVoice(): AtlasVoice {
     (text: string, opts: SpeakOptions) =>
       new Promise<void>((resolve) => {
         if (!("speechSynthesis" in window)) return resolve();
+        const synth = window.speechSynthesis;
         const u = new SpeechSynthesisUtterance(text);
-        u.rate = opts.rate ?? 1;
-        u.pitch = opts.pitch ?? 1;
-        // Prefer a natural English voice if one is installed.
-        const voices = window.speechSynthesis.getVoices();
-        const preferred =
-          voices.find((v) => /en[-_]?(US|GB)/i.test(v.lang) && /natural|google|zira|aria|jenny/i.test(v.name)) ??
-          voices.find((v) => /en[-_]?(US|GB)/i.test(v.lang));
-        if (preferred) u.voice = preferred;
+        // A touch faster than default reads as confident and clear, not rushed.
+        u.rate = opts.rate ?? 1.08;
+        u.pitch = opts.pitch ?? 1.0;
+        u.volume = 1;
+        u.voice = pickClearVoice(synth);
+        if (u.voice) u.lang = u.voice.lang;
         if (opts.onWord) {
           u.onboundary = (e) => {
             if (e.name === "word" || e.name === undefined) opts.onWord!(e.charIndex);
           };
         }
-        u.onend = () => resolve();
-        u.onerror = () => resolve();
-        window.speechSynthesis.speak(u);
+        // Safety net: some engines never fire onend — resolve on a length-based
+        // estimate so the intro never hangs on a beat.
+        const estMs = Math.min(20000, 900 + text.length * 55);
+        let done = false;
+        const finish = () => { if (!done) { done = true; resolve(); } };
+        const timer = window.setTimeout(finish, estMs + 1500);
+        u.onend = () => { window.clearTimeout(timer); finish(); };
+        u.onerror = () => { window.clearTimeout(timer); finish(); };
+        // Chrome occasionally pauses the queue; nudge it.
+        try { synth.resume(); } catch { /* ignore */ }
+        synth.speak(u);
       }),
     [],
   );

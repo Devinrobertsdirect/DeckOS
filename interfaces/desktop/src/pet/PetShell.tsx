@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUp, Code2, Loader2, Mic, Settings } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ArrowUp, Code2, Loader2, Mic, MicOff, Settings } from "lucide-react";
 import { AtlasFace, type FaceState } from "@/components/faces/AtlasFace";
 import { useAtlasVoice } from "@/genesis/useAtlasVoice";
+import { useAtlasListening } from "@/genesis/useAtlasListening";
+import { getInputMode } from "@/genesis/micAccess";
 import { getUserName } from "@/lib/uiMode";
 
 /**
@@ -43,30 +45,6 @@ function activityFor(state: FaceState): number {
   }
 }
 
-// ── Minimal Web Speech API surface (not in the DOM lib) ──────────────────────
-interface SpeechRecognitionLike {
-  lang: string;
-  interimResults: boolean;
-  continuous: boolean;
-  start: () => void;
-  stop: () => void;
-  onresult:
-    | ((e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void)
-    | null;
-  onerror: (() => void) | null;
-  onend: (() => void) | null;
-}
-type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
-
-function getSpeechRecognitionCtor(): SpeechRecognitionCtor | null {
-  if (typeof window === "undefined") return null;
-  const w = window as unknown as {
-    SpeechRecognition?: SpeechRecognitionCtor;
-    webkitSpeechRecognition?: SpeechRecognitionCtor;
-  };
-  return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
-}
-
 export function PetShell({
   onOpenDeveloper,
   onOpenSettings,
@@ -80,19 +58,23 @@ export function PetShell({
   const [caption, setCaption] = useState("");
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
-  const [listening, setListening] = useState(false);
+  const [liveHeard, setLiveHeard] = useState("");
+  const [muted, setMuted] = useState(false);
 
-  const recogRef = useRef<SpeechRecognitionLike | null>(null);
-  const gotResultRef = useRef(false);
-  const micSupported = useMemo(() => getSpeechRecognitionCtor() !== null, []);
+  // Voice mode is chosen in the Type-or-Talk gate. When on, Atlas listens
+  // hands-free with semantic endpointing; text input always stays available.
+  const voiceMode = getInputMode() === "voice";
+  const busyRef = useRef(false);
+  busyRef.current = busy;
 
   // ── Talk to the brain ──────────────────────────────────────────────────────
   const handleSend = useCallback(
     async (raw: string) => {
       const message = raw.trim();
-      if (!message || busy) return;
+      if (!message || busyRef.current) return;
 
       setInput("");
+      setLiveHeard("");
       setBusy(true);
       setCaption("");
       setFaceState("thinking");
@@ -123,8 +105,23 @@ export function PetShell({
         setBusy(false);
       }
     },
-    [busy, speak],
+    [speak],
   );
+
+  // ── Hands-free listening (semantic turn detection) ──────────────────────────
+  // Deaf while thinking/speaking so Atlas never hears itself.
+  const { supported: micSupported, listening } = useAtlasListening({
+    enabled: voiceMode && !muted,
+    paused: busy,
+    onUtterance: (text) => { void handleSend(text); },
+    onInterim: (text) => setLiveHeard(text),
+  });
+
+  // Reflect listening in the face when otherwise idle.
+  useEffect(() => {
+    if (busy) return;
+    setFaceState((s) => (listening ? "listening" : s === "listening" ? "idle" : s));
+  }, [listening, busy]);
 
   // ── Greeting, once per mount ────────────────────────────────────────────────
   const greetedRef = useRef(false);
@@ -132,73 +129,22 @@ export function PetShell({
     if (greetedRef.current) return;
     greetedRef.current = true;
     const name = getUserName().trim();
-    const hello = name ? `Hi ${name}!` : "Hi there!";
-    setFaceState("happy");
+    const hello = name
+      ? (voiceMode ? `Hi ${name}! I'm listening — just talk to me.` : `Hi ${name}! What can I do for you?`)
+      : "Hi there!";
+    setBusy(true);
     setCaption(hello);
-    void speak(hello).finally(() => setFaceState("idle"));
-  }, [speak]);
-
-  // ── Voice input (optional, degrades to text-only) ───────────────────────────
-  const stopMic = useCallback(() => {
-    try {
-      recogRef.current?.stop();
-    } catch {
-      /* ignore */
-    }
-  }, []);
-
-  const startMic = useCallback(() => {
-    const Ctor = getSpeechRecognitionCtor();
-    if (!Ctor || busy) return;
-
-    const recog = new Ctor();
-    recogRef.current = recog;
-    gotResultRef.current = false;
-    recog.lang = "en-US";
-    recog.interimResults = false;
-    recog.continuous = false;
-
-    recog.onresult = (e) => {
-      const transcript = e.results[0]?.[0]?.transcript ?? "";
-      if (transcript.trim()) {
-        gotResultRef.current = true;
-        void handleSend(transcript);
-      }
-    };
-    recog.onerror = () => {
-      setListening(false);
-      setFaceState((s) => (s === "listening" ? "idle" : s));
-    };
-    recog.onend = () => {
-      setListening(false);
-      if (!gotResultRef.current) {
-        setFaceState((s) => (s === "listening" ? "idle" : s));
-      }
-    };
-
-    setListening(true);
-    setFaceState("listening");
-    try {
-      recog.start();
-    } catch {
-      setListening(false);
-      setFaceState("idle");
-    }
-  }, [busy, handleSend]);
-
-  const toggleMic = useCallback(() => {
-    if (listening) stopMic();
-    else startMic();
-  }, [listening, startMic, stopMic]);
-
-  // Stop recognition if the shell unmounts.
-  useEffect(() => () => stopMic(), [stopMic]);
+    setFaceState("happy");
+    void speak(hello).finally(() => { setFaceState("idle"); setBusy(false); });
+  }, [speak, voiceMode]);
 
   const activity = activityFor(faceState);
   const canSend = input.trim().length > 0 && !busy;
   const hint = listening
-    ? "Listening…"
-    : "Ask me anything — I'm here whenever you're ready.";
+    ? (liveHeard ? `“${liveHeard}”` : "Listening…")
+    : voiceMode && muted
+      ? "Muted — tap the mic to listen again."
+      : "Ask me anything — I'm here whenever you're ready.";
 
   return (
     <div className="relative flex min-h-screen w-full flex-col items-center justify-center overflow-hidden bg-background px-6 py-10 text-foreground">
@@ -272,22 +218,23 @@ export function PetShell({
             className="min-w-0 flex-1 bg-transparent text-lg text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
           />
 
-          {micSupported && (
+          {voiceMode && micSupported && (
             <button
               type="button"
-              onClick={toggleMic}
-              disabled={busy}
-              aria-label={listening ? "Stop listening" : "Talk with your voice"}
-              aria-pressed={listening}
-              title={listening ? "Stop listening" : "Talk with your voice"}
+              onClick={() => setMuted((m) => !m)}
+              aria-label={muted ? "Resume listening" : "Mute microphone"}
+              aria-pressed={!muted}
+              title={muted ? "Resume listening" : "Mute microphone"}
               className={
-                "flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40 " +
+                "flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring " +
                 (listening
                   ? "bg-primary/20 text-primary pulse-glow"
-                  : "text-muted-foreground hover:bg-primary/10 hover:text-primary")
+                  : muted
+                    ? "text-muted-foreground/50 hover:bg-primary/10"
+                    : "text-primary/70 hover:bg-primary/10 hover:text-primary")
               }
             >
-              <Mic className="h-5 w-5" />
+              {muted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
             </button>
           )}
 

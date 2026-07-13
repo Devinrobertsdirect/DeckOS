@@ -10,8 +10,10 @@ import { applyColor, applyHexColor, getStoredColor } from "@/components/Onboardi
 import { StartScreen } from "@/components/StartScreen";
 import { GenesisSetup } from "@/genesis/GenesisSetup";
 import { GenesisIntro } from "@/genesis/GenesisIntro";
+import { InputChoice } from "@/genesis/InputChoice";
 import { PetShell } from "@/pet/PetShell";
 import { isSetupDone, isIntroDone, useUiMode, setUiMode } from "@/lib/uiMode";
+import { getInputMode } from "@/genesis/micAccess";
 import { SetupGuideModal } from "@/components/SetupGuideModal";
 import { TutorialProvider } from "@/contexts/TutorialContext";
 import { TutorialOverlay } from "@/components/TutorialOverlay";
@@ -79,6 +81,8 @@ function App() {
   // face, THEN the app (Pet mode by default, Developer mode on demand).
   const [setupDone, setSetupDone] = useState(() => isSetupDone());
   const [introDone, setIntroDone] = useState(() => isIntroDone());
+  // After the intro, Atlas asks "talk or type?" (which also grabs the mic).
+  const [inputChosen, setInputChosen] = useState(() => getInputMode() !== null);
   const [uiMode] = useUiMode();
 
   function handleStart() {
@@ -97,6 +101,8 @@ function App() {
               <GenesisSetup onComplete={() => setSetupDone(true)} />
             ) : !introDone ? (
               <GenesisIntro onComplete={() => setIntroDone(true)} />
+            ) : !inputChosen ? (
+              <InputChoice onComplete={() => setInputChosen(true)} />
             ) : uiMode === "pet" ? (
               <PetShell
                 onOpenDeveloper={() => setUiMode("developer")}

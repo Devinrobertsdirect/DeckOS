@@ -219,3 +219,35 @@ non-technical user understands *before* the connect screen) → Connect your min
 faster (rate 1.08) for clarity; `warmUpVoices()` is called on the setup and
 intro screens so the first utterance isn't delayed by async voice loading.
 ElevenLabs remains the premium upgrade (amplitude-driven mouth motion).
+
+## Voice loop & flow (v3)
+
+Reordered so the **API-keys screen is the first thing after the home screen**:
+
+1. Home (StartScreen)
+2. **Do you have any AI keys to plug in?** — provider cards with a plain-language
+   primer, save or skip. The voice engine is auto-set here: if an ElevenLabs key
+   is present, Atlas uses it; otherwise the browser voice.
+3. **What should I call you?** — name.
+4. **Genesis intro** — AI-written, uses the connected providers.
+5. **Talk or type?** (`InputChoice.tsx`) — Atlas asks out loud; choosing *Talk*
+   triggers `acquireMic()` (silent on a robot with no permission gate, a prompt on
+   desktop). On denial it falls back to text gracefully.
+6. **Pet mode** — in the chosen modality.
+
+### Hands-free listening with semantic endpointing
+
+`useAtlasListening.ts` runs Web Speech continuous recognition and decides when a
+person is *actually* done vs. just thinking mid-sentence:
+
+- Finalized chunks accumulate in a buffer; on each pause `looksIncomplete()`
+  checks whether the text trails off on a conjunction / filler / preposition /
+  modal ("I want **to**…", "**and then**…", "we **could**…").
+- Complete-looking thoughts send after a short grace (~450 ms); trailing-off ones
+  wait up to ~2.2 s for more speech before sending anyway.
+- While Atlas speaks it goes deaf (`paused`) so it never hears itself.
+- No SpeechRecognition (or the robot build) → falls back to text / the robot's
+  own Whisper+VAD stack.
+
+`micAccess.ts` probes for a mic without prompting (`hasMicDevice()`) and acquires
+it (`acquireMic()`) — robot-aware. Input mode is stored as `atlas_input_mode`.

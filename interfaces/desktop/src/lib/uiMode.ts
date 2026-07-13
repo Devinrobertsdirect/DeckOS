@@ -61,4 +61,6 @@ export function setUserName(name: string) {
 export function resetGenesis() {
   localStorage.removeItem(SETUP_KEY);
   localStorage.removeItem(INTRO_KEY);
+  localStorage.removeItem("atlas_input_mode"); // re-ask talk/type
+  try { sessionStorage.removeItem("atlas_intro_beats"); } catch { /* ignore */ }
 }

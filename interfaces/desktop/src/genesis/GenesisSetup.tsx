@@ -45,7 +45,7 @@ const CATEGORY_ORDER: { cat: ProviderCategory; label: string }[] = [
   { cat: "video", label: "Video" },
 ];
 
-type Step = 0 | 1 | 2 | 3;
+type Step = 0 | 1;
 
 interface TestState {
   status: "idle" | "loading" | "ok" | "fail";
@@ -101,26 +101,17 @@ export function GenesisSetup({ onComplete }: { onComplete: () => void }) {
     }
   }, [elevenUnlocked, selectedEngine]);
 
-  // Warm up the speech engine so the first "Hear me" is instant.
+  // Warm up the speech engine for the intro that follows.
   useEffect(() => { warmUpVoices(); }, []);
-
-  // Stop any speech when we leave the voice step (step 3) or unmount.
-  useEffect(() => {
-    if (step !== 3) voice.stop();
-  }, [step, voice]);
   useEffect(() => () => voice.stop(), [voice]);
 
   // ── Face expression, timed to the step + what's happening ───────────────────
-  // 0 name · 1 explainer · 2 connect · 3 voice
+  // Flow (keys first, per the design): 0 connect · 1 name
   const anyTesting = Object.values(testResults).some((t) => t.status === "loading");
   const faceState: FaceState =
     step === 0
-      ? nameFocused ? "listening" : "happy"
-      : step === 1
-        ? "idle"
-        : step === 2
-          ? anyTesting ? "excited" : "thinking"
-          : voice.speaking ? "talking" : "happy";
+      ? anyTesting ? "excited" : "thinking"
+      : nameFocused ? "listening" : "happy";
 
   // ── Navigation ──────────────────────────────────────────────────────────────
   function go(next: Step) {
@@ -151,20 +142,20 @@ export function GenesisSetup({ onComplete }: { onComplete: () => void }) {
 
   function finish() {
     voice.stop();
+    // Auto-pick the voice engine — premium ElevenLabs if its key is present,
+    // so Atlas "defaults to loading and using these APIs" for its intro.
+    const hasEleven = configHasEleven || !!(keys["ELEVENLABS_API_KEY"] || "").trim();
+    setVoiceEngine(hasEleven ? "server" : "browser");
     markSetupDone();
     onComplete();
   }
 
   function handleNext() {
     if (step === 0) {
-      setUserName(name.trim());
+      saveProviders(); // keys → name
       go(1);
-    } else if (step === 1) {
-      go(2); // explainer → connect
-    } else if (step === 2) {
-      saveProviders();
-      go(3);
     } else {
+      setUserName(name.trim()); // name → done
       finish();
     }
   }
@@ -232,16 +223,12 @@ export function GenesisSetup({ onComplete }: { onComplete: () => void }) {
 
   // ── Step content ────────────────────────────────────────────────────────────
   const stepTitle = [
+    "Do you have any AI keys to plug in?",
     "What should I call you?",
-    "How Atlas gets smart",
-    "Connect your minds",
-    "Give me a voice",
   ][step];
   const stepSubtitle = [
+    "Connect the AI services you already use — or skip and add them later. Atlas will use them for its own introduction.",
     "A name so Atlas can speak to you like a partner, not a product.",
-    "A one-minute plain-English primer — then you decide what to plug in.",
-    "Bring the minds you already use. All optional — add what you like, skip the rest.",
-    "Pick how Atlas sounds. You can always change this later.",
   ][step];
 
 
@@ -281,17 +268,6 @@ export function GenesisSetup({ onComplete }: { onComplete: () => void }) {
             className="h-full"
           >
             {step === 0 && (
-                <NameStep
-                  name={name}
-                  onChange={setName}
-                  onFocus={() => setNameFocused(true)}
-                  onBlur={() => setNameFocused(false)}
-                />
-              )}
-
-              {step === 1 && <ExplainerStep />}
-
-              {step === 2 && (
                 <ProvidersStep
                   keys={keys}
                   setKey={(keyName, value) =>
@@ -302,13 +278,12 @@ export function GenesisSetup({ onComplete }: { onComplete: () => void }) {
                 />
               )}
 
-              {step === 3 && (
-                <VoiceStep
-                  selected={selectedEngine}
-                  elevenUnlocked={elevenUnlocked}
-                  speaking={voice.speaking}
-                  onSelect={selectEngine}
-                  onHear={hearMe}
+              {step === 1 && (
+                <NameStep
+                  name={name}
+                  onChange={setName}
+                  onFocus={() => setNameFocused(true)}
+                  onBlur={() => setNameFocused(false)}
                 />
               )}
           </motion.div>
@@ -331,13 +306,13 @@ export function GenesisSetup({ onComplete }: { onComplete: () => void }) {
           </div>
 
           <div className="flex items-center gap-2">
-            {step === 2 && (
+            {step === 0 && (
               <Button
                 variant="ghost"
                 className="text-white/45 hover:text-white/80"
                 onClick={() => {
                   saveProviders();
-                  go(3);
+                  go(1);
                 }}
               >
                 Skip for now →
@@ -348,7 +323,7 @@ export function GenesisSetup({ onComplete }: { onComplete: () => void }) {
               className="border-transparent bg-[#4A7FB5] px-6 text-white hover:bg-[#3f6f9f]"
               onClick={handleNext}
             >
-              {step === 3 ? "Meet Atlas →" : "Next →"}
+              {step === 1 ? "Meet Atlas →" : "Next →"}
             </Button>
           </div>
         </footer>
@@ -357,9 +332,9 @@ export function GenesisSetup({ onComplete }: { onComplete: () => void }) {
   );
 }
 
-// ── Progress dots (1 · 2 · 3 · 4) ────────────────────────────────────────────
+// ── Progress dots ─────────────────────────────────────────────────────────────
 function Progress({ step }: { step: number }) {
-  const steps = [0, 1, 2, 3];
+  const steps = [0, 1];
   return (
     <div className="flex items-center gap-2" aria-label={`Step ${step + 1} of ${steps.length}`}>
       {steps.map((i) => (
@@ -484,6 +459,13 @@ function ProvidersStep({
 }) {
   return (
     <div className="space-y-5 pb-2">
+      {/* Plain-language primer, folded into the keys screen. */}
+      <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3.5 text-xs leading-relaxed text-white/60">
+        <span className="text-[#C9DCF0]">New to this?</span> A “key” is just a
+        private password an AI service gives you. Paste it once and Atlas does the
+        talking — keys stay on your machine and can be removed any time. Everything
+        here is optional; Atlas already works with the free brain on your computer.
+      </div>
       {CATEGORY_ORDER.map(({ cat, label }) => {
         const items = providersByCategory(cat);
         if (items.length === 0) return null;

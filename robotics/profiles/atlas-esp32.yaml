@@ -1,0 +1,20 @@
+# Atlas on an ESP32 body — the brain runs on a host (laptop / Pi / phone / cloud)
+# and drives the ESP32 over USB serial or WiFi TCP (AWP port 3333).
+# Flash robotics/firmware/atlas_esp32.
+id: atlas-esp32
+name: Atlas ESP32 body
+backend: serial
+target: ESP32 · TB6612FNG · encoders · e-stop (firmware/atlas_esp32)
+
+drive:
+  wheelBaseM: 0.15
+  wheelRadiusM: 0.03
+  maxSpeedMps: 0.5
+
+serial:
+  # USB serial device, or a ws://host:3333 / tcp URL when using WiFi.
+  path: ${ATLAS_SERIAL}   # e.g. COM5, /dev/ttyUSB0
+  baud: 115200
+
+config:
+  cmd_timeout_ms: "500"

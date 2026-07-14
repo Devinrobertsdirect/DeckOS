@@ -13,6 +13,7 @@ import { devicesCmd } from '../src/commands/devices.mjs';
 import { pluginsListCmd, pluginsStoreCmd, pluginsInstallCmd } from '../src/commands/plugins.mjs';
 import { brainCmd } from '../src/commands/brain.mjs';
 import { robotConnectCmd } from '../src/commands/robot-connect.mjs';
+import { hardwareCmd } from '../src/commands/hardware.mjs';
 import { printBanner } from '../src/lib/banner.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -131,6 +132,14 @@ program
   .description('Ping a robot body (default: atlas.local) and print connection steps')
   .action(async (host) => {
     await robotConnectCmd(host || 'atlas.local');
+  });
+
+// ── hardware ─────────────────────────────────────────────────────────────────
+program
+  .command('hardware')
+  .description('Detect this machine and show how Atlas will run (sim / Pi / serial body)')
+  .action(async () => {
+    await hardwareCmd();
   });
 
 // ── Default: show banner + help ────────────────────────────────────────────

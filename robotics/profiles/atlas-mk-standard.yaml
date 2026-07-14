@@ -1,0 +1,31 @@
+# Atlas MK Standard — the 282 mm companion robot (ATL-HW-001 / ATL-PCB-001).
+# The brain runs on the Raspberry Pi 5; the body is the Pi's own GPIO.
+id: atlas-mk-standard
+name: Atlas MK Standard (282 mm)
+backend: pi
+target: Raspberry Pi 5 · TB6612FNG diff-drive · N20 motors
+
+drive:
+  wheelBaseM: 0.18
+  wheelRadiusM: 0.03
+  maxSpeedMps: 0.6
+  invertL: false
+  invertR: false
+
+# BCM pin map — mirrors core/server/src/hal/bodies/pi.ts and the PCB (ATL-PCB-001).
+pins:
+  motor_pwm_l: 12    # PWM @ 20 kHz
+  motor_pwm_r: 13
+  motor_dir_l: 5     # TB6612 direction
+  motor_dir_r: 6
+  encoder: [16, 17, 22, 23]  # quadrature IRQ
+  estop: 26          # pulled-up, RC-filtered
+  dock: 27           # pogo contact detect
+  fan: 4             # thermal (78 °C sealed box)
+  i2c: [2, 3]        # IMU BNO085, ToF mux TCA9548A, INA219, BMS
+  i2s: [18, 19, 20, 21]      # mic array in, amp out
+  spi_face: [8, 9, 10, 11]   # round 480x480 LCD @ 62 MHz
+  lcd_dc_rst: [24, 25]
+
+config:
+  max_duty: "0.85"

@@ -1,0 +1,12 @@
+# Desktop / dev — Atlas as a takeover assistant on Linux, Windows or macOS with
+# no physical body. The HAL runs a virtual body (simulated odometry + telemetry)
+# so every behaviour works before any hardware exists. This is the auto-selected
+# default when no board and no Pi are detected.
+id: desktop-sim
+name: Desktop (virtual body)
+backend: sim
+target: linux / windows / macos
+drive:
+  wheelBaseM: 0.18
+  wheelRadiusM: 0.03
+  maxSpeedMps: 0.6

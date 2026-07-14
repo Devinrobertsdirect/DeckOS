@@ -1,0 +1,16 @@
+# Atlas on an Arduino Nano / Uno body — the basic-controller tier.
+# The brain runs on a host and drives the Nano over USB serial only.
+# Flash robotics/firmware/atlas_nano.
+id: atlas-nano
+name: Atlas Arduino Nano body
+backend: serial
+target: Arduino Nano/Uno (ATmega328) · TB6612FNG · serial only
+
+drive:
+  wheelBaseM: 0.12
+  wheelRadiusM: 0.025
+  maxSpeedMps: 0.35
+
+serial:
+  path: ${ATLAS_SERIAL}   # e.g. COM4, /dev/ttyACM0
+  baud: 115200

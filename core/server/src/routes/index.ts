@@ -34,6 +34,7 @@ import pairingRouter from "./pairing";
 import providersRouter from "./providers";
 import genesisRouter from "./genesis";
 import capabilitiesRouter from "./capabilities";
+import bodyRouter from "./body";
 
 const router: IRouter = Router();
 
@@ -72,5 +73,6 @@ router.use(pairingRouter);
 router.use("/providers", providersRouter);
 router.use("/genesis", genesisRouter);
 router.use(capabilitiesRouter);
+router.use(bodyRouter);
 
 export default router;

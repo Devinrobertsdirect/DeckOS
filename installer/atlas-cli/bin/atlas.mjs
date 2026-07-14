@@ -15,6 +15,7 @@ import { brainCmd, brainInstallCmd } from '../src/commands/brain.mjs';
 import { robotConnectCmd } from '../src/commands/robot-connect.mjs';
 import { hardwareCmd } from '../src/commands/hardware.mjs';
 import { flashCmd } from '../src/commands/flash.mjs';
+import { piSetupCmd } from '../src/commands/pi-setup.mjs';
 import { printBanner } from '../src/lib/banner.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -156,6 +157,15 @@ program
   .option('--old', 'Nano clones with the old bootloader (atmega328old)')
   .action(async (opts) => {
     await flashCmd(opts);
+  });
+
+// ── pi-setup ─────────────────────────────────────────────────────────────────
+program
+  .command('pi-setup')
+  .description('Provision a Raspberry Pi as a self-contained Atlas brain (run on the Pi)')
+  .option('--force', 'Run the provisioning even if this does not look like a Pi')
+  .action(async (opts) => {
+    await piSetupCmd(opts);
   });
 
 // ── Default: show banner + help ────────────────────────────────────────────

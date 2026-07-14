@@ -4,10 +4,13 @@ import { motion } from "framer-motion";
 import {
   AtlasFace,
   FACE_THEMES,
+  EMOJI_PACKS,
   useFaceTheme,
   saveFaceTheme,
+  useEmojiPack,
   type FaceState,
 } from "@/components/faces/AtlasFace";
+import { applyColor, type ColorScheme } from "@/components/Onboarding";
 import {
   PROVIDERS,
   providersByCategory,
@@ -34,11 +37,12 @@ import { Input } from "@/components/ui/input";
 /**
  * Genesis Setup — the very first screen a new Atlas user meets, before any
  * dashboard exists. Fullscreen, calm, dark navy. iPhone-style: the user
- * configures everything before the AI's intro. Four steps:
+ * adopts and customizes their companion before its intro. Five steps:
  *   0. Keys        → connect provider API keys (all optional)
  *   1. Names       → the user's name and the AI's name
  *   2. Voice       → pick the default browser voice or the ElevenLabs voice
- *   3. Appearance  → choose the AI's eyes (face theme)
+ *   3. Appearance  → eyes (face theme), emoji pack, and accent colour
+ *   4. Meet        → celebratory reveal of the Atlas they just made
  * Finishes by marking setup done and handing control back to the app.
  *
  * Nothing is persisted except through the provided helpers (setUserName,
@@ -60,7 +64,7 @@ const CATEGORY_ORDER: { cat: ProviderCategory; label: string }[] = [
   { cat: "video", label: "Video" },
 ];
 
-type Step = 0 | 1 | 2 | 3;
+type Step = 0 | 1 | 2 | 3 | 4;
 
 interface TestState {
   status: "idle" | "loading" | "ok" | "fail";
@@ -188,9 +192,11 @@ export function GenesisSetup({ onComplete }: { onComplete: () => void }) {
       setBotName(botName.trim());
       go(2);
     } else if (step === 2) {
-      go(3); // voice → eyes
+      go(3); // voice → look
+    } else if (step === 3) {
+      go(4); // look → meet
     } else {
-      finish(); // eyes → done
+      finish(); // meet → done
     }
   }
 
@@ -258,17 +264,22 @@ export function GenesisSetup({ onComplete }: { onComplete: () => void }) {
   }
 
   // ── Step content ────────────────────────────────────────────────────────────
+  // Warm, adoption-flavoured copy — you're not filling a form, you're bringing
+  // a new companion home. Titles interpolate the name once it's chosen.
+  const botLabel = botName.trim() || "Atlas";
   const stepTitle = [
-    "Do you have any AI keys to plug in?",
+    "Bring your AIs along",
     "Let's get acquainted",
-    "Give your AI a voice",
-    "Give your AI its eyes",
+    `Give ${botLabel} a voice`,
+    `Dress up ${botLabel}`,
+    `Meet ${botLabel}`,
   ][step];
   const stepSubtitle = [
-    "Connect the AI services you already use — or skip and add them later. Atlas will use them for its own introduction.",
-    "A name for you, and a name for your AI — so it can speak to you like a partner, not a product.",
-    "Choose how your AI sounds. Press “Hear me” to preview before you decide.",
-    "Pick the eyes your AI wears. Tap a look to try it on — everything updates live.",
+    "Plug in the AI services you already use — or skip and add them later. Atlas taps them for its very first hello.",
+    "A name for you, and a name for your companion — so it can talk to you like a partner, not a product.",
+    "Choose how it sounds. Tap “Hear me” to preview before you decide.",
+    "Its eyes, its emoji, its colour — everything updates live. Try things on until it feels like yours.",
+    "This is the Atlas you just made. Say hello.",
   ][step];
 
 
@@ -340,6 +351,10 @@ export function GenesisSetup({ onComplete }: { onComplete: () => void }) {
               )}
 
               {step === 3 && <AppearanceStep />}
+
+              {step === 4 && (
+                <MeetStep botName={botName} voiceEngine={selectedEngine} />
+              )}
           </motion.div>
         </div>
 
@@ -377,7 +392,7 @@ export function GenesisSetup({ onComplete }: { onComplete: () => void }) {
               className="border-transparent bg-[#4A7FB5] px-6 text-white hover:bg-[#3f6f9f]"
               onClick={handleNext}
             >
-              {step === 3 ? `Meet ${botName.trim() || "Atlas"} →` : "Next →"}
+              {step === 4 ? "Let's begin →" : "Next →"}
             </Button>
           </div>
         </footer>
@@ -388,7 +403,7 @@ export function GenesisSetup({ onComplete }: { onComplete: () => void }) {
 
 // ── Progress dots ─────────────────────────────────────────────────────────────
 function Progress({ step }: { step: number }) {
-  const steps = [0, 1, 2, 3];
+  const steps = [0, 1, 2, 3, 4];
   return (
     <div className="flex items-center gap-2" aria-label={`Step ${step + 1} of ${steps.length}`}>
       {steps.map((i) => (
@@ -755,37 +770,179 @@ function VoiceCard({
   );
 }
 
-// ── Step 4: Appearance — give your AI its eyes ────────────────────────────────
+// ── Step 4: Appearance — give your Atlas its look & personality ───────────────
+// An expressive sequence the central face cycles through so the user *sees* the
+// emotional range Atlas can wear — the wow moment of the whole wizard.
+const EMOTION_SHOWCASE: FaceState[] = [
+  "happy",
+  "love",
+  "wink",
+  "excited",
+  "starstruck",
+  "idle",
+];
+
+// The six accent schemes as swatches. Hexes mirror the app's ColorScheme map so
+// clicking one recolours the eyes (which follow the accent) live.
+const ACCENT_SWATCHES: { scheme: ColorScheme; hex: string; label: string }[] = [
+  { scheme: "steel", hex: "#4A7FB5", label: "Atlas Steel" },
+  { scheme: "ice", hex: "#C9DCF0", label: "Atlas Ice" },
+  { scheme: "blue", hex: "#3f84f3", label: "Cobalt" },
+  { scheme: "green", hex: "#11d97a", label: "Emerald" },
+  { scheme: "yellow", hex: "#ffc820", label: "Amber" },
+  { scheme: "red", hex: "#f03248", label: "Crimson" },
+];
+
 function AppearanceStep() {
   // Every AtlasFace reads the active theme from localStorage via useFaceTheme,
   // so saving one updates the big preview and all card previews at once.
   const theme = useFaceTheme();
+  const [emojiPack, setEmojiPack] = useEmojiPack();
+  const [accent, setAccent] = useState<ColorScheme>(
+    () => (localStorage.getItem("deckos_color") as ColorScheme) || "steel",
+  );
+
+  // Cycle the central face through the showcase so its range is on display.
+  const [showIdx, setShowIdx] = useState(0);
+  useEffect(() => {
+    const id = setInterval(
+      () => setShowIdx((i) => (i + 1) % EMOTION_SHOWCASE.length),
+      1400,
+    );
+    return () => clearInterval(id);
+  }, []);
+  const showcaseState = EMOTION_SHOWCASE[showIdx] ?? "happy";
+
+  function pickAccent(scheme: ColorScheme) {
+    applyColor(scheme);
+    localStorage.setItem("deckos_color", scheme);
+    setAccent(scheme);
+  }
+
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-6">
-      {/* Large central preview reflecting the currently-selected theme. */}
-      <AtlasFace mode="atlas" state="happy" size={120} />
-      <div className="grid w-full max-w-md grid-cols-3 gap-3">
-        {FACE_THEMES.map((t) => {
-          const selected = t.id === theme.id;
-          return (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => saveFaceTheme(t.id)}
-              aria-pressed={selected}
-              className={
-                "flex flex-col items-center gap-2 rounded-xl border p-3 transition-all " +
-                (selected
-                  ? "border-[#4A7FB5] bg-[#4A7FB5]/10 ring-1 ring-[#4A7FB5]"
-                  : "border-white/10 bg-white/[0.03] hover:border-white/25")
-              }
-            >
-              <AtlasFace mode="atlas" state="happy" size={72} />
-              <span className="text-center text-xs text-white/70">{t.name}</span>
-            </button>
-          );
-        })}
+    <div className="flex flex-col items-center gap-7 py-2">
+      {/* Emotion showcase — the star. Auto-cycles so you see Atlas *feel*. */}
+      <div className="flex flex-col items-center gap-2">
+        <AtlasFace mode="atlas" state={showcaseState} size={120} />
+        <span className="text-xs italic text-white/40">Watch me feel.</span>
       </div>
+
+      {/* Eyes — the face-theme grid. */}
+      <section className="w-full max-w-md">
+        <h3 className="mb-2.5 text-center text-[11px] font-semibold uppercase tracking-wider text-white/35">
+          Eyes
+        </h3>
+        <div className="grid grid-cols-3 gap-3">
+          {FACE_THEMES.map((t) => {
+            const selected = t.id === theme.id;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => saveFaceTheme(t.id)}
+                aria-pressed={selected}
+                className={
+                  "flex flex-col items-center gap-2 rounded-xl border p-3 transition-all " +
+                  (selected
+                    ? "border-[#4A7FB5] bg-[#4A7FB5]/10 ring-1 ring-[#4A7FB5]"
+                    : "border-white/10 bg-white/[0.03] hover:border-white/25")
+                }
+              >
+                <AtlasFace mode="atlas" state="happy" size={64} />
+                <span className="text-center text-xs text-white/70">{t.name}</span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* Emoji pack — how Atlas flashes its little reactions. */}
+      <section className="w-full max-w-md">
+        <h3 className="mb-2.5 text-center text-[11px] font-semibold uppercase tracking-wider text-white/35">
+          Emoji pack
+        </h3>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {Object.entries(EMOJI_PACKS).map(([id, pack]) => {
+            const selected = id === emojiPack;
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setEmojiPack(id)}
+                aria-pressed={selected}
+                className={
+                  "flex flex-col items-center gap-1 rounded-lg border px-2 py-2.5 transition-all " +
+                  (selected
+                    ? "border-[#4A7FB5] bg-[#4A7FB5]/10 ring-1 ring-[#4A7FB5]"
+                    : "border-white/10 bg-white/[0.03] hover:border-white/25")
+                }
+              >
+                <span className="text-base leading-none" aria-hidden>
+                  {pack.glyphs.love} {pack.glyphs.sparkle}
+                </span>
+                <span className="text-[11px] text-white/70">{pack.name}</span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* Accent colour — the eyes follow it unless an eye theme overrides. */}
+      <section className="w-full max-w-md">
+        <h3 className="mb-2.5 text-center text-[11px] font-semibold uppercase tracking-wider text-white/35">
+          Accent
+        </h3>
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          {ACCENT_SWATCHES.map((c) => {
+            const selected = c.scheme === accent;
+            return (
+              <button
+                key={c.scheme}
+                type="button"
+                onClick={() => pickAccent(c.scheme)}
+                aria-pressed={selected}
+                aria-label={c.label}
+                title={c.label}
+                className={
+                  "h-9 w-9 rounded-full border-2 transition-transform hover:scale-110 " +
+                  (selected ? "border-white ring-2 ring-white/40" : "border-white/20")
+                }
+                style={{ background: c.hex }}
+              />
+            );
+          })}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+// ── Step 5: Meet — the celebratory reveal of the Atlas they just made ─────────
+function MeetStep({
+  botName,
+  voiceEngine,
+}: {
+  botName: string;
+  voiceEngine: VoiceEngine;
+}) {
+  const theme = useFaceTheme();
+  const bot = botName.trim() || "Atlas";
+  const voiceLabel = voiceEngine === "server" ? "ElevenLabs" : "Default";
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-6 text-center">
+      {/* Reflects every choice: eyes, emoji pack, accent colour. */}
+      <AtlasFace mode="atlas" state="happy" size={140} />
+      <div className="space-y-2">
+        <h2 className="text-lg font-semibold text-[#F7F5F0]">
+          Say hi to {bot}
+        </h2>
+        <p className="text-sm text-white/60">
+          {theme.name} eyes · {voiceLabel} voice
+        </p>
+      </div>
+      <p className="mx-auto max-w-xs text-xs leading-relaxed text-white/40">
+        This is your Atlas. You can change any of this later in Settings.
+      </p>
     </div>
   );
 }

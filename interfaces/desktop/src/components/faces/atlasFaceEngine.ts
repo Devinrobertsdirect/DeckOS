@@ -20,7 +20,10 @@ export type FaceState =
   | "sleeping"
   | "angry"       // slanted, narrowed eyes (pairs with a red tint)
   | "suspicious"  // narrowed eyes that dart side to side
-  | "sad";        // downward arcs
+  | "sad"         // downward arcs
+  | "love"        // heart-shaped eyes
+  | "wink"        // one eye closed
+  | "starstruck"; // star-shaped eyes
 
 export type FaceMode = "atlas" | "neural" | "auto";
 
@@ -54,35 +57,57 @@ export const FACE_DISC_RGB = "30,42,56"; // #1E2A38 smoked-glass navy
 // A future "pack" system (mirrors the eye-pack idea): each pack is a named
 // dictionary of short glyphs keyed by a stable semantic name. The face flashes
 // one of these near the top as a momentary accent — the eyes stay the star.
+// Every pack maps the SAME semantic keys, so any emotion renders in any pack.
 export const EMOJI_PACKS: Record<string, { name: string; glyphs: Record<string, string> }> = {
   core: {
     name: "Core",
     glyphs: {
-      love: "❤",
-      star: "★",
-      music: "♪",
-      idea: "💡",
-      sparkle: "✨",
-      question: "?",
-      exclaim: "!",
-      sleepy: "z",
-      cool: "😎",
-      wink: ";)",
-      ok: "👍",
+      love: "❤", star: "★", music: "♪", idea: "💡", sparkle: "✨",
+      question: "?", exclaim: "!", sleepy: "z", cool: "😎", wink: ";)", ok: "👍",
+    },
+  },
+  emoji: {
+    name: "Emoji",
+    glyphs: {
+      love: "😍", star: "🤩", music: "🎵", idea: "💡", sparkle: "🎉",
+      question: "🤔", exclaim: "😮", sleepy: "😴", cool: "😎", wink: "😉", ok: "👍",
+    },
+  },
+  kawaii: {
+    name: "Kawaii",
+    glyphs: {
+      love: "♡", star: "✧", music: "♫", idea: "⭑", sparkle: "＊",
+      question: "・・?", exclaim: "!!", sleepy: "…zzz", cool: "▸◂", wink: "^_-", ok: "♪",
+    },
+  },
+  retro: {
+    name: "Retro",
+    glyphs: {
+      love: "<3", star: "*", music: "♬", idea: "¤", sparkle: "::",
+      question: "?", exclaim: "!", sleepy: "Zz", cool: "B)", wink: ";)", ok: "[y]",
     },
   },
 };
 
-/** Look up a glyph by semantic name in a pack (defaults to "core"). */
-export function glyphFor(name: string, pack = "core"): string | null {
-  return EMOJI_PACKS[pack]?.glyphs[name] ?? null;
+/** The active emoji pack — set from the React layer (localStorage-backed). */
+let activeEmojiPack = "core";
+export function setActiveEmojiPack(id: string): void {
+  if (EMOJI_PACKS[id]) activeEmojiPack = id;
+}
+export function getActiveEmojiPack(): string {
+  return activeEmojiPack;
+}
+
+/** Look up a glyph by semantic name; defaults to the active pack, falls back to core. */
+export function glyphFor(name: string, pack: string = activeEmojiPack): string | null {
+  return EMOJI_PACKS[pack]?.glyphs[name] ?? EMOJI_PACKS["core"]?.glyphs[name] ?? null;
 }
 
 // ── Eye geometry per state ───────────────────────────────────────────────────
 // All lengths are fractions of the face diameter D. Left/right eyes may differ
 // (confused). "shape" crossfades; numeric fields tween.
 
-type EyeShape = "pill" | "arc" | "arcDown" | "dash" | "bolt" | "halfLid";
+type EyeShape = "pill" | "arc" | "arcDown" | "dash" | "bolt" | "halfLid" | "heart" | "star";
 
 interface EyeSpec {
   shape: EyeShape;
@@ -160,6 +185,24 @@ const POSES: Record<FaceState, PoseSpec> = {
     left: { shape: "arcDown", w: 0.16, h: 0.09, dx: 0, dy: 0.02 },
     right: { shape: "arcDown", w: 0.16, h: 0.09, dx: 0, dy: 0.02 },
     gazeX: 0, gazeY: 0.03, tilt: 0, blink: false, duration: 320,
+  },
+  // Heart-shaped eyes — the "smitten" form.
+  love: {
+    left: { shape: "heart", w: 0.17, h: 0.16, dx: 0, dy: -0.01 },
+    right: { shape: "heart", w: 0.17, h: 0.16, dx: 0, dy: -0.01 },
+    gazeX: 0, gazeY: 0, tilt: 0, blink: false, duration: 300,
+  },
+  // A wink — right eye a happy arc (closed), left a lively pill.
+  wink: {
+    left: { shape: "pill", w: 0.15, h: 0.31, dx: 0, dy: 0 },
+    right: { shape: "arc", w: 0.16, h: 0.09, dx: 0, dy: -0.01 },
+    gazeX: 0, gazeY: 0, tilt: 0.03, blink: false, duration: 260,
+  },
+  // Star-shaped eyes — dazzled / starstruck.
+  starstruck: {
+    left: { shape: "star", w: 0.17, h: 0.17, dx: 0, dy: 0 },
+    right: { shape: "star", w: 0.17, h: 0.17, dx: 0, dy: 0 },
+    gazeX: 0, gazeY: 0, tilt: 0, blink: false, duration: 280,
   },
 };
 
@@ -594,6 +637,35 @@ export class AtlasFaceEngine {
           // Bottom half of a pill: flat lid on top.
           ctx.beginPath();
           ctx.roundRect(-w / 2, -h * 0.15, w, h, [3, 3, w / 2, w / 2]);
+          ctx.fill();
+          break;
+        }
+        case "heart": {
+          // A little heart, gently pulsing.
+          const pulse = 1 + 0.06 * Math.sin(now * 0.008 + side);
+          const s = (w / 2) * pulse;
+          ctx.beginPath();
+          ctx.moveTo(0, s * 0.38);
+          ctx.bezierCurveTo(s * 0.55, -s * 0.35, s * 1.05, s * 0.28, 0, s * 0.98);
+          ctx.bezierCurveTo(-s * 1.05, s * 0.28, -s * 0.55, -s * 0.35, 0, s * 0.38);
+          ctx.closePath();
+          ctx.fill();
+          break;
+        }
+        case "star": {
+          // Five-point twinkle star.
+          const R = w / 2;
+          const r = R * 0.42;
+          const tw = 0.85 + 0.15 * Math.sin(now * 0.01 + side * 1.7);
+          ctx.beginPath();
+          for (let i = 0; i < 10; i++) {
+            const ang = (Math.PI / 5) * i - Math.PI / 2;
+            const rad = (i % 2 === 0 ? R : r) * tw;
+            const px = Math.cos(ang) * rad;
+            const py = Math.sin(ang) * rad;
+            if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+          }
+          ctx.closePath();
           ctx.fill();
           break;
         }

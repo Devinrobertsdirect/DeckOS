@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowUp, Code2, Loader2, Mic, MicOff, Settings, MessageSquare, X, Brain, Trash2 } from "lucide-react";
+import { ArrowUp, Code2, Loader2, Mic, MicOff, Settings, MessageSquare, X, Brain, Trash2, Sparkles } from "lucide-react";
+import { FacesGallery } from "@/collection/FacesGallery";
 import { AtlasFace, type FaceState } from "@/components/faces/AtlasFace";
 import { useAtlasVoice } from "@/genesis/useAtlasVoice";
 import { useAtlasListening } from "@/genesis/useAtlasListening";
 import { getInputMode, setInputMode, acquireMic } from "@/genesis/micAccess";
 import { getUserName, getBotName } from "@/lib/uiMode";
-import { segmentReply, type EmotionSegment } from "@/genesis/emotionDirector";
+import { segmentReply, emojiGlyph, type EmotionSegment } from "@/genesis/emotionDirector";
 import {
   appendTurn, ingestUserMessage, buildContext,
   useAtlasMemory, addFact, removeFact, memorySummary,
@@ -55,6 +56,7 @@ export function PetShell({
   const [micOn, setMicOn] = useState(() => getInputMode() === "voice");
   const [panelOpen, setPanelOpen] = useState(false);
   const [panelTab, setPanelTab] = useState<"chat" | "memory">("chat");
+  const [galleryOpen, setGalleryOpen] = useState(false);
   const [newFact, setNewFact] = useState("");
   const [brain, setBrain] = useState<{ label: string; model: string; online: boolean } | null>(null);
 
@@ -67,7 +69,7 @@ export function PetShell({
     setFaceState(s.expression);
     setEyeColor(s.eyeColor);
     setDiscTint(s.discTint);
-    setEmoji(s.emoji ?? null);
+    setEmoji(emojiGlyph(s));
   };
 
   // ── Sequential speak queue — sentences are spoken in order as they arrive ────
@@ -321,14 +323,24 @@ export function PetShell({
           </button>
         </form>
 
-        {/* small open-history / memory button */}
-        <button type="button" onClick={() => setPanelOpen(true)}
-          className="flex items-center gap-1.5 rounded-full px-2 py-1 text-[11px] text-muted-foreground/50 transition-colors hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          aria-label="Open history and memory">
-          <MessageSquare className="h-3 w-3" />
-          history &amp; memory{mem.history.length ? ` · ${mem.history.length}` : ""}
-        </button>
+        {/* small footer controls: history/memory + the collection */}
+        <div className="flex items-center gap-4">
+          <button type="button" onClick={() => setPanelOpen(true)}
+            className="flex items-center gap-1.5 rounded-full px-2 py-1 text-[11px] text-muted-foreground/50 transition-colors hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label="Open history and memory">
+            <MessageSquare className="h-3 w-3" />
+            history &amp; memory{mem.history.length ? ` · ${mem.history.length}` : ""}
+          </button>
+          <button type="button" onClick={() => setGalleryOpen(true)}
+            className="flex items-center gap-1.5 rounded-full px-2 py-1 text-[11px] text-muted-foreground/50 transition-colors hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label="Open the collection">
+            <Sparkles className="h-3 w-3" />
+            collection
+          </button>
+        </div>
       </div>
+
+      {galleryOpen && <FacesGallery onClose={() => setGalleryOpen(false)} />}
 
       {/* history + memory panel */}
       {panelOpen && (

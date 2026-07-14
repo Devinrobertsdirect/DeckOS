@@ -3,15 +3,40 @@ import { readAmplitude } from "@/lib/audioAnalyser";
 import {
   AtlasFaceEngine,
   FACE_THEMES,
+  EMOJI_PACKS,
+  setActiveEmojiPack,
   type FaceMode,
   type FaceState,
   type FaceTheme,
 } from "./atlasFaceEngine";
 
-export { FACE_THEMES };
+export { FACE_THEMES, EMOJI_PACKS };
 export type { FaceMode, FaceState, FaceTheme };
 
 const THEME_KEY = "atlas_face_theme";
+const EMOJI_PACK_KEY = "atlas_emoji_pack";
+
+// ── Emoji pack (swappable, like eye packs) ──────────────────────────────────
+export function readEmojiPack(): string {
+  const id = localStorage.getItem(EMOJI_PACK_KEY) ?? "core";
+  return EMOJI_PACKS[id] ? id : "core";
+}
+export function saveEmojiPack(id: string) {
+  localStorage.setItem(EMOJI_PACK_KEY, id);
+  setActiveEmojiPack(id);
+  window.dispatchEvent(new CustomEvent("atlas:emojiPackChanged", { detail: id }));
+}
+export function useEmojiPack(): [string, (id: string) => void] {
+  const [pack, setPack] = useState<string>(readEmojiPack);
+  useEffect(() => {
+    const onChange = () => setPack(readEmojiPack());
+    window.addEventListener("atlas:emojiPackChanged", onChange);
+    return () => window.removeEventListener("atlas:emojiPackChanged", onChange);
+  }, []);
+  return [pack, saveEmojiPack];
+}
+// Apply the stored pack to the engine as soon as this module loads.
+if (typeof window !== "undefined") setActiveEmojiPack(readEmojiPack());
 
 function readAccentRgb(): string {
   return (

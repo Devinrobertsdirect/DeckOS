@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -12,6 +12,7 @@ import { GenesisSetup } from "@/genesis/GenesisSetup";
 import { GenesisIntro } from "@/genesis/GenesisIntro";
 import { InputChoice } from "@/genesis/InputChoice";
 import { PetShell } from "@/pet/PetShell";
+import { FacesGallery } from "@/collection/FacesGallery";
 import { isSetupDone, isIntroDone, useUiMode, setUiMode } from "@/lib/uiMode";
 import { getInputMode } from "@/genesis/micAccess";
 import { SetupGuideModal } from "@/components/SetupGuideModal";
@@ -50,6 +51,11 @@ const queryClient = new QueryClient({
   },
 });
 
+function CollectionPage() {
+  const [, navigate] = useLocation();
+  return <FacesGallery onClose={() => navigate("/")} />;
+}
+
 function Router() {
   return (
     <Layout>
@@ -69,6 +75,7 @@ function Router() {
         <Route path="/settings" component={SettingsPage} />
         <Route path="/timeline" component={TimelinePage} />
         <Route path="/lie-detector" component={LieDetector} />
+        <Route path="/collection" component={CollectionPage} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

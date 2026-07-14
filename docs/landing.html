@@ -1,0 +1,284 @@
+<style>
+:root{
+  --paper:#F5F3EE; --panel:#FBFAF6; --panel2:#ECEAE2; --ink:#1E2A38; --ink-soft:#57636f;
+  --rule:#DCDAD2; --accent:#4A7FB5; --accent-ink:#2f5c88; --ice:#C9DCF0; --navy:#111a24;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono","Cascadia Mono","JetBrains Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root{
+  --paper:#0c1218; --panel:#121b24; --panel2:#18232d; --ink:#e2ecf6; --ink-soft:#93a3b3;
+  --rule:#22303b; --accent:#6aa0d6; --accent-ink:#9cc2e8; --navy:#0a1017;
+}}
+:root[data-theme="light"]{--paper:#F5F3EE;--panel:#FBFAF6;--panel2:#ECEAE2;--ink:#1E2A38;--ink-soft:#57636f;--rule:#DCDAD2;--accent:#4A7FB5;--accent-ink:#2f5c88;--navy:#111a24;}
+:root[data-theme="dark"]{--paper:#0c1218;--panel:#121b24;--panel2:#18232d;--ink:#e2ecf6;--ink-soft:#93a3b3;--rule:#22303b;--accent:#6aa0d6;--accent-ink:#9cc2e8;--navy:#0a1017;}
+*{box-sizing:border-box}
+.lp{background:var(--paper);color:var(--ink);font-family:var(--sans);line-height:1.6;overflow-x:hidden}
+.wrap{max-width:1080px;margin:0 auto;padding:0 clamp(1rem,4vw,2.5rem)}
+.eyebrow{font-family:var(--mono);font-size:.72rem;letter-spacing:.34em;text-transform:uppercase;color:var(--accent-ink);margin:0 0 1rem}
+h1,h2,h3{line-height:1.08;letter-spacing:-.02em;font-weight:800;text-wrap:balance}
+/* hero */
+.hero{position:relative;text-align:center;padding:clamp(3rem,8vh,6rem) 0 2rem;
+  background:radial-gradient(120% 80% at 50% 0%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 60%)}
+.face-stage{display:flex;flex-direction:column;align-items:center;gap:1.1rem;margin-bottom:1.8rem}
+#heroFace{width:min(300px,68vw);height:min(300px,68vw);display:block}
+.mood{font-family:var(--mono);font-size:.8rem;letter-spacing:.28em;text-transform:uppercase;color:var(--accent-ink);min-height:1.2em;transition:opacity .25s}
+.hero h1{font-size:clamp(2.1rem,6vw,4rem);margin:.2rem auto;max-width:16ch}
+.hero .lede{font-size:clamp(1.05rem,2.4vw,1.35rem);color:var(--ink-soft);max-width:42ch;margin:1rem auto 0}
+.cta{display:inline-flex;align-items:center;gap:.5rem;margin-top:1.8rem;background:var(--accent);color:#fff;
+  border:0;border-radius:999px;padding:.8rem 1.6rem;font-size:1rem;font-weight:600;text-decoration:none;cursor:pointer}
+.cta.ghost{background:transparent;color:var(--accent-ink);border:1px solid var(--rule)}
+.cta-row{display:flex;gap:.8rem;justify-content:center;flex-wrap:wrap}
+/* thesis band */
+.thesis{display:grid;gap:1rem;grid-template-columns:1fr;margin:3.5rem 0;padding:1.8rem;border:1px solid var(--rule);border-radius:16px;background:var(--panel)}
+@media(min-width:760px){.thesis{grid-template-columns:repeat(3,1fr)}}
+.thesis .t{padding:.2rem}
+.thesis .t h3{font-size:1.05rem;margin:0 0 .3rem}
+.thesis .t p{margin:0;font-size:.92rem;color:var(--ink-soft)}
+.thesis .t .k{font-family:var(--mono);font-size:.66rem;letter-spacing:.2em;text-transform:uppercase;color:var(--accent-ink)}
+section{padding:clamp(2.5rem,6vh,4rem) 0;border-top:1px solid var(--rule)}
+.sec-head{text-align:center;margin-bottom:2rem}
+.sec-head h2{font-size:clamp(1.5rem,3.4vw,2.2rem);margin:.4rem 0}
+.sec-head p{color:var(--ink-soft);max-width:46ch;margin:.4rem auto 0}
+/* collection */
+.grid{display:grid;gap:1rem;grid-template-columns:repeat(auto-fill,minmax(120px,1fr))}
+.card{background:var(--panel);border:1px solid var(--rule);border-radius:14px;padding:1rem .6rem;text-align:center;
+  display:flex;flex-direction:column;align-items:center;gap:.5rem;transition:transform .15s, box-shadow .15s}
+.card:hover{transform:translateY(-3px);box-shadow:0 10px 30px rgba(0,0,0,.10)}
+.card canvas{width:84px;height:84px}
+.card .lab{font-family:var(--mono);font-size:.64rem;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft)}
+.swatch{width:84px;height:84px;border-radius:12px;border:1px solid rgba(0,0,0,.15)}
+.packs{display:grid;gap:.8rem;grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+.pack{background:var(--panel);border:1px solid var(--rule);border-radius:14px;padding:1rem}
+.pack .pn{font-weight:700;margin-bottom:.5rem}
+.pack .gl{font-size:1.5rem;letter-spacing:.35rem}
+.moods{display:grid;gap:.7rem;grid-template-columns:repeat(auto-fill,minmax(84px,1fr))}
+.mood-cell{text-align:center}
+.mood-cell canvas{width:64px;height:64px}
+.mood-cell .lab{font-family:var(--mono);font-size:.58rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);margin-top:.2rem}
+/* setup steps */
+.steps{counter-reset:s;display:grid;gap:1rem;grid-template-columns:1fr}
+@media(min-width:760px){.steps{grid-template-columns:repeat(4,1fr)}}
+.step{position:relative;background:var(--panel);border:1px solid var(--rule);border-radius:14px;padding:1.4rem 1.1rem}
+.step::before{counter-increment:s;content:counter(s);font-family:var(--mono);font-weight:700;color:#fff;background:var(--accent);
+  width:1.7rem;height:1.7rem;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.85rem;margin-bottom:.7rem}
+.step h3{font-size:1rem;margin:0 0 .3rem}
+.step p{margin:0;font-size:.88rem;color:var(--ink-soft)}
+.remember{margin-top:1.6rem;text-align:center;font-size:1.05rem}
+.remember b{color:var(--accent-ink)}
+/* vision path */
+.path{display:flex;align-items:center;justify-content:center;gap:.5rem;flex-wrap:wrap;font-family:var(--mono);font-size:.8rem}
+.path .node{background:var(--panel);border:1px solid var(--rule);border-radius:10px;padding:.6rem .9rem;text-align:center}
+.path .node b{display:block;color:var(--ink);letter-spacing:.04em}
+.path .node span{color:var(--ink-soft);font-size:.7rem}
+.path .arrow{color:var(--accent)}
+.foot{border-top:1px solid var(--rule);padding:2rem 0 3rem;text-align:center;font-family:var(--mono);
+  font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft)}
+@media(prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+
+<div class="lp">
+  <header class="hero">
+    <div class="wrap">
+      <div class="face-stage">
+        <canvas id="heroFace" width="300" height="300" role="img" aria-label="Atlas, an animated companion face cycling through emotions"></canvas>
+        <div class="mood" id="moodLabel">meeting you</div>
+      </div>
+      <p class="eyebrow">DeckOS Atlas</p>
+      <h1>A Jarvis you adopt, customize, and grow.</h1>
+      <p class="lede">A companion AI with a face that actually feels — it remembers you, talks to your other tools, and grows from a desktop friend into the brain of your future robot.</p>
+      <div class="cta-row">
+        <a class="cta" href="#setup">Meet your Atlas</a>
+        <a class="cta ghost" href="#collection">See the collection</a>
+      </div>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="thesis">
+      <div class="t"><div class="k">The soul</div><h3>Two eyes that feel</h3><p>No mouth, no uncanny valley — a face that goes wide with delight, red with anger, hearts when it loves. The character is the product.</p></div>
+      <div class="t"><div class="k">The collection</div><h3>Make it yours</h3><p>Eye styles, colors, emoji packs, personalities — a shelf of looks to browse and swap, the way you'd collect the physical robots.</p></div>
+      <div class="t"><div class="k">The bond</div><h3>It remembers you</h3><p>A setup that takes a minute and is never lost, plus a memory of who you are — so it feels less like an app and more like a friend.</p></div>
+    </div>
+  </div>
+
+  <section id="collection">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">The collection</p>
+        <h2>One character, endless looks</h2>
+        <p>Every Atlas wears the same curve and the same two eyes — you choose the color, the style, and the vibe.</p>
+      </div>
+      <h3 style="font-size:.9rem;font-family:var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft);margin:0 0 .8rem">Eye styles &amp; colors</h3>
+      <div class="grid" id="eyeGrid"></div>
+      <h3 style="font-size:.9rem;font-family:var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft);margin:2rem 0 .8rem">Emoji packs</h3>
+      <div class="packs" id="packGrid"></div>
+      <h3 style="font-size:.9rem;font-family:var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft);margin:2rem 0 .8rem">The emotional range</h3>
+      <div class="moods" id="moodGrid"></div>
+    </div>
+  </section>
+
+  <section id="setup">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">The opening</p>
+        <h2>Set it up once. It never forgets.</h2>
+        <p>Before Atlas ever says a word, you make it yours — like setting up a new phone, but you're meeting a character.</p>
+      </div>
+      <div class="steps">
+        <div class="step"><h3>Connect your minds</h3><p>Plug in Claude, Gemini, ElevenLabs — or skip. Atlas talks to them for you.</p></div>
+        <div class="step"><h3>Name each other</h3><p>Tell it your name, and name your Atlas. It'll speak to you like a partner.</p></div>
+        <div class="step"><h3>Give it a voice</h3><p>A clear default voice, upgradable to a real ElevenLabs one.</p></div>
+        <div class="step"><h3>Give it its eyes</h3><p>Pick the style, color, and emoji pack — and watch it react as you choose.</p></div>
+      </div>
+      <p class="remember">Then it just <b>remembers</b> — your name, your settings, your conversations. Every time.</p>
+    </div>
+  </section>
+
+  <section id="vision">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">The upgrade path</p>
+        <h2>The computer is only the first body</h2>
+        <p>The same brain you talk to on your desktop is the one that will live in your robot's head.</p>
+      </div>
+      <div class="path">
+        <div class="node"><b>Desktop</b><span>command center</span></div>
+        <span class="arrow">→</span>
+        <div class="node"><b>Agent OS</b><span>memory · plugins · voice</span></div>
+        <span class="arrow">→</span>
+        <div class="node"><b>IoT + biometrics</b><span>your devices</span></div>
+        <span class="arrow">→</span>
+        <div class="node"><b>Robot brain</b><span>Raspberry Pi 5</span></div>
+        <span class="arrow">→</span>
+        <div class="node"><b>Your JARVIS</b><span>build-your-own kit</span></div>
+      </div>
+      <div style="text-align:center;margin-top:2.2rem">
+        <a class="cta" href="#setup">Adopt your Atlas</a>
+      </div>
+    </div>
+  </section>
+
+  <footer class="foot">
+    ONE CURVE · TWO EYES · ONE ACCENT · QUIET UNTIL NEEDED · BUILT TO BE OPENED
+  </footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var TAU = Math.PI*2;
+  function accent(){ return "201,220,240"; } // ice-blue eyes on the hero
+  function lerp(a,b,t){ return a+(b-a)*t; }
+
+  // ── Minimal Atlas face (self-contained port of the app's engine) ────────────
+  function eyeSpec(state){
+    // returns {shape, w, h} per eye plus extras; symmetric except wink
+    switch(state){
+      case "happy":     return {shape:"arc",  w:.17,h:.10};
+      case "love":      return {shape:"heart",w:.17,h:.16};
+      case "wink":      return {shape:"wink", w:.15,h:.30};
+      case "excited":   return {shape:"bolt", w:.15,h:.30};
+      case "starstruck":return {shape:"star", w:.17,h:.17};
+      case "cool":      return {shape:"lid",  w:.15,h:.13};
+      case "angry":     return {shape:"angry",w:.16,h:.15};
+      case "sad":       return {shape:"arcd", w:.16,h:.09};
+      case "curious":   return {shape:"pill", w:.16,h:.33};
+      case "thinking":  return {shape:"pill", w:.115,h:.24};
+      default:          return {shape:"pill", w:.14,h:.30};
+    }
+  }
+  function drawShape(ctx, shape, w, h, D, now, side){
+    ctx.beginPath();
+    switch(shape){
+      case "pill": ctx.roundRect(-w/2,-h/2,w,h,w/2); ctx.fill(); break;
+      case "arc":  ctx.lineWidth=Math.max(2,D*.045); ctx.lineCap="round"; ctx.arc(0,h,w*.62,Math.PI*1.15,Math.PI*1.85); ctx.stroke(); break;
+      case "arcd": ctx.lineWidth=Math.max(2,D*.045); ctx.lineCap="round"; ctx.arc(0,-h,w*.62,Math.PI*.15,Math.PI*.85); ctx.stroke(); break;
+      case "lid":  ctx.roundRect(-w/2,-h*.15,w,h,[3,3,w/2,w/2]); ctx.fill(); break;
+      case "angry":{ ctx.save(); ctx.rotate(side*0.5); ctx.roundRect(-w/2,-h/2,w,h,w/2); ctx.fill(); ctx.restore(); break; }
+      case "wink": if(side>0){ ctx.lineWidth=Math.max(2,D*.045); ctx.lineCap="round"; ctx.arc(0,h*.6,w*.62,Math.PI*1.15,Math.PI*1.85); ctx.stroke(); } else { ctx.roundRect(-w/2,-h/2,w,h,w/2); ctx.fill(); } break;
+      case "heart":{ var s=w/2*(1+.06*Math.sin(now*.008+side)); ctx.moveTo(0,s*.38); ctx.bezierCurveTo(s*.55,-s*.35,s*1.05,s*.28,0,s*.98); ctx.bezierCurveTo(-s*1.05,s*.28,-s*.55,-s*.35,0,s*.38); ctx.closePath(); ctx.fill(); break; }
+      case "star":{ var R=w/2, r=R*.42, tw=.85+.15*Math.sin(now*.01+side*1.7); for(var i=0;i<10;i++){ var a=(Math.PI/5)*i-Math.PI/2, rad=(i%2===0?R:r)*tw, px=Math.cos(a)*rad, py=Math.sin(a)*rad; i?ctx.lineTo(px,py):ctx.moveTo(px,py);} ctx.closePath(); ctx.fill(); break; }
+      case "bolt":{ ctx.lineWidth=Math.max(2,D*.03); ctx.lineJoin="round"; ctx.lineCap="round"; ctx.moveTo(w*.22,-h/2); ctx.lineTo(-w*.18,h*.06); ctx.lineTo(w*.10,h*.06); ctx.lineTo(-w*.22,h/2); ctx.stroke(); break; }
+    }
+  }
+  var blinkAt = 0, blinkP = -1;
+  function drawFace(ctx, D, state, now, rgb){
+    var cx=D/2, cy=D/2, R=D/2;
+    ctx.clearRect(0,0,D,D);
+    // disc
+    var g=ctx.createRadialGradient(cx,cy-R*.25,R*.1,cx,cy,R);
+    g.addColorStop(0,"rgb(30,42,56)"); g.addColorStop(1,"rgb(14,22,30)");
+    ctx.beginPath(); ctx.arc(cx,cy,R-1,0,TAU); ctx.fillStyle=g; ctx.fill();
+    var glow=.5+.5*Math.sin(now*.0016);
+    ctx.beginPath(); ctx.arc(cx,cy,R-1.5,0,TAU); ctx.strokeStyle="rgba("+rgb+","+(0.12+0.12*glow).toFixed(3)+")"; ctx.lineWidth=Math.max(1,D*.006); ctx.stroke();
+    // blink only on neutral states
+    var scale=1;
+    if(state==="idle"||state==="curious"||state==="thinking"){
+      if(!blinkAt) blinkAt=now+3000+Math.random()*2500;
+      if(blinkP<0 && now>=blinkAt) blinkP=0;
+      if(blinkP>=0){ blinkP+=16/140; if(blinkP>=1){ blinkP=-1; blinkAt=now+3000+Math.random()*2500; } else scale=Math.max(.08,Math.abs(1-blinkP*2)); }
+    }
+    var spec=eyeSpec(state);
+    var ox=.155*D, oy=-.05*D, driftX=Math.sin(now*.0003)*.01*D;
+    ctx.save(); ctx.translate(cx+driftX, cy);
+    ctx.fillStyle="rgb("+rgb+")"; ctx.strokeStyle="rgb("+rgb+")"; ctx.shadowColor="rgb("+rgb+")"; ctx.shadowBlur=D*.045;
+    [[-1],[1]].forEach(function(p){
+      var side=p[0]; ctx.save(); ctx.translate(side*ox, oy);
+      var h=spec.h*D*(spec.shape==="pill"?scale:1);
+      drawShape(ctx, spec.shape, spec.w*D, h, D, now, side);
+      ctx.restore();
+    });
+    ctx.restore();
+    ctx.shadowBlur=0;
+  }
+
+  // One ticker drives every canvas (setInterval fires even when rAF is throttled
+  // in embedded/background contexts, so the faces always animate).
+  var tickers=[];
+  function setup(cv, D){ var dpr=Math.min(2,window.devicePixelRatio||1); cv.width=D*dpr; cv.height=D*dpr; var cc=cv.getContext("2d"); cc.scale(dpr,dpr); return cc; }
+
+  // ── Hero: cycle through emotions with a caption ─────────────────────────────
+  var hero=document.getElementById("heroFace");
+  var moodLabel=document.getElementById("moodLabel");
+  var seq=[["happy","delighted"],["love","in love"],["wink","playful"],["excited","excited"],["starstruck","dazzled"],["curious","curious"],["cool","just cool"],["idle","listening"]];
+  var idx=0, lastSwap=0;
+  if(hero){
+    var hctx=setup(hero,300);
+    moodLabel.textContent=seq[0][1];
+    tickers.push(function(t){
+      if(t-lastSwap>1700){ idx=(idx+1)%seq.length; lastSwap=t; moodLabel.style.opacity="0"; setTimeout(function(){ moodLabel.textContent=seq[idx][1]; moodLabel.style.opacity="1"; },200); }
+      drawFace(hctx,300,seq[idx][0],t,accent());
+    });
+  }
+
+  // ── Collection: eye colors, emoji packs, moods ──────────────────────────────
+  var COLORS=[["ATLAS STEEL","74,127,181"],["ATLAS ICE","201,220,240"],["COBALT","63,132,243"],["EMERALD","17,217,122"],["AMBER","255,200,32"],["CRIMSON","240,50,72"]];
+  var eyeGrid=document.getElementById("eyeGrid");
+  if(eyeGrid){ COLORS.forEach(function(c){
+    var card=document.createElement("div"); card.className="card";
+    var cv=document.createElement("canvas"); var cc=setup(cv,84); var off=Math.random()*1000;
+    tickers.push(function(t){ drawFace(cc,84,"happy",t+off,c[1]); });
+    var lab=document.createElement("div"); lab.className="lab"; lab.textContent=c[0];
+    card.appendChild(cv); card.appendChild(lab); eyeGrid.appendChild(card);
+  }); }
+
+  var PACKS=[["Core","❤ ★ ✨ 😎 ;)"],["Emoji","😍 🤩 🎉 😴 😉"],["Kawaii","♡ ✧ ＊ ^_- ♫"],["Retro","<3 * :: B) Zz"]];
+  var packGrid=document.getElementById("packGrid");
+  if(packGrid){ PACKS.forEach(function(p){ var d=document.createElement("div"); d.className="pack"; d.innerHTML='<div class="pn">'+p[0]+'</div><div class="gl">'+p[1]+'</div>'; packGrid.appendChild(d); }); }
+
+  var MOODS=[["idle","calm"],["happy","happy"],["love","love"],["wink","wink"],["excited","excited"],["starstruck","star"],["curious","curious"],["angry","angry"],["sad","sad"],["cool","cool"]];
+  var moodGrid=document.getElementById("moodGrid");
+  if(moodGrid){ MOODS.forEach(function(m){
+    var cell=document.createElement("div"); cell.className="mood-cell";
+    var cv=document.createElement("canvas"); var cc=setup(cv,64); var off=Math.random()*1500;
+    tickers.push(function(t){ drawFace(cc,64,m[0],t+off,accent()); });
+    var lab=document.createElement("div"); lab.className="lab"; lab.textContent=m[1];
+    cell.appendChild(cv); cell.appendChild(lab); moodGrid.appendChild(cell);
+  }); }
+
+  var t0=Date.now();
+  function tick(){ var t=Date.now()-t0; for(var i=0;i<tickers.length;i++){ try{ tickers[i](t); }catch(e){} } }
+  tick();                     // immediate first frame — never blank
+  setInterval(tick, 40);      // ~25fps, runs in every context
+})();
+</script>

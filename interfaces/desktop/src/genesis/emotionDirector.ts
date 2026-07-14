@@ -35,8 +35,13 @@ export interface EmotionStyle {
   eyeColor: string | null;
   /** "r,g,b" disc tint, or null. */
   discTint: string | null;
-  /** Optional accent glyph flashed above the eyes (from EMOJI_PACKS core). */
-  emoji?: string;
+  /** Semantic emoji key resolved against the ACTIVE pack at render (see emojiGlyph). */
+  emojiKey?: string;
+}
+
+/** Resolve an emotion's accent glyph in whatever emoji pack is active. */
+export function emojiGlyph(style: EmotionStyle): string | null {
+  return style.emojiKey ? glyphFor(style.emojiKey) : null;
 }
 
 // Mood → face. Eye colours are deliberately restrained; only anger reddens the
@@ -44,22 +49,22 @@ export interface EmotionStyle {
 // face flashes it above the eyes while the eyes hold the base pose.
 export const EMOTION_STYLE: Record<Emotion, EmotionStyle> = {
   neutral:    { expression: "talking",    eyeColor: null,          discTint: null },
-  happy:      { expression: "happy",      eyeColor: null,          discTint: null, emoji: glyphFor("star") ?? undefined },
-  excited:    { expression: "excited",    eyeColor: "255,214,120", discTint: null, emoji: glyphFor("sparkle") ?? undefined },
+  happy:      { expression: "happy",      eyeColor: null,          discTint: null, emojiKey: "star" },
+  excited:    { expression: "excited",    eyeColor: "255,214,120", discTint: null, emojiKey: "sparkle" },
   angry:      { expression: "angry",      eyeColor: "232,74,58",   discTint: "150,36,30" },
   suspicious: { expression: "suspicious", eyeColor: "214,182,110", discTint: null },
   sad:        { expression: "sad",        eyeColor: "126,158,196", discTint: null },
-  confused:   { expression: "confused",   eyeColor: null,          discTint: null, emoji: glyphFor("question") ?? undefined },
+  confused:   { expression: "confused",   eyeColor: null,          discTint: null, emojiKey: "question" },
   thinking:   { expression: "thinking",   eyeColor: null,          discTint: null },
-  // Widened spectrum — each reuses an existing pose plus an accent glyph.
-  love:       { expression: "happy",      eyeColor: "236,138,160", discTint: null, emoji: glyphFor("love") ?? undefined },
-  surprised:  { expression: "excited",    eyeColor: "255,214,120", discTint: null, emoji: glyphFor("exclaim") ?? undefined },
-  proud:      { expression: "happy",      eyeColor: null,          discTint: null, emoji: glyphFor("ok") ?? undefined },
-  playful:    { expression: "happy",      eyeColor: null,          discTint: null, emoji: glyphFor("wink") ?? undefined },
-  grateful:   { expression: "happy",      eyeColor: "236,138,160", discTint: null, emoji: glyphFor("love") ?? undefined },
-  celebrating:{ expression: "excited",    eyeColor: "255,214,120", discTint: null, emoji: glyphFor("sparkle") ?? undefined },
-  curious:    { expression: "listening",  eyeColor: null,          discTint: null, emoji: glyphFor("question") ?? undefined },
-  cool:       { expression: "idle",       eyeColor: "150,180,205", discTint: null, emoji: glyphFor("cool") ?? undefined },
+  // Widened spectrum — several now use the new expressive forms (heart/star/wink).
+  love:       { expression: "love",       eyeColor: "236,138,160", discTint: null, emojiKey: "love" },
+  surprised:  { expression: "excited",    eyeColor: "255,214,120", discTint: null, emojiKey: "exclaim" },
+  proud:      { expression: "happy",      eyeColor: null,          discTint: null, emojiKey: "ok" },
+  playful:    { expression: "wink",       eyeColor: null,          discTint: null, emojiKey: "wink" },
+  grateful:   { expression: "love",       eyeColor: "236,138,160", discTint: null, emojiKey: "love" },
+  celebrating:{ expression: "starstruck", eyeColor: "255,214,120", discTint: null, emojiKey: "sparkle" },
+  curious:    { expression: "listening",  eyeColor: null,          discTint: null, emojiKey: "question" },
+  cool:       { expression: "idle",       eyeColor: "150,180,205", discTint: null, emojiKey: "cool" },
 };
 
 // Keyword lexicon. Matched case-insensitively as substrings/word-ish hits.

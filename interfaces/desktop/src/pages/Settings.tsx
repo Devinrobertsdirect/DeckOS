@@ -7,7 +7,7 @@ import {
   Activity, Brain, Plug, Unplug, Heart, Trash2, ShieldAlert, RotateCw,
   Smartphone, Copy,
 } from "lucide-react";
-import { setUiMode, resetGenesis } from "@/lib/uiMode";
+import { setUiMode, resetGenesis, setExperienceMode, getExperienceMode } from "@/lib/uiMode";
 import { ACERA_KEY } from "@/hooks/useAceraConnect";
 import { STARK_KEY } from "@/hooks/useStarkConnect";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -674,6 +674,34 @@ export default function Settings() {
           >
             <RotateCcw className="w-3.5 h-3.5" /> Replay intro
           </button>
+
+          {/* Device mode — Computer (face is home, explorable) vs Robot (face-locked). */}
+          <div className="mt-2 flex w-full flex-col gap-2 border-t border-primary/15 pt-3">
+            <span className="font-mono text-[10px] uppercase tracking-widest text-primary/40">Device mode</span>
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={() => setExperienceMode("computer")}
+                className={"flex items-center gap-2 px-3 py-2 border transition-all font-mono text-xs " +
+                  (getExperienceMode() === "computer"
+                    ? "border-primary/70 bg-primary/10 text-primary"
+                    : "border-primary/20 text-primary/70 hover:bg-primary/10")}
+              >
+                Computer — face is home, tools a tap away
+              </button>
+              <button
+                onClick={() => setExperienceMode("robot")}
+                className={"flex items-center gap-2 px-3 py-2 border transition-all font-mono text-xs " +
+                  (getExperienceMode() === "robot"
+                    ? "border-primary/70 bg-primary/10 text-primary"
+                    : "border-primary/20 text-primary/70 hover:bg-primary/10")}
+              >
+                Robot — face-locked kiosk
+              </button>
+            </div>
+            <span className="font-mono text-[10px] text-primary/30">
+              Robot mode shows only the face; long-press the face to come back to Computer mode.
+            </span>
+          </div>
         </CardContent>
       </Card>
 

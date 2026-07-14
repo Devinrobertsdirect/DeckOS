@@ -14,7 +14,8 @@ import { GenesisIntro } from "@/genesis/GenesisIntro";
 import { InputChoice } from "@/genesis/InputChoice";
 import { PetShell } from "@/pet/PetShell";
 import { FacesGallery } from "@/collection/FacesGallery";
-import { isSetupDone, isIntroDone, useUiMode, setUiMode } from "@/lib/uiMode";
+import { isSetupDone, isIntroDone, useUiMode, setUiMode, useExperienceMode } from "@/lib/uiMode";
+import { ReturnToFace } from "@/components/ReturnToFace";
 import { getInputMode } from "@/genesis/micAccess";
 import { SetupGuideModal } from "@/components/SetupGuideModal";
 import { TutorialProvider } from "@/contexts/TutorialContext";
@@ -92,6 +93,8 @@ function App() {
   // After the intro, Atlas asks "talk or type?" (which also grabs the mic).
   const [inputChosen, setInputChosen] = useState(() => getInputMode() !== null);
   const [uiMode] = useUiMode();
+  const [experienceMode] = useExperienceMode();
+  const robotMode = experienceMode === "robot";
 
   function handleStart() {
     sessionStorage.setItem("deckos_session", "1");
@@ -134,8 +137,11 @@ function App() {
               >
                 {stageContent}
               </motion.div>
-            ) : uiMode === "pet" ? (
+            ) : robotMode || uiMode === "pet" ? (
+              // Robot mode is face-LOCKED: never leave the face (dev/settings are
+              // hidden), everything else runs in the background.
               <PetShell
+                robotMode={robotMode}
                 onOpenDeveloper={() => setUiMode("developer")}
                 onOpenSettings={() => setUiMode("developer")}
               />
@@ -145,6 +151,8 @@ function App() {
                   <Router />
                   <SetupGuideModal />
                   <TutorialOverlay />
+                  {/* Always-there way back to the face (computer mode only). */}
+                  <ReturnToFace />
                 </TutorialProvider>
               </WouterRouter>
             )}

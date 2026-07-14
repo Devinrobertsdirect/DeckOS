@@ -46,6 +46,35 @@ export function useUiMode(): [UiMode, (m: UiMode) => void] {
   return [mode, setUiMode];
 }
 
+/**
+ * The higher-level experience mode — how much of the machine Atlas exposes:
+ *  - "computer" → the face is HOME (95% of everything happens there), but you
+ *    can dip into the full command center and get back to the face in one tap.
+ *  - "robot"    → face-LOCKED. Atlas only ever shows its face; everything else
+ *    runs in the background. For an actual robot / kiosk. Default: computer.
+ */
+export type ExperienceMode = "robot" | "computer";
+const EXPERIENCE_KEY = "atlas_experience_mode";
+
+export function getExperienceMode(): ExperienceMode {
+  return (localStorage.getItem(EXPERIENCE_KEY) as ExperienceMode) || "computer";
+}
+export function setExperienceMode(mode: ExperienceMode) {
+  localStorage.setItem(EXPERIENCE_KEY, mode);
+  window.dispatchEvent(new CustomEvent("atlas:experienceModeChanged", { detail: mode }));
+  // Robot mode is face-locked — snap straight back to the face.
+  if (mode === "robot") setUiMode("pet");
+}
+export function useExperienceMode(): [ExperienceMode, (m: ExperienceMode) => void] {
+  const [mode, setMode] = useState<ExperienceMode>(getExperienceMode);
+  useEffect(() => {
+    const on = (e: Event) => setMode((e as CustomEvent<ExperienceMode>).detail ?? getExperienceMode());
+    window.addEventListener("atlas:experienceModeChanged", on);
+    return () => window.removeEventListener("atlas:experienceModeChanged", on);
+  }, []);
+  return [mode, setExperienceMode];
+}
+
 // ── Genesis gates ────────────────────────────────────────────────────────────
 // The onboarding sequence: setup (keys/voice/name) → intro (talking face) → app.
 

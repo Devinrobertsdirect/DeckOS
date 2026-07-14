@@ -6,7 +6,7 @@ import { AtlasFace, type FaceState } from "@/components/faces/AtlasFace";
 import { useAtlasVoice } from "@/genesis/useAtlasVoice";
 import { useAtlasListening } from "@/genesis/useAtlasListening";
 import { getInputMode, setInputMode, acquireMic } from "@/genesis/micAccess";
-import { getUserName, getBotName, openDeckOsFeature } from "@/lib/uiMode";
+import { getUserName, getBotName, openDeckOsFeature, setExperienceMode } from "@/lib/uiMode";
 import { segmentReply, emojiGlyph, type EmotionSegment } from "@/genesis/emotionDirector";
 import { personaPrompt } from "@/genesis/personality";
 import { stripEmoji } from "@/lib/stripText";
@@ -40,9 +40,12 @@ function activityFor(state: FaceState): number {
 export function PetShell({
   onOpenDeveloper,
   onOpenSettings,
+  robotMode = false,
 }: {
   onOpenDeveloper: () => void;
   onOpenSettings: () => void;
+  /** Face-locked kiosk/robot mode: no dev/settings escape chrome. */
+  robotMode?: boolean;
 }) {
   const bot = getBotName();
   const { speak } = useAtlasVoice();
@@ -67,6 +70,20 @@ export function PetShell({
   const busyRef = useRef(false);
   busyRef.current = busy;
   const cancelRef = useRef(false);
+
+  // Robot mode is face-locked; a long-press on the face is the discreet way out
+  // back to computer mode (no visible chrome to clutter the kiosk).
+  const holdRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const startHold = useCallback(() => {
+    if (!robotMode) return;
+    holdRef.current = setTimeout(() => {
+      setExperienceMode("computer");
+      setCaption("Computer mode — tap my face any time to come home.");
+    }, 1200);
+  }, [robotMode]);
+  const endHold = useCallback(() => {
+    if (holdRef.current) { clearTimeout(holdRef.current); holdRef.current = null; }
+  }, []);
 
   const clearMood = () => { setEyeColor(null); setDiscTint(null); setEmoji(null); };
   const applyMood = (s: EmotionSegment["style"]) => {
@@ -321,22 +338,31 @@ export function PetShell({
         </div>
       </div>
 
-      {/* corner controls */}
-      <div className="absolute right-3 top-3 z-10 flex items-center gap-1">
-        <button type="button" onClick={onOpenSettings} aria-label="Settings" title="Settings"
-          className="rounded-full p-2 text-muted-foreground/40 transition-colors hover:bg-primary/10 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-          <Settings className="h-4 w-4" />
-        </button>
-        <button type="button" onClick={onOpenDeveloper} aria-label="Developer mode" title="Developer mode"
-          className="rounded-full p-2 text-muted-foreground/40 transition-colors hover:bg-primary/10 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-          <Code2 className="h-4 w-4" />
-        </button>
-      </div>
+      {/* corner controls — hidden in robot mode (face is the only screen) */}
+      {!robotMode && (
+        <div className="absolute right-3 top-3 z-10 flex items-center gap-1">
+          <button type="button" onClick={onOpenSettings} aria-label="Settings" title="Settings"
+            className="rounded-full p-2 text-muted-foreground/40 transition-colors hover:bg-primary/10 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <Settings className="h-4 w-4" />
+          </button>
+          <button type="button" onClick={onOpenDeveloper} aria-label="Developer mode" title="Developer mode"
+            className="rounded-full p-2 text-muted-foreground/40 transition-colors hover:bg-primary/10 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <Code2 className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {/* the pet */}
       <div className="relative z-[1] flex w-full max-w-md flex-col items-center gap-7">
-        <AtlasFace mode="auto" state={faceState} size={280} activity={activity}
-          eyeColorOverride={eyeColor} discTint={discTint} emoji={emoji} />
+        <div
+          onPointerDown={startHold}
+          onPointerUp={endHold}
+          onPointerLeave={endHold}
+          className={robotMode ? "cursor-pointer" : undefined}
+        >
+          <AtlasFace mode="auto" state={faceState} size={280} activity={activity}
+            eyeColorOverride={eyeColor} discTint={discTint} emoji={emoji} />
+        </div>
 
         <p aria-live="polite" className="min-h-[3.25rem] w-full text-center text-xl font-medium leading-snug text-foreground sm:text-2xl">
           {caption || <span className="text-base font-normal text-muted-foreground sm:text-lg">{hint}</span>}

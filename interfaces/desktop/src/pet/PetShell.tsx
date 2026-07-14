@@ -11,6 +11,7 @@ import { applyClientAction, type UiAction } from "@/pet/agentActions";
 import { segmentReply, emojiGlyph, type EmotionSegment } from "@/genesis/emotionDirector";
 import { personaPrompt } from "@/genesis/personality";
 import { stripEmoji } from "@/lib/stripText";
+import { dockLines } from "@/genesis/dockGreetings";
 import {
   appendTurn, ingestUserMessage, buildContext,
   useAtlasMemory, addFact, removeFact, memorySummary,
@@ -308,11 +309,53 @@ export function PetShell({
     return () => { alive = false; window.clearInterval(id); };
   }, []);
 
+  // ── Plug-in dock greeting — "thanks for the charge, syncing, anything you need?"
+  const dockingRef = useRef(false);
+  const runDockGreeting = useCallback(async () => {
+    if (dockingRef.current) return;
+    dockingRef.current = true;
+    cancelRef.current = false;
+    queueRef.current = [];
+    setBusy(true);
+    setFaceState("happy");
+    setCaption("Syncing…");
+    // The body resets on connect and drops its record a moment later — wait for it.
+    let record: { boot: number; lifeSec: number; sessMs: number } | null = null;
+    for (let i = 0; i < 6; i++) {
+      try {
+        const r = await fetch("/api/body/presence");
+        const d = (await r.json()) as { present?: boolean; record?: typeof record };
+        if (d.record) { record = d.record; break; }
+        if (!d.present) break;
+      } catch { /* ignore */ }
+      await new Promise((res) => setTimeout(res, 700));
+    }
+    const dl = dockLines(bot, record);
+    setCaption(dl.sync);
+    await new Promise((res) => setTimeout(res, 1100));
+    const clean = stripEmoji(dl.speak);
+    setCaption(clean);
+    for (const seg of segmentReply(dl.speak)) queueRef.current.push(seg);
+    void drainQueue();
+    await waitForQueue();
+    appendTurn("atlas", clean);
+    setFaceState("idle"); clearMood(); setBusy(false);
+    dockingRef.current = false;
+  }, [bot, drainQueue, waitForQueue]);
+
   // ── Greeting, once per mount (warmer if it remembers you) ───────────────────
   const greetedRef = useRef(false);
   useEffect(() => {
     if (greetedRef.current) return;
     greetedRef.current = true;
+    // A pending dock greeting (we were just plugged in) takes over the hello.
+    let dockPending = false;
+    try { dockPending = sessionStorage.getItem("atlas_dock_pending") === "1"; } catch { /* ignore */ }
+    if (dockPending) {
+      try { sessionStorage.removeItem("atlas_dock_pending"); } catch { /* ignore */ }
+      void runDockGreeting();
+      return;
+    }
     const name = getUserName().trim();
     const returning = mem.history.length > 0;
     const hello = name
@@ -326,6 +369,13 @@ export function PetShell({
     void speak(hello).finally(() => { setFaceState("idle"); setBusy(false); });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [speak, bot]);
+
+  // Plugged in while already in the buddy → dock greeting.
+  useEffect(() => {
+    const onPlug = () => { try { sessionStorage.removeItem("atlas_dock_pending"); } catch { /* ignore */ } void runDockGreeting(); };
+    window.addEventListener("atlas:pluggedIn", onPlug);
+    return () => window.removeEventListener("atlas:pluggedIn", onPlug);
+  }, [runDockGreeting]);
 
   useEffect(() => () => { cancelRef.current = true; }, []);
 

@@ -25,9 +25,10 @@ export type ToneCmd = { t: "TONE"; hz: number; ms: number };
 export type CfgCmd = { t: "CFG"; values: Record<string, string> };
 export type PingCmd = { t: "PING"; n: number };
 export type HelloCmd = { t: "HELLO"; v: number; name: string };
+export type SyncCmd = { t: "SYNC" };
 
 export type Command =
-  | DriveCmd | StopCmd | FaceCmd | EstopCmd | ServoCmd | ToneCmd | CfgCmd | PingCmd | HelloCmd;
+  | DriveCmd | StopCmd | FaceCmd | EstopCmd | ServoCmd | ToneCmd | CfgCmd | PingCmd | HelloCmd | SyncCmd;
 
 export type ReadyMsg = { t: "READY"; v: number; board: string; caps: string[] };
 export type TelemetryMsg = {
@@ -41,8 +42,10 @@ export type TelemetryMsg = {
 export type EventMsg = { t: "EVENT"; e: string };
 export type PongMsg = { t: "PONG"; n: number };
 export type LogMsg = { t: "LOG"; msg: string };
+/** The body's persistent logbook, dropped off on connect / SYNC. */
+export type RecordMsg = { t: "RECORD"; boot: number; lifeSec: number; sessMs: number };
 
-export type Report = ReadyMsg | TelemetryMsg | EventMsg | PongMsg | LogMsg;
+export type Report = ReadyMsg | TelemetryMsg | EventMsg | PongMsg | LogMsg | RecordMsg;
 
 // ── Encode (brain → body) ────────────────────────────────────────────────────
 function clamp(n: number, lo: number, hi: number): number {
@@ -65,6 +68,7 @@ export function encodeCommand(cmd: Command): string {
     case "SERVO": return `SERVO id=${cmd.id | 0} deg=${clamp(cmd.deg, 0, 180) | 0}`;
     case "TONE": return `TONE hz=${cmd.hz | 0} ms=${cmd.ms | 0}`;
     case "PING": return `PING n=${cmd.n | 0}`;
+    case "SYNC": return "SYNC";
     case "CFG": {
       const pairs = Object.entries(cmd.values).map(([k, v]) => `${sanitize(k)}=${sanitize(v)}`);
       return `CFG ${pairs.join(" ")}`;
@@ -92,6 +96,7 @@ export function decodeReport(line: string): Report | null {
         yaw: numOrU(kv["yaw"]),
       };
     case "EVENT": return { t: "EVENT", e: kv["e"] ?? "" };
+    case "RECORD": return { t: "RECORD", boot: int(kv["boot"], 0), lifeSec: int(kv["life_s"], 0), sessMs: int(kv["sess_ms"], 0) };
     case "PONG": return { t: "PONG", n: int(kv["n"], 0) };
     case "LOG": return { t: "LOG", msg: rest.join(" ").replace(/^msg=/, "") };
     default: return null;

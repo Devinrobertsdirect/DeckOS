@@ -14,6 +14,7 @@ import { pluginsListCmd, pluginsStoreCmd, pluginsInstallCmd } from '../src/comma
 import { brainCmd, brainInstallCmd } from '../src/commands/brain.mjs';
 import { robotConnectCmd } from '../src/commands/robot-connect.mjs';
 import { hardwareCmd } from '../src/commands/hardware.mjs';
+import { flashCmd } from '../src/commands/flash.mjs';
 import { printBanner } from '../src/lib/banner.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -143,6 +144,18 @@ program
   .description('Detect this machine and show how Atlas will run (sim / Pi / serial body)')
   .action(async () => {
     await hardwareCmd();
+  });
+
+// ── flash ────────────────────────────────────────────────────────────────────
+program
+  .command('flash')
+  .description('Flash the Atlas body firmware onto a connected Arduino/ESP32 (auto toolchain)')
+  .option('--esp32', 'Flash the ESP32 firmware (default: Arduino Nano/Uno)')
+  .option('--uno', 'Target an Arduino Uno')
+  .option('--port <port>', 'Serial port to use (e.g. COM5, /dev/ttyUSB0)')
+  .option('--old', 'Nano clones with the old bootloader (atmega328old)')
+  .action(async (opts) => {
+    await flashCmd(opts);
   });
 
 // ── Default: show banner + help ────────────────────────────────────────────

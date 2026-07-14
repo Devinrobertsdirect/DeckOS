@@ -16,6 +16,7 @@ import { PetShell } from "@/pet/PetShell";
 import { FacesGallery } from "@/collection/FacesGallery";
 import { isSetupDone, isIntroDone, useUiMode, setUiMode, useExperienceMode, getBotName, syncBotNameToServer } from "@/lib/uiMode";
 import { ReturnToFace } from "@/components/ReturnToFace";
+import { PlugInWatcher } from "@/components/PlugInWatcher";
 import { getInputMode } from "@/genesis/micAccess";
 import { SetupGuideModal } from "@/components/SetupGuideModal";
 import { TutorialProvider } from "@/contexts/TutorialContext";
@@ -160,6 +161,7 @@ function App() {
                 </TutorialProvider>
               </WouterRouter>
             )}
+            {!onboarding && <PlugInWatcher />}
             <Toaster />
           </TooltipProvider>
         </QueryClientProvider>

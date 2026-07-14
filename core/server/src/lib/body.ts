@@ -1,52 +1,144 @@
 /**
- * body.ts — the process-wide Atlas body.
+ * body.ts — the process-wide Atlas body, with live plug-and-play.
  *
- * Lazily creates and starts the right HAL body for this machine (sim on a
- * desktop, Pi GPIO on a Pi, serial bridge when a board is wired) and hands it to
- * the rest of the brain. One accessor, `getBody()`, so routes and behaviours
- * never care what they're driving.
+ * Picks the right HAL body for this machine and, crucially, watches the USB
+ * ports: plug an Arduino/ESP32 in and the brain connects to it automatically
+ * (SerialBridgeBody), reads its telemetry + "record" drop, and can drive it;
+ * unplug it and the brain falls back to the virtual body. One accessor,
+ * `getBody()`, so routes/behaviours never care what they're driving.
  */
-import { createBody, detectBackend, desktopProfile, type AtlasBody, type DetectResult, type HardwareProfile } from "../hal/index.js";
+import { createBody, detectBackend, desktopProfile, SerialBridgeBody, type AtlasBody, type DetectResult, type HardwareProfile } from "../hal/index.js";
+import { SerialPortTransport, listBoardPorts } from "./serialTransport.js";
 
 let body: AtlasBody | null = null;
 let starting: Promise<AtlasBody> | null = null;
 let detection: DetectResult | null = null;
+let currentPort: string | null = null;
+let watcher: ReturnType<typeof setInterval> | null = null;
+let swapping = false;
 
-function activeProfile(): HardwareProfile {
-  // Future: load a profile file named by ATLAS_PROFILE. Desktop default for now.
-  return desktopProfile();
+function serialProfile(port: string): HardwareProfile {
+  return {
+    id: "atlas-serial",
+    name: `Serial body (${port})`,
+    backend: "serial",
+    target: "arduino / esp32",
+    serial: { path: port, baud: 115200 },
+    drive: { wheelBaseM: 0.12, wheelRadiusM: 0.025, maxSpeedMps: 0.35 },
+  };
 }
 
-/** Get the running body, creating + starting it on first use. */
+/** Which board port to use: an explicit ATLAS_SERIAL, else the first USB board. */
+async function pickPort(): Promise<string | null> {
+  const forced = process.env["ATLAS_SERIAL"]?.trim();
+  if (forced) return forced;
+  const ports = await listBoardPorts();
+  return ports[0]?.path ?? null;
+}
+
+async function connectSerial(port: string): Promise<AtlasBody | null> {
+  try {
+    const profile = serialProfile(port);
+    const b = new SerialBridgeBody(new SerialPortTransport(port, 115200), profile);
+    await b.start();
+    currentPort = port;
+    detection = { ...detectBackend(profile), backend: "serial", reason: `board connected on ${port}` };
+    return b;
+  } catch {
+    return null;
+  }
+}
+
+async function connectVirtual(): Promise<AtlasBody> {
+  const profile = desktopProfile();
+  detection = detectBackend(profile);
+  currentPort = null;
+  const b = createBody(profile);
+  await b.start();
+  return b;
+}
+
+async function makeBody(): Promise<AtlasBody> {
+  const port = await pickPort();
+  if (port) {
+    const serial = await connectSerial(port);
+    if (serial) return serial;
+  }
+  // No board (or serial unavailable) → the always-works virtual body.
+  const det = detectBackend(desktopProfile());
+  try {
+    const b = createBody({ ...desktopProfile(), backend: det.backend });
+    await b.start();
+    detection = det;
+    return b;
+  } catch {
+    return connectVirtual();
+  }
+}
+
 export async function getBody(): Promise<AtlasBody> {
   if (body) return body;
   if (starting) return starting;
   starting = (async () => {
-    const profile = activeProfile();
-    detection = detectBackend(profile);
-    let b: AtlasBody;
-    try {
-      b = createBody(profile);
-      await b.start();
-    } catch {
-      // Any hardware backend that can't start (e.g. pigpio missing) falls back
-      // to the virtual body so the brain never hangs on a missing peripheral.
-      b = createBody(desktopProfile());
-      await b.start();
-      detection = { ...(detection as DetectResult), backend: "sim", reason: "hardware backend unavailable — fell back to sim" };
-    }
-    body = b;
-    return b;
+    body = await makeBody();
+    startWatcher();
+    return body;
   })();
   return starting;
 }
 
-/** Detection result (backend + why), for diagnostics / the CLI. */
+// ── Hot-plug watcher — connect on plug-in, revert on unplug ───────────────────
+function startWatcher(): void {
+  if (watcher) return;
+  watcher = setInterval(() => { void tick(); }, 3000);
+}
+async function tick(): Promise<void> {
+  if (swapping || !body) return;
+  try {
+    const port = await pickPort();
+    if (port && currentPort !== port) {
+      swapping = true;
+      const serial = await connectSerial(port);
+      if (serial) { const old = body; body = serial; try { await old?.stop(); } catch { /* ignore */ } }
+      swapping = false;
+    } else if (!port && currentPort) {
+      swapping = true;
+      const old = body;
+      body = await connectVirtual();
+      try { await old?.stop(); } catch { /* ignore */ }
+      swapping = false;
+    }
+  } catch { swapping = false; }
+}
+
 export function getBodyDetection(): DetectResult | null {
   return detection;
 }
 
-/** Best-effort: read state without forcing a start (null if not started yet). */
 export function peekBody(): AtlasBody | null {
   return body;
+}
+
+/**
+ * Board presence for the client's plug-in experience: is a physical board
+ * connected, on which port, and what did it drop off (its record)?
+ */
+export async function getPresence(): Promise<{
+  present: boolean; port: string | null; connected: boolean;
+  board: string | null; backend: string | null;
+  record: { boot: number; lifeSec: number; sessMs: number } | null;
+}> {
+  const port = await pickPort().catch(() => null);
+  // A board is present → make sure the brain is connecting to it (non-blocking),
+  // so its record gets read and driving works.
+  if (port) void getBody();
+  const st = body?.getState();
+  return {
+    present: !!port,
+    port: port ?? currentPort,
+    connected: !!(st && st.connected && body?.kind === "serial"),
+    board: st?.board ?? null,
+    backend: detection?.backend ?? null,
+    record: st?.record ?? null,
+  };
 }

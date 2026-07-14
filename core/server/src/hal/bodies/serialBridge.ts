@@ -153,6 +153,10 @@ export class SerialBridgeBody implements AtlasBody {
         s.updatedAt = Date.now();
         this.emitter.emit("telemetry", this.getState());
         break;
+      case "RECORD":
+        s.record = { boot: report.boot, lifeSec: report.lifeSec, sessMs: report.sessMs };
+        this.emitter.emit("event", { e: "record", record: s.record });
+        break;
       case "EVENT":
         if (report.e.startsWith("estop")) s.estop = report.e === "estop_on" || report.e === "estop";
         this.emitter.emit("event", { e: report.e });

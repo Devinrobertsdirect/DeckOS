@@ -28,6 +28,8 @@ export interface BodyState {
   estop: boolean;
   tof: number[];            // forward distances, mm (nearest-first)
   yaw?: number;             // heading, degrees (from IMU)
+  /** The body's persistent logbook, dropped off on connect (wake count + lifetime). */
+  record?: { boot: number; lifeSec: number; sessMs: number };
   updatedAt: number;        // epoch ms of last telemetry
 }
 

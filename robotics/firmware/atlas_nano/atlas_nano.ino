@@ -9,7 +9,8 @@
 // Note: analogWrite() on the Nano is ~490 Hz (not the 20 kHz of the full spec);
 // fine for a small/desk build. For the 282 mm robot, prefer the ESP32 or the Pi.
 
-#include "../AtlasWireProtocol.h"
+#include "AtlasWireProtocol.h"
+#include <EEPROM.h>
 
 // TB6612FNG pins.
 const int PIN_STBY = 8;
@@ -30,10 +31,30 @@ const float BATT_DIVIDER = 5.7f;   // (R1+R2)/R2 for a 4S pack on 5V ADC
 volatile long encL = 0, encR = 0;
 int wantL = 0, wantR = 0;          // -255..255
 bool estopSw = false;
-unsigned long lastCmd = 0, lastTel = 0;
+unsigned long lastCmd = 0, lastTel = 0, lastPersist = 0;
 
 char lineBuf[80];
 size_t lineLen = 0;
+
+// ── Persistent "records" (EEPROM) — the little logbook the body carries and
+//    "drops off" to the brain on connect: how many times it's woken and its
+//    total lifetime awake. Low-wear: boot count written once per boot, lifetime
+//    seconds only every few minutes.
+unsigned int bootCount = 0;        // 16-bit on AVR
+unsigned long lifeBaseSec = 0;     // lifetime seconds BEFORE this session
+
+void loadRecords() {
+  EEPROM.get(0, bootCount);
+  if (bootCount == 0xFFFF) bootCount = 0;            // fresh chip
+  EEPROM.get(2, lifeBaseSec);
+  if (lifeBaseSec == 0xFFFFFFFFUL) lifeBaseSec = 0;
+}
+void persistLife() { unsigned long life = lifeBaseSec + millis() / 1000UL; EEPROM.put(2, life); }
+void sendRecord(Stream& out) {
+  out.print(F("RECORD boot=")); out.print(bootCount);
+  out.print(F(" life_s=")); out.print(lifeBaseSec + millis() / 1000UL);
+  out.print(F(" sess_ms=")); out.println(millis());
+}
 
 void isrL() { encL += (digitalRead(PIN_ENCL_DIR) ? 1 : -1); }
 void isrR() { encR += (digitalRead(PIN_ENCR_DIR) ? 1 : -1); }
@@ -70,6 +91,10 @@ void handleLine(const char* line) {
     awpSendEvent(Serial, estopSw ? "estop_on" : "estop_off");
   } else if (awpIs(line, "HELLO")) {
     awpSendReady(Serial, "nano", "drive,enc,estop,batt");
+    sendRecord(Serial);                 // drop the logbook when the brain says hi
+  } else if (awpIs(line, "SYNC")) {
+    persistLife();
+    sendRecord(Serial);                 // brain asked to sync → hand over the record
   } else if (awpIs(line, "PING")) {
     Serial.print(F("PONG n=")); Serial.println(awpArg(line, "n", 0));
   }
@@ -92,8 +117,14 @@ void setup() {
   pinMode(PIN_ENCR, INPUT_PULLUP); pinMode(PIN_ENCR_DIR, INPUT);
   attachInterrupt(digitalPinToInterrupt(PIN_ENCL), isrL, RISING);
   attachInterrupt(digitalPinToInterrupt(PIN_ENCR), isrR, RISING);
+  // Load + bump the persistent record (a new wake), then announce ourselves and
+  // hand the brain our logbook in one drop.
+  loadRecords();
+  bootCount++;
+  EEPROM.put(0, bootCount);
   lastCmd = millis();
   awpSendReady(Serial, "nano", "drive,enc,estop,batt");
+  sendRecord(Serial);
 }
 
 void loop() {
@@ -105,4 +136,6 @@ void loop() {
     int es = (estopSw || estopPressed()) ? 1 : 0;
     awpSendTel(Serial, encL, encR, readBattMv(), -1, es, -1);
   }
+  // Persist lifetime seconds occasionally (EEPROM-wear friendly).
+  if (now - lastPersist >= 300000UL) { lastPersist = now; persistLife(); }
 }

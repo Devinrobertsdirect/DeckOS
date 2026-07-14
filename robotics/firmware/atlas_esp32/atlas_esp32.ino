@@ -12,7 +12,7 @@
 //
 // Board: any ESP32 dev module. Tools -> Board -> ESP32 Dev Module.
 
-#include "../AtlasWireProtocol.h"
+#include "AtlasWireProtocol.h"
 
 // ── Config ────────────────────────────────────────────────────────────────────
 #define ATLAS_USE_WIFI 0            // set to 1 and fill creds below to enable WiFi

@@ -12,8 +12,8 @@
   "dependencies": {
     "@workspace/api-zod": "workspace:*",
     "@workspace/db": "workspace:*",
-    "@workspace/integrations-openai-ai-server": "workspace:*",
     "@workspace/event-bus": "workspace:*",
+    "@workspace/integrations-openai-ai-server": "workspace:*",
     "cookie-parser": "^1.4.7",
     "cors": "^2",
     "drizzle-orm": "catalog:",
@@ -21,6 +21,7 @@
     "mqtt": "^5.15.1",
     "pino": "^9",
     "pino-http": "^10",
+    "serialport": "^13.0.0",
     "ws": "^8.20.0",
     "zod": "catalog:"
   },

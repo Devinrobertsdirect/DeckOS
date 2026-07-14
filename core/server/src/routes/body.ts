@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod/v4";
-import { getBody, getBodyDetection } from "../lib/body.js";
+import { getBody, getBodyDetection, getPresence } from "../lib/body.js";
 
 /**
  * /api/body — drive and observe the physical (or virtual) Atlas body through the
@@ -8,6 +8,13 @@ import { getBody, getBodyDetection } from "../lib/body.js";
  * microcontroller over serial/WiFi.
  */
 const router = Router();
+
+// GET /api/body/presence — is a physical board plugged in? (for the plug-in
+// experience: auto robot mode + the "thanks for the charge" greeting). Cheap;
+// safe to poll. Does NOT force the body to start.
+router.get("/body/presence", async (_req, res) => {
+  res.json(await getPresence());
+});
 
 // GET /api/body — current body state + which backend is driving it.
 router.get("/body", async (_req, res) => {

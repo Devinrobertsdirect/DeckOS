@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowUp, Code2, Loader2, Mic, MicOff, Settings, MessageSquare, X, Brain, Trash2, Sparkles, LayoutGrid } from "lucide-react";
 import { FacesGallery } from "@/collection/FacesGallery";
 import { CapabilitiesPanel } from "@/pet/CapabilitiesPanel";
+import { BuddySettings } from "@/pet/BuddySettings";
 import { AtlasFace, type FaceState } from "@/components/faces/AtlasFace";
 import { useAtlasVoice } from "@/genesis/useAtlasVoice";
 import { useAtlasListening } from "@/genesis/useAtlasListening";
@@ -41,11 +42,9 @@ function activityFor(state: FaceState): number {
 
 export function PetShell({
   onOpenDeveloper,
-  onOpenSettings,
   robotMode = false,
 }: {
   onOpenDeveloper: () => void;
-  onOpenSettings: () => void;
   /** Face-locked kiosk/robot mode: no dev/settings escape chrome. */
   robotMode?: boolean;
 }) {
@@ -66,6 +65,7 @@ export function PetShell({
   const [panelTab, setPanelTab] = useState<"chat" | "memory">("chat");
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [skillsOpen, setSkillsOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [newFact, setNewFact] = useState("");
   const [brain, setBrain] = useState<{ label: string; model: string; online: boolean } | null>(null);
 
@@ -403,7 +403,7 @@ export function PetShell({
       {/* corner controls — hidden in robot mode (face is the only screen) */}
       {!robotMode && (
         <div className="absolute right-3 top-3 z-10 flex items-center gap-1">
-          <button type="button" onClick={onOpenSettings} aria-label="Settings" title="Settings"
+          <button type="button" onClick={() => setSettingsOpen(true)} aria-label="Settings" title="Settings"
             className="rounded-full p-2 text-muted-foreground/40 transition-colors hover:bg-primary/10 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
             <Settings className="h-4 w-4" />
           </button>
@@ -486,6 +486,8 @@ export function PetShell({
           onAsk={(text) => void handleSend(text)}
         />
       )}
+
+      {settingsOpen && <BuddySettings onClose={() => setSettingsOpen(false)} />}
 
       {/* history + memory panel */}
       {panelOpen && (

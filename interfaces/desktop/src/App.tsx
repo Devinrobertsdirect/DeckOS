@@ -148,7 +148,6 @@ function App() {
               <PetShell
                 robotMode={robotMode}
                 onOpenDeveloper={() => setUiMode("developer")}
-                onOpenSettings={() => setUiMode("developer")}
               />
             ) : (
               <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>

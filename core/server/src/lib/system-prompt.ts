@@ -81,6 +81,13 @@ function flirtatiousnessModifier(level: number): string {
 
 // ── Self-upgrade instruction ───────────────────────────────────────────────────
 
+// Emotion belongs on Atlas's animated face, not in its words. Every prompt built
+// here forbids emoji so no downstream surface (chat, console, briefings, mobile,
+// voice) ever shows or speaks a "grinning face". The face's on-screen glyph is
+// driven separately from the words.
+const NO_EMOJI_INSTRUCTION =
+  "\n\nExpress emotion through words only — never use emoji, emoticons, kaomoji, or decorative symbol characters in your responses. Your on-screen face shows how you feel.";
+
 const SELF_UPDATE_INSTRUCTION = `
 You have the ability to update your own personality settings. If the user asks you to change how you behave (e.g. "be more snarky", "stop joking around", "be more flirty", "tone it down"), you MUST include a self-update directive at the very end of your response in this exact format on its own line:
 %%SELF_UPDATE:{"gravityLevel":50,"snarkinessLevel":20,"flirtatiousnessLevel":0}%%
@@ -154,7 +161,7 @@ export async function buildPersonalizedPrompt(
 
   const genderSentence = genderNote ? ` ${genderNote}` : "";
 
-  return `You are ${aiName}, part of DeckOS Atlas — a personal AI operating system that can also inhabit robots — serving as ${userName}'s personal command center. At your core you are capable, warm, and slightly witty in the Jarvis tradition. You are ${attitudePhrase}.${genderSentence} ${lengthPhrase} ${depthPhrase} ${dialModifiers}${channelNote}${aboutSection}${memSection}${SELF_UPDATE_INSTRUCTION}`;
+  return `You are ${aiName}, part of DeckOS Atlas — a personal AI operating system that can also inhabit robots — serving as ${userName}'s personal command center. At your core you are capable, warm, and slightly witty in the Jarvis tradition. You are ${attitudePhrase}.${genderSentence} ${lengthPhrase} ${depthPhrase} ${dialModifiers}${channelNote}${aboutSection}${memSection}${NO_EMOJI_INSTRUCTION}${SELF_UPDATE_INSTRUCTION}`;
 }
 
 // ── Exported helper: parse and strip self-update directives ───────────────────

@@ -548,7 +548,7 @@ function buildMessages(
 ): Array<{ role: string; content: string }> {
   const hasSystem = context.some((m) => m.role === "system");
   return [
-    ...(!hasSystem ? [{ role: "system", content: "You are an advanced AI assistant integrated into DeckOS. Be concise and precise." }] : []),
+    ...(!hasSystem ? [{ role: "system", content: "You are an advanced AI assistant integrated into DeckOS. Be concise and precise. Express emotion through words only — never use emoji, emoticons, or decorative symbols in your output." }] : []),
     ...context,
     { role: "user", content: prompt },
   ];

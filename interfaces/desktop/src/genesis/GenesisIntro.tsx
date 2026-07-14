@@ -4,6 +4,7 @@ import { useAtlasVoice, getVoiceEngine, warmUpVoices } from "@/genesis/useAtlasV
 import { buildGenesisScript, type GenesisBeat } from "@/genesis/genesisScript";
 import { PROVIDERS } from "@/genesis/providers";
 import { getUserName, getBotName, markIntroDone } from "@/lib/uiMode";
+import { stripEmoji } from "@/lib/stripText";
 
 const AI_BEATS_CACHE = "atlas_intro_beats";
 const VALID_EXPR: FaceState[] = ["idle", "happy", "listening", "thinking", "excited", "confused"];
@@ -140,7 +141,7 @@ export function GenesisIntro({ onComplete }: { onComplete: () => void }) {
       // expressive poses (happy, excited, thinking…) are shown as-authored.
       const speakingState: FaceState = beat.expression === "idle" ? "talking" : beat.expression;
       setFaceState(beat.text ? speakingState : beat.expression);
-      setCaption(beat.text);
+      setCaption(stripEmoji(beat.text));
 
       if (beat.text) {
         await speak(beat.text);

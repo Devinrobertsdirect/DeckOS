@@ -7,6 +7,8 @@ import { useAtlasListening } from "@/genesis/useAtlasListening";
 import { getInputMode, setInputMode, acquireMic } from "@/genesis/micAccess";
 import { getUserName, getBotName } from "@/lib/uiMode";
 import { segmentReply, emojiGlyph, type EmotionSegment } from "@/genesis/emotionDirector";
+import { personaPrompt } from "@/genesis/personality";
+import { stripEmoji } from "@/lib/stripText";
 import {
   appendTurn, ingestUserMessage, buildContext,
   useAtlasMemory, addFact, removeFact, memorySummary,
@@ -107,6 +109,7 @@ export function PetShell({
 
       // Memory: build context from prior history + facts BEFORE recording this turn.
       const ctx = buildContext({ maxTurns: 12 });
+      const persona = personaPrompt(); // in-character system instruction (name + traits)
       appendTurn("user", message);
       ingestUserMessage(message);
 
@@ -116,7 +119,7 @@ export function PetShell({
         const res = await fetch("/api/chat/stream", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message, history: ctx.history, facts: ctx.facts }),
+          body: JSON.stringify({ message, history: ctx.history, facts: ctx.facts, persona }),
         });
         if (!res.ok || !res.body) throw new Error(`stream ${res.status}`);
 
@@ -148,7 +151,9 @@ export function PetShell({
             if (obj.token) {
               full += obj.token;
               pending += obj.token;
-              setCaption(full);
+              // Show the words only — any emoji the model emits are stripped here
+              // (the face shows emotion via its own on-screen glyph animation).
+              setCaption(stripEmoji(full));
               // While the mood queue isn't actively speaking a sentence, hold the
               // neutral talking pose; the queue takes over per-sentence emotion.
               if (!drainingRef.current) setFaceState("talking");
@@ -170,23 +175,24 @@ export function PetShell({
           const res = await fetch("/api/chat", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ message, history: ctx.history, facts: ctx.facts }),
+            body: JSON.stringify({ message, history: ctx.history, facts: ctx.facts, persona }),
           });
           const data = (await res.json()) as { response?: string };
           full = (data.response ?? "").trim() || SERVER_DOWN_MSG;
           ok = res.ok && full !== SERVER_DOWN_MSG;
-          setCaption(full);
+          setCaption(stripEmoji(full));
           for (const seg of segmentReply(full)) queueRef.current.push(seg);
           void drainQueue();
         } catch {
           full = SERVER_DOWN_MSG; ok = false;
-          setFaceState("confused"); setCaption(full);
+          setFaceState("confused"); setCaption(stripEmoji(full));
           await speak(full);
         }
       }
 
       await waitForQueue();
-      appendTurn("atlas", full);
+      // Persist the clean words (no emoji) so recalled history stays speakable.
+      appendTurn("atlas", stripEmoji(full));
       setFaceState("idle");
       clearMood();
       setBusy(false);

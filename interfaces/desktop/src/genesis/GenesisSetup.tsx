@@ -11,6 +11,7 @@ import {
   type FaceState,
 } from "@/components/faces/AtlasFace";
 import { applyColor, type ColorScheme } from "@/components/Onboarding";
+import { PERSONAS, setPersona, usePersonaId } from "@/genesis/personality";
 import {
   PROVIDERS,
   providersByCategory,
@@ -278,7 +279,7 @@ export function GenesisSetup({ onComplete }: { onComplete: () => void }) {
     "Plug in the AI services you already use — or skip and add them later. Atlas taps them for its very first hello.",
     "A name for you, and a name for your companion — so it can talk to you like a partner, not a product.",
     "Choose how it sounds. Tap “Hear me” to preview before you decide.",
-    "Its eyes, its emoji, its colour — everything updates live. Try things on until it feels like yours.",
+    "Pick a personality, then its eyes, emoji, and colour — everything updates live. Make it yours.",
     "This is the Atlas you just made. Say hello.",
   ][step];
 
@@ -798,6 +799,7 @@ function AppearanceStep() {
   // so saving one updates the big preview and all card previews at once.
   const theme = useFaceTheme();
   const [emojiPack, setEmojiPack] = useEmojiPack();
+  const personaId = usePersonaId();
   const [accent, setAccent] = useState<ColorScheme>(
     () => (localStorage.getItem("deckos_color") as ColorScheme) || "steel",
   );
@@ -826,6 +828,37 @@ function AppearanceStep() {
         <AtlasFace mode="atlas" state={showcaseState} size={120} />
         <span className="text-xs italic text-white/40">Watch me feel.</span>
       </div>
+
+      {/* Personality — the lead choice: sets how it TALKS + a matching look. */}
+      <section className="w-full max-w-md">
+        <h3 className="mb-2.5 text-center text-[11px] font-semibold uppercase tracking-wider text-white/35">
+          Personality
+        </h3>
+        <div className="grid grid-cols-2 gap-2.5">
+          {PERSONAS.map((p) => {
+            const selected = p.id === personaId;
+            return (
+              <button
+                key={p.id}
+                type="button"
+                // Applies the whole vibe: response traits (once an AI is attached),
+                // plus its matching eyes + emoji pack. Fine-tune the look below.
+                onClick={() => setPersona(p.id)}
+                aria-pressed={selected}
+                className={
+                  "flex flex-col gap-1 rounded-xl border p-3 text-left transition-all " +
+                  (selected
+                    ? "border-[#4A7FB5] bg-[#4A7FB5]/10 ring-1 ring-[#4A7FB5]"
+                    : "border-white/10 bg-white/[0.03] hover:border-white/25")
+                }
+              >
+                <span className="text-sm font-medium text-[#F7F5F0]">{p.name}</span>
+                <span className="text-[11px] leading-snug text-white/45">{p.blurb}</span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
 
       {/* Eyes — the face-theme grid. */}
       <section className="w-full max-w-md">

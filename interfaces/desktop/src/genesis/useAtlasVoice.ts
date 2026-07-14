@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { attachAmplitudeAnalyser } from "@/lib/audioAnalyser";
+import { stripEmoji } from "@/lib/stripText";
 
 /**
  * Unified voice for Atlas. Two engines, one interface:
@@ -116,7 +117,7 @@ export function useAtlasVoice(): AtlasVoice {
         const synth = window.speechSynthesis;
         const u = new SpeechSynthesisUtterance(text);
         // A touch faster than default reads as confident and clear, not rushed.
-        u.rate = opts.rate ?? 1.08;
+        u.rate = opts.rate ?? 1.15;
         u.pitch = opts.pitch ?? 1.0;
         u.volume = 1;
         u.voice = pickClearVoice(synth);
@@ -173,13 +174,17 @@ export function useAtlasVoice(): AtlasVoice {
 
   const speak = useCallback(
     async (text: string, opts: SpeakOptions = {}) => {
-      if (!text.trim()) return;
+      // Emoji are a FACE animation, never speech — strip them so the TTS never
+      // reads "grinning face". (The server /tts route strips too, so the
+      // ElevenLabs path is covered even if a caller bypasses this hook.)
+      const spoken = stripEmoji(text);
+      if (!spoken.trim()) return;
       stoppedRef.current = false;
       setSpeaking(true);
       const engine = opts.engine ?? getVoiceEngine();
       try {
-        if (engine === "server") await speakServer(text, opts);
-        else await speakBrowser(text, opts);
+        if (engine === "server") await speakServer(spoken, opts);
+        else await speakBrowser(spoken, opts);
       } finally {
         if (!stoppedRef.current) setSpeaking(false);
       }

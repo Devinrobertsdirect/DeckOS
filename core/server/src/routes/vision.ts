@@ -157,14 +157,33 @@ async function getPersonaGender(): Promise<string | null> {
   }
 }
 
+/**
+ * Emoji are Atlas's on-screen face animation, never speech — strip them so no
+ * TTS engine ever reads "grinning face". Keeps plain arrows/punctuation intact.
+ */
+function stripSpeechEmoji(s: string): string {
+  return s
+    .replace(/[\p{Extended_Pictographic}\u{1F1E6}-\u{1F1FF}\u{FE00}-\u{FE0F}\u{200D}\u{20E3}]/gu, "")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/[ \t]+([.,!?;:])/g, "$1")
+    .trim();
+}
+
 router.post("/tts", async (req, res) => {
-  const { text, voice, gender: bodyGender } = req.body as {
+  const { text: rawText, voice, gender: bodyGender } = req.body as {
     text?: string;
     voice?: string;
     gender?: string;
   };
 
-  if (!text || typeof text !== "string") {
+  if (!rawText || typeof rawText !== "string") {
+    res.status(400).json({ error: "text required" });
+    return;
+  }
+
+  // Speak the words only; emoji live on the face, not in the voice.
+  const text = stripSpeechEmoji(rawText);
+  if (!text) {
     res.status(400).json({ error: "text required" });
     return;
   }

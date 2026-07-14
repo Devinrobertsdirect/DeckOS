@@ -26,6 +26,8 @@ const ChatRequestSchema = z.object({
     content: z.string(),
   })).optional(),
   facts: z.array(z.string()).optional(),
+  /** Client-built personality instruction (name + traits). */
+  persona: z.string().max(600).optional(),
 });
 
 const VoiceIdentityUpdateSchema = z.object({
@@ -44,7 +46,7 @@ router.post("/chat", async (req, res) => {
     return;
   }
 
-  const { message, channel, sessionId, requestId, history, facts } = parsed.data;
+  const { message, channel, sessionId, requestId, history, facts, persona } = parsed.data;
   const startMs = Date.now();
 
   // record user presence
@@ -98,7 +100,14 @@ router.post("/chat", async (req, res) => {
     .catch(() => "You are Atlas, the AI core of DeckOS Atlas. Be concise, capable, and warm.");
   const aceraCtx = getAceraContext();
   const starkCtx = getStarkContext();
-  let systemPrompt = baseSystemPrompt;
+  // The client-chosen personality (name + traits) leads the prompt so replies
+  // stay in-character; the DB-derived base prompt still supplies tool guidance.
+  let systemPrompt = persona && persona.trim()
+    ? `${persona.trim()}\n\n${baseSystemPrompt}`
+    : baseSystemPrompt;
+  // Emotion is shown on Atlas's face, not typed — keep emoji out of the words.
+  systemPrompt +=
+    "\n\nExpress emotion through words only — never use emoji, emoticons, kaomoji, or decorative symbols in your replies.";
   if (aceraCtx) systemPrompt += `\n\n--- ACERA SCENE CONTEXT ---\n${aceraCtx}\n---`;
   if (starkCtx) systemPrompt += `\n\n--- STARK BIOELECTRIC CONTEXT ---\n${starkCtx}\n---`;
 

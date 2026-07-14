@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { motion } from "framer-motion";
 import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -97,19 +98,42 @@ function App() {
     setStarted(true);
   }
 
+  // ── Onboarding: one calm, crossfading sequence up to "our buddy" ────────────
+  // Each stage is keyed so the next one mounts and fades IN immediately (no
+  // AnimatePresence exit callback — that stalls under React 19 for this app).
+  const onboarding = !started || !setupDone || !introDone || !inputChosen;
+  const stageKey = !started
+    ? "start"
+    : !setupDone
+      ? "setup"
+      : !introDone
+        ? "intro"
+        : "input";
+  const stageContent = !started ? (
+    <StartScreen onStart={handleStart} />
+  ) : !setupDone ? (
+    <GenesisSetup onComplete={() => setSetupDone(true)} />
+  ) : !introDone ? (
+    <GenesisIntro onComplete={() => setIntroDone(true)} />
+  ) : (
+    <InputChoice onComplete={() => setInputChosen(true)} />
+  );
+
   return (
     <VisualModeProvider>
       <WebSocketProvider>
         <QueryClientProvider client={queryClient}>
           <TooltipProvider>
-            {!started ? (
-              <StartScreen onStart={handleStart} />
-            ) : !setupDone ? (
-              <GenesisSetup onComplete={() => setSetupDone(true)} />
-            ) : !introDone ? (
-              <GenesisIntro onComplete={() => setIntroDone(true)} />
-            ) : !inputChosen ? (
-              <InputChoice onComplete={() => setInputChosen(true)} />
+            {onboarding ? (
+              <motion.div
+                key={stageKey}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.45, ease: "easeOut" }}
+                className="fixed inset-0"
+              >
+                {stageContent}
+              </motion.div>
             ) : uiMode === "pet" ? (
               <PetShell
                 onOpenDeveloper={() => setUiMode("developer")}

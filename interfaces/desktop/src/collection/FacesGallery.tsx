@@ -12,6 +12,7 @@ import {
 } from "@/components/faces/AtlasFace";
 import { applyColor, getStoredColor, type ColorScheme } from "@/components/Onboarding";
 import { getBotName } from "@/lib/uiMode";
+import { setPersona } from "@/genesis/personality";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Static catalogue metadata (colour hexes/labels aren't exported from Onboarding,
@@ -143,6 +144,9 @@ export function FacesGallery({ onClose }: { onClose: () => void }) {
   const activeTheme = useFaceTheme();
   const [emojiPack, setEmojiPack] = useEmojiPack();
   const [activeColor, setActiveColor] = useState<ColorScheme>(getStoredColor);
+  const [activePersona, setActivePersona] = useState<string>(
+    () => localStorage.getItem("atlas_persona") || "workshop",
+  );
   const botName = getBotName();
 
   // Escape closes; lock the body scroll while the overlay owns the viewport.
@@ -363,12 +367,16 @@ export function FacesGallery({ onClose }: { onClose: () => void }) {
         >
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {PERSONAS.map((p) => {
-              const active = activeTheme.id === p.themeId;
+              const active = activePersona === p.themeId;
               const theme = FACE_THEMES.find((t) => t.id === p.themeId);
               return (
                 <button
                   key={p.themeId}
-                  onClick={() => saveFaceTheme(p.themeId)}
+                  onClick={() => {
+                    // Apply the FULL persona: response traits (LLM), eyes, and emoji pack.
+                    setPersona(p.themeId);
+                    setActivePersona(p.themeId);
+                  }}
                   aria-pressed={active}
                   className={`${cardCls(active)} !items-start !text-left`}
                 >
@@ -394,8 +402,8 @@ export function FacesGallery({ onClose }: { onClose: () => void }) {
             })}
           </div>
           <p className="font-mono text-[10px] leading-relaxed text-primary/30">
-            Note — this applies the persona&apos;s eye look only. Voice, verbosity, humour and
-            proactivity are tuned separately in Settings.
+            Note — picking a personality tunes how {botName} <em>talks</em> (humour, warmth, energy)
+            and applies its matching eyes + emoji pack. Fine-tune individual traits in Settings.
           </p>
         </Section>
       </div>

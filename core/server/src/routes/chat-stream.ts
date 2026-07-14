@@ -25,6 +25,8 @@ const StreamRequestSchema = z.object({
   message: z.string().min(1).max(4096),
   history: z.array(HistoryMessageSchema).optional(),
   facts: z.array(z.string()).optional(),
+  /** The client-built personality instruction (name + traits) — see personality.ts. */
+  persona: z.string().max(600).optional(),
   sessionId: z.string().optional(),
 });
 
@@ -36,12 +38,18 @@ router.post("/stream", async (req, res) => {
     return;
   }
 
-  const { message, history, facts } = parsed.data;
+  const { message, history, facts, persona } = parsed.data;
 
-  // Warm, witty Atlas persona — kept concise so spoken replies stay snappy.
+  // Personality comes from the client (name + traits). Fall back to the classic
+  // warm/witty Atlas if none was sent. Kept concise so spoken replies stay snappy.
   let systemPrompt =
-    "You are Atlas, a warm, witty personal AI operating system. " +
-    "Answer in 1 to 3 short sentences unless the user asks for detail.";
+    (persona && persona.trim()
+      ? persona.trim()
+      : "You are Atlas, a warm, witty personal AI operating system.") +
+    " Answer in 1 to 3 short sentences unless the user asks for detail." +
+    " Express emotion through words only — never use emoji, emoticons, kaomoji," +
+    " or decorative symbols. Your on-screen face shows how you feel; your text is" +
+    " just the words you speak.";
   if (facts && facts.length > 0) {
     systemPrompt +=
       "\n\nHere is what you remember about the user:\n" +

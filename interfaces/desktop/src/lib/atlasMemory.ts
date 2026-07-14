@@ -171,6 +171,32 @@ export function removeFact(id: string): void {
   }
 }
 
+/**
+ * Forget the fact that best matches a free-text query ("forget that I have a
+ * dog" → removes "has a dog…"). Returns the removed fact's text, or null if
+ * nothing matched. Used by the "forget" skill.
+ */
+export function forgetByText(query: string): string | null {
+  const q = normalizeFact(query);
+  if (!q) return null;
+  const facts = getFacts();
+  const qWords = new Set(q.split(" ").filter((w) => w.length > 2));
+  let best: { fact: MemoryFact; score: number } | null = null;
+  for (const f of facts) {
+    const nf = normalizeFact(f.text);
+    let score = 0;
+    if (nf.includes(q) || q.includes(nf)) score = 100;
+    else {
+      const fw = nf.split(" ");
+      for (const w of fw) if (qWords.has(w)) score++;
+    }
+    if (score > 0 && (!best || score > best.score)) best = { fact: f, score };
+  }
+  if (!best) return null;
+  removeFact(best.fact.id);
+  return best.fact.text;
+}
+
 export function clearFacts(): void {
   try {
     localStorage.removeItem(FACTS_KEY);

@@ -20,6 +20,23 @@ export type VoiceEngine = "browser" | "server";
 const VOICE_ENGINE_KEY = "atlas_voice_engine";
 const VOICE_ID_KEY = "deckos_voice"; // shared with the existing voice picker
 const BROWSER_VOICE_KEY = "atlas_browser_voice"; // chosen browser voice (voiceURI)
+const VOICE_RATE_KEY = "atlas_voice_rate"; // speaking speed (browser voice)
+
+const DEFAULT_RATE = 1.15;
+/** Global speaking rate for the browser voice (0.6–1.8). */
+export function getVoiceRate(): number {
+  const n = Number(localStorage.getItem(VOICE_RATE_KEY));
+  return Number.isFinite(n) && n >= 0.6 && n <= 1.8 ? n : DEFAULT_RATE;
+}
+export function setVoiceRate(rate: number): number {
+  const clamped = Math.max(0.6, Math.min(1.8, rate));
+  localStorage.setItem(VOICE_RATE_KEY, String(clamped));
+  return clamped;
+}
+/** Nudge the speaking rate up/down (for "talk faster" / "slow down"). Returns the new rate. */
+export function nudgeVoiceRate(delta: number): number {
+  return setVoiceRate(getVoiceRate() + delta);
+}
 
 export function getVoiceEngine(): VoiceEngine {
   return (localStorage.getItem(VOICE_ENGINE_KEY) as VoiceEngine) || "browser";
@@ -176,7 +193,8 @@ export function useAtlasVoice(): AtlasVoice {
         const synth = window.speechSynthesis;
         const u = new SpeechSynthesisUtterance(text);
         // A touch faster than default reads as confident and clear, not rushed.
-        u.rate = opts.rate ?? 1.15;
+        // Honors the user's saved rate ("talk faster / slow down").
+        u.rate = opts.rate ?? getVoiceRate();
         u.pitch = opts.pitch ?? 1.0;
         u.volume = 1;
         u.voice = resolveBrowserVoice(synth, opts.browserVoiceURI);

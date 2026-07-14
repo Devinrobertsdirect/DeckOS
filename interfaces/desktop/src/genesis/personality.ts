@@ -94,6 +94,14 @@ export function customizeTraits(patch: Partial<PersonaTraits>) {
   window.dispatchEvent(new CustomEvent("atlas:personaChanged", { detail: "custom" }));
 }
 
+/** Nudge one trait up/down and clamp to [0,1] — for "be more funny / less snarky". */
+export function nudgeTrait(trait: keyof PersonaTraits, delta: number): number {
+  const cur = getPersona().traits;
+  const next = Math.max(0, Math.min(1, (cur[trait] ?? 0.5) + delta));
+  customizeTraits({ [trait]: next } as Partial<PersonaTraits>);
+  return next;
+}
+
 function level(v: number, low: string, mid: string, high: string): string | null {
   if (v >= 0.66) return high;
   if (v >= 0.33) return mid;

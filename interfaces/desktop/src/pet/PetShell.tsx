@@ -6,7 +6,8 @@ import { AtlasFace, type FaceState } from "@/components/faces/AtlasFace";
 import { useAtlasVoice } from "@/genesis/useAtlasVoice";
 import { useAtlasListening } from "@/genesis/useAtlasListening";
 import { getInputMode, setInputMode, acquireMic } from "@/genesis/micAccess";
-import { getUserName, getBotName, openDeckOsFeature, setExperienceMode } from "@/lib/uiMode";
+import { getUserName, getBotName, setExperienceMode } from "@/lib/uiMode";
+import { applyClientAction, type UiAction } from "@/pet/agentActions";
 import { segmentReply, emojiGlyph, type EmotionSegment } from "@/genesis/emotionDirector";
 import { personaPrompt } from "@/genesis/personality";
 import { stripEmoji } from "@/lib/stripText";
@@ -145,26 +146,37 @@ export function PetShell({
           body: JSON.stringify({ message, facts: ctx.facts }),
         });
         if (ar.ok) {
-          const decision = (await ar.json()) as {
-            mode: "action" | "chat";
-            speak?: string;
-            ui?: { type: "open"; route: string } | { type: "remember"; fact: string } | { type: "none" };
-          };
-          if (decision.mode === "action" && decision.speak) {
-            full = decision.speak;
-            ok = true;
-            setCaption(stripEmoji(full));
-            setFaceState("happy");
-            for (const seg of segmentReply(full)) queueRef.current.push(seg);
-            void drainQueue();
-            await waitForQueue();
-            appendTurn("atlas", stripEmoji(full));
-            if (decision.ui?.type === "remember" && decision.ui.fact) addFact(decision.ui.fact, "user");
+          const decision = (await ar.json()) as { mode: "action" | "chat"; speak?: string; ui?: UiAction };
+          if (decision.mode === "action") {
+            const ui: UiAction = decision.ui ?? { type: "none" };
+            // "say that again" re-speaks the previous reply.
+            let sayText = decision.speak ?? "";
+            if (ui.type === "replayLast") {
+              const lastAtlas = [...mem.history].reverse().find((t) => t.role === "atlas");
+              sayText = lastAtlas?.text ?? "I don't have anything to repeat yet.";
+            }
+            // Run the client effect now; get back any deferred (navigate / mode /
+            // mood) to run AFTER Atlas finishes speaking.
+            const deferred = applyClientAction(ui, {
+              showMood: (state, ms) => {
+                setFaceState(state as FaceState);
+                window.setTimeout(() => setFaceState("idle"), ms);
+              },
+            });
+            if (sayText.trim()) {
+              ok = true;
+              full = sayText;
+              setCaption(stripEmoji(full));
+              setFaceState("happy");
+              for (const seg of segmentReply(full)) queueRef.current.push(seg);
+              void drainQueue();
+              await waitForQueue();
+              appendTurn("atlas", stripEmoji(full));
+            }
             setFaceState("idle");
             clearMood();
             setBusy(false);
-            // Navigate last, after speaking — this may unmount the buddy.
-            if (decision.ui?.type === "open" && decision.ui.route) openDeckOsFeature(decision.ui.route);
+            if (deferred) deferred();
             return;
           }
         }

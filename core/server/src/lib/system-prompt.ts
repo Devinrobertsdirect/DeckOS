@@ -1,4 +1,5 @@
 import { db, userCognitiveModelTable, aiPersonaTable } from "@workspace/db";
+import { capabilitiesPromptBlock } from "./capabilities.js";
 
 interface IdentityLayer {
   aiName?: string;
@@ -161,7 +162,7 @@ export async function buildPersonalizedPrompt(
 
   const genderSentence = genderNote ? ` ${genderNote}` : "";
 
-  return `You are ${aiName}, part of DeckOS Atlas — a personal AI operating system that can also inhabit robots — serving as ${userName}'s personal command center. At your core you are capable, warm, and slightly witty in the Jarvis tradition. You are ${attitudePhrase}.${genderSentence} ${lengthPhrase} ${depthPhrase} ${dialModifiers}${channelNote}${aboutSection}${memSection}${NO_EMOJI_INSTRUCTION}${SELF_UPDATE_INSTRUCTION}`;
+  return `You are ${aiName}, part of DeckOS Atlas — a personal AI operating system that can also inhabit robots — serving as ${userName}'s personal command center. At your core you are capable, warm, and slightly witty in the Jarvis tradition. You are ${attitudePhrase}.${genderSentence} ${lengthPhrase} ${depthPhrase} ${dialModifiers}${channelNote}${aboutSection}${memSection}\n\n${capabilitiesPromptBlock({ compact: false })}${NO_EMOJI_INSTRUCTION}${SELF_UPDATE_INSTRUCTION}`;
 }
 
 // ── Exported helper: parse and strip self-update directives ───────────────────

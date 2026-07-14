@@ -33,6 +33,7 @@ import lieDetectorRouter from "./lie-detector";
 import pairingRouter from "./pairing";
 import providersRouter from "./providers";
 import genesisRouter from "./genesis";
+import capabilitiesRouter from "./capabilities";
 
 const router: IRouter = Router();
 
@@ -70,5 +71,6 @@ router.use(lieDetectorRouter);
 router.use(pairingRouter);
 router.use("/providers", providersRouter);
 router.use("/genesis", genesisRouter);
+router.use(capabilitiesRouter);
 
 export default router;

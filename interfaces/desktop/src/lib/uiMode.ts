@@ -21,6 +21,21 @@ export function setUiMode(mode: UiMode) {
   window.dispatchEvent(new CustomEvent("atlas:uiModeChanged", { detail: mode }));
 }
 
+/**
+ * Atlas is the FACE of DeckOS — from the buddy it can take you straight into any
+ * DeckOS tool. Point the router at the feature's route, then switch to the full
+ * command center (developer mode) so it renders there. `route` is a leading-slash
+ * path from the capability manifest (e.g. "/devices", "/briefings").
+ */
+export function openDeckOsFeature(route: string) {
+  const clean = route && route.startsWith("/") ? route : `/${route || ""}`;
+  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+  try {
+    window.history.pushState({}, "", `${base}${clean}`);
+  } catch { /* ignore — mode switch still lands them in the command center */ }
+  setUiMode("developer");
+}
+
 export function useUiMode(): [UiMode, (m: UiMode) => void] {
   const [mode, setMode] = useState<UiMode>(getUiMode);
   useEffect(() => {

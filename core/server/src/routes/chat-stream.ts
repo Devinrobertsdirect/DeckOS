@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod/v4";
 import { runInferenceStreaming } from "../lib/inference.js";
+import { capabilitiesPromptBlock } from "../lib/capabilities.js";
 
 /**
  * Streaming chat — a fast, stateless Server-Sent-Events endpoint.
@@ -49,7 +50,8 @@ router.post("/stream", async (req, res) => {
     " Answer in 1 to 3 short sentences unless the user asks for detail." +
     " Express emotion through words only — never use emoji, emoticons, kaomoji," +
     " or decorative symbols. Your on-screen face shows how you feel; your text is" +
-    " just the words you speak.";
+    " just the words you speak." +
+    "\n\n" + capabilitiesPromptBlock();
   if (facts && facts.length > 0) {
     systemPrompt +=
       "\n\nHere is what you remember about the user:\n" +

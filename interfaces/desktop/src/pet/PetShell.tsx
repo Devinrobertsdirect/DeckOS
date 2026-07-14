@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowUp, Code2, Loader2, Mic, MicOff, Settings, MessageSquare, X, Brain, Trash2, Sparkles } from "lucide-react";
+import { ArrowUp, Code2, Loader2, Mic, MicOff, Settings, MessageSquare, X, Brain, Trash2, Sparkles, LayoutGrid } from "lucide-react";
 import { FacesGallery } from "@/collection/FacesGallery";
+import { CapabilitiesPanel } from "@/pet/CapabilitiesPanel";
 import { AtlasFace, type FaceState } from "@/components/faces/AtlasFace";
 import { useAtlasVoice } from "@/genesis/useAtlasVoice";
 import { useAtlasListening } from "@/genesis/useAtlasListening";
@@ -59,6 +60,7 @@ export function PetShell({
   const [panelOpen, setPanelOpen] = useState(false);
   const [panelTab, setPanelTab] = useState<"chat" | "memory">("chat");
   const [galleryOpen, setGalleryOpen] = useState(false);
+  const [skillsOpen, setSkillsOpen] = useState(false);
   const [newFact, setNewFact] = useState("");
   const [brain, setBrain] = useState<{ label: string; model: string; online: boolean } | null>(null);
 
@@ -343,10 +345,23 @@ export function PetShell({
             <Sparkles className="h-3 w-3" />
             collection
           </button>
+          <button type="button" onClick={() => setSkillsOpen(true)}
+            className="flex items-center gap-1.5 rounded-full px-2 py-1 text-[11px] text-muted-foreground/50 transition-colors hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label={`What ${bot} can do`}>
+            <LayoutGrid className="h-3 w-3" />
+            what I can do
+          </button>
         </div>
       </div>
 
       {galleryOpen && <FacesGallery onClose={() => setGalleryOpen(false)} />}
+
+      {skillsOpen && (
+        <CapabilitiesPanel
+          onClose={() => setSkillsOpen(false)}
+          onAsk={(text) => void handleSend(text)}
+        />
+      )}
 
       {/* history + memory panel */}
       {panelOpen && (

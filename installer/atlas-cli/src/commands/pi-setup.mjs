@@ -31,7 +31,7 @@ export async function piSetupCmd(opts = {}) {
 
   if (!isRaspberryPi() && !opts.force) {
     console.log('  A Pi runs Atlas; it isn\'t flashed like a Nano. Run this ON the Pi:\n');
-    console.log('    ' + chalk.cyan(`curl -fsSL ${RAW_URL} | bash`));
+    console.log('    ' + chalk.cyan(`curl -fsSL ${RAW_URL} -o /tmp/atlas-pi-setup.sh && bash /tmp/atlas-pi-setup.sh`));
     console.log('\n  or, from a copy of the repo on the Pi:');
     console.log('    ' + chalk.cyan('bash installer/atlas-cli/scripts/pi-setup.sh'));
     console.log('\n  It installs Node + pigpio, builds Atlas, and sets it to auto-start on boot.');
@@ -41,7 +41,7 @@ export async function piSetupCmd(opts = {}) {
 
   if (!existsSync(SCRIPT)) {
     console.log(chalk.red(`  Setup script not found at ${SCRIPT}.`));
-    console.log('  Run the hosted one instead:  ' + chalk.cyan(`curl -fsSL ${RAW_URL} | bash`));
+    console.log('  Run the hosted one instead:  ' + chalk.cyan(`curl -fsSL ${RAW_URL} -o /tmp/atlas-pi-setup.sh && bash /tmp/atlas-pi-setup.sh`));
     process.exitCode = 1;
     return;
   }

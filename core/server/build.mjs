@@ -119,6 +119,7 @@ async function buildAll() {
       "sass-embedded",
       "sequelize",
       "serialport",
+      "pigpio",
       "snappy",
       "tinypool",
       "usb",
@@ -163,7 +164,7 @@ globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
       "@parcel/watcher", "@sentry/profiling-node", "@tree-sitter/*", "aws-sdk",
       "classic-level", "dd-trace", "ffi-napi", "grpc", "hiredis", "kerberos",
       "leveldown", "miniflare", "mysql2", "newrelic", "odbc", "piscina", "realm",
-      "ref-napi", "rocksdb", "sass-embedded", "sequelize", "serialport", "snappy",
+      "ref-napi", "rocksdb", "sass-embedded", "sequelize", "serialport", "pigpio", "snappy",
       "tinypool", "usb", "workerd", "wrangler", "zeromq", "zeromq-prebuilt",
       "playwright", "puppeteer", "puppeteer-core", "electron",
     ];

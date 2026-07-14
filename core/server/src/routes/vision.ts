@@ -311,8 +311,19 @@ router.get("/elevenlabs/voices", async (_req, res) => {
     headers: { "xi-api-key": apiKey },
   });
   if (!resp.ok) { res.status(resp.status).json({ error: "ElevenLabs API error" }); return; }
-  const data = await resp.json() as { voices: { voice_id: string; name: string; category: string }[] };
-  const voices = (data.voices ?? []).map((v) => ({ id: v.voice_id, name: v.name, category: v.category }));
+  const data = await resp.json() as {
+    voices: { voice_id: string; name: string; category: string; labels?: Record<string, string>; description?: string; preview_url?: string }[];
+  };
+  const voices = (data.voices ?? []).map((v) => ({
+    id: v.voice_id,
+    name: v.name,
+    category: v.category,
+    // A short human descriptor from the voice's labels (e.g. "American · female").
+    descriptor: [v.labels?.["accent"], v.labels?.["gender"], v.labels?.["age"]]
+      .filter(Boolean)
+      .join(" · "),
+    previewUrl: v.preview_url ?? "",
+  }));
   res.json({ voices });
 });
 

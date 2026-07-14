@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
+import { Check } from "lucide-react";
 
 import {
   AtlasFace,
@@ -12,6 +13,7 @@ import {
 } from "@/components/faces/AtlasFace";
 import { applyColor, type ColorScheme } from "@/components/Onboarding";
 import { PERSONAS, setPersona, usePersonaId } from "@/genesis/personality";
+import { VoicePicker } from "@/genesis/VoicePicker";
 import {
   PROVIDERS,
   providersByCategory,
@@ -251,19 +253,6 @@ export function GenesisSetup({ onComplete }: { onComplete: () => void }) {
     }
   }
 
-  function selectEngine(engine: VoiceEngine) {
-    if (engine === "server" && !elevenUnlocked) return;
-    setVoiceTouched(true);
-    setSelectedEngine(engine);
-    setVoiceEngine(engine);
-  }
-
-  function hearMe() {
-    const who = name.trim() || "there";
-    const bot = botName.trim() || "Atlas";
-    void voice.speak(`Hi ${who}, this is how ${bot} sounds.`, { engine: selectedEngine });
-  }
-
   // ── Step content ────────────────────────────────────────────────────────────
   // Warm, adoption-flavoured copy — you're not filling a form, you're bringing
   // a new companion home. Titles interpolate the name once it's chosen.
@@ -276,11 +265,11 @@ export function GenesisSetup({ onComplete }: { onComplete: () => void }) {
     `Meet ${botLabel}`,
   ][step];
   const stepSubtitle = [
-    "Plug in the AI services you already use — or skip and add them later. Atlas taps them for its very first hello.",
+    `Plug in the AI services you already use — or skip and add them later. ${botLabel} taps them for its very first hello.`,
     "A name for you, and a name for your companion — so it can talk to you like a partner, not a product.",
-    "Choose how it sounds. Tap “Hear me” to preview before you decide.",
+    `Hear the default, then audition a voice until one sounds like ${botLabel}.`,
     "Pick a personality, then its eyes, emoji, and colour — everything updates live. Make it yours.",
-    "This is the Atlas you just made. Say hello.",
+    `${botLabel} is all yours. Say hello — you can change anything later in Settings.`,
   ][step];
 
 
@@ -293,16 +282,31 @@ export function GenesisSetup({ onComplete }: { onComplete: () => void }) {
       <div className="flex h-full w-full max-w-2xl flex-col px-6 py-8 sm:py-10">
         {/* Presiding face + progress */}
         <header className="flex shrink-0 flex-col items-center gap-4">
-          <AtlasFace mode="atlas" state={faceState} size={96} />
+          {/* The face floats gently and sits in a soft glow — kept mounted across
+              steps so its canvas animation never restarts. */}
+          <div className="relative flex items-center justify-center">
+            <div
+              aria-hidden
+              className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+              style={{ width: 220, height: 220, background: "radial-gradient(circle, rgba(74,127,181,0.28) 0%, transparent 65%)", filter: "blur(6px)" }}
+            />
+            <motion.div
+              animate={{ y: [0, -4, 0] }}
+              transition={{ duration: 4.5, repeat: Infinity, ease: "easeInOut" }}
+              className="relative"
+            >
+              <AtlasFace mode="atlas" state={faceState} size={96} />
+            </motion.div>
+          </div>
           <Progress step={step} />
           <div className="mt-1 text-center">
             {/* Keyed remount = the new step mounts immediately; no exit callback
                 to stall (AnimatePresence mode="wait" can hang under React 19). */}
             <motion.div
               key={`title-${step}`}
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.22 }}
+              initial={{ opacity: 0, y: 8, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ type: "spring", stiffness: 260, damping: 24 }}
             >
               <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">{stepTitle}</h1>
               <p className="mx-auto mt-1.5 max-w-md text-sm text-white/50">{stepSubtitle}</p>
@@ -314,9 +318,9 @@ export function GenesisSetup({ onComplete }: { onComplete: () => void }) {
         <div className="relative mt-6 min-h-0 flex-1 overflow-y-auto">
           <motion.div
             key={step}
-            initial={{ opacity: 0, x: direction > 0 ? 44 : -44 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.28, ease: "easeOut" }}
+            initial={{ opacity: 0, x: direction > 0 ? 34 : -34, scale: 0.985 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            transition={{ type: "spring", stiffness: 300, damping: 30, mass: 0.8 }}
             className="h-full"
           >
             {step === 0 && (
@@ -342,12 +346,11 @@ export function GenesisSetup({ onComplete }: { onComplete: () => void }) {
               )}
 
               {step === 2 && (
-                <VoiceStep
-                  selected={selectedEngine}
+                <VoicePicker
+                  voice={voice}
+                  botName={botLabel}
                   elevenUnlocked={elevenUnlocked}
-                  speaking={voice.speaking}
-                  onSelect={selectEngine}
-                  onHear={hearMe}
+                  onPicked={(engine) => { setVoiceTouched(true); setSelectedEngine(engine); }}
                 />
               )}
 
@@ -390,7 +393,7 @@ export function GenesisSetup({ onComplete }: { onComplete: () => void }) {
             )}
             <Button
               variant="ghost"
-              className="border-transparent bg-[#4A7FB5] px-6 text-white hover:bg-[#3f6f9f]"
+              className="border-transparent bg-[#4A7FB5] px-6 text-white shadow-[0_0_20px_rgba(74,127,181,0.35)] transition-transform hover:bg-[#3f6f9f] active:scale-[0.97]"
               onClick={handleNext}
             >
               {step === 4 ? "Let's begin →" : "Next →"}
@@ -402,29 +405,45 @@ export function GenesisSetup({ onComplete }: { onComplete: () => void }) {
   );
 }
 
-// ── Progress dots ─────────────────────────────────────────────────────────────
+// ── Progress dots — spring-popped dots joined by a track that fills as you go ──
 function Progress({ step }: { step: number }) {
-  const steps = [0, 1, 2, 3, 4];
+  const total = 5;
   return (
-    <div className="flex items-center gap-2" aria-label={`Step ${step + 1} of ${steps.length}`}>
-      {steps.map((i) => (
-        <div key={i} className="flex items-center gap-2">
-          <div
-            className={
-              "flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-semibold transition-colors " +
-              (i === step
-                ? "bg-[#4A7FB5] text-white"
-                : i < step
-                  ? "bg-[#4A7FB5]/30 text-[#C9DCF0]"
-                  : "border border-white/15 text-white/35")
-            }
-            aria-current={i === step ? "step" : undefined}
-          >
-            {i + 1}
+    <div className="flex items-center" aria-label={`Step ${step + 1} of ${total}`}>
+      {Array.from({ length: total }).map((_, i) => {
+        const done = i < step;
+        const active = i === step;
+        return (
+          <div key={i} className="flex items-center">
+            <motion.div
+              initial={false}
+              animate={{
+                scale: active ? 1 : 0.82,
+                backgroundColor: done || active ? "#4A7FB5" : "rgba(255,255,255,0.07)",
+              }}
+              transition={{ type: "spring", stiffness: 400, damping: 24 }}
+              className="flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-semibold"
+              aria-current={active ? "step" : undefined}
+            >
+              {done ? (
+                <Check className="h-3.5 w-3.5 text-white" aria-hidden />
+              ) : (
+                <span className={active ? "text-white" : "text-white/40"}>{i + 1}</span>
+              )}
+            </motion.div>
+            {i < total - 1 && (
+              <div className="mx-1.5 h-[2px] w-5 overflow-hidden rounded-full bg-white/10">
+                <motion.div
+                  initial={false}
+                  animate={{ width: i < step ? "100%" : "0%" }}
+                  transition={{ duration: 0.35, ease: "easeOut" }}
+                  className="h-full bg-[#4A7FB5]"
+                />
+              </div>
+            )}
           </div>
-          {i < steps.length - 1 && <span className="text-white/20">·</span>}
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -687,91 +706,7 @@ function ProviderCard({
   );
 }
 
-// ── Step 3: Voice ─────────────────────────────────────────────────────────────
-function VoiceStep({
-  selected,
-  elevenUnlocked,
-  speaking,
-  onSelect,
-  onHear,
-}: {
-  selected: VoiceEngine;
-  elevenUnlocked: boolean;
-  speaking: boolean;
-  onSelect: (e: VoiceEngine) => void;
-  onHear: () => void;
-}) {
-  return (
-    <div className="flex h-full flex-col items-center justify-center">
-      <div className="grid w-full gap-3 sm:grid-cols-2">
-        <VoiceCard
-          title="Default voice"
-          subtitle="Built-in browser voice. Always available, zero setup."
-          selected={selected === "browser"}
-          onClick={() => onSelect("browser")}
-        />
-        <VoiceCard
-          title="ElevenLabs voice"
-          subtitle={
-            elevenUnlocked
-              ? "A real, natural voice. Uses your ElevenLabs key."
-              : "Add an ElevenLabs key in the previous step to unlock this."
-          }
-          selected={selected === "server"}
-          disabled={!elevenUnlocked}
-          onClick={() => onSelect("server")}
-        />
-      </div>
-
-      <Button
-        variant="ghost"
-        className="mt-5 border border-white/15 text-[#C9DCF0] hover:bg-white/5"
-        onClick={onHear}
-      >
-        {speaking ? "Speaking…" : "🔊 Hear me"}
-      </Button>
-    </div>
-  );
-}
-
-function VoiceCard({
-  title,
-  subtitle,
-  selected,
-  disabled,
-  onClick,
-}: {
-  title: string;
-  subtitle: string;
-  selected: boolean;
-  disabled?: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      aria-pressed={selected}
-      className={
-        "rounded-xl border p-4 text-left transition-all " +
-        (disabled
-          ? "cursor-not-allowed border-white/5 bg-white/[0.01] opacity-50"
-          : selected
-            ? "border-[#4A7FB5] bg-[#4A7FB5]/10 ring-1 ring-[#4A7FB5]"
-            : "border-white/10 bg-white/[0.03] hover:border-white/25")
-      }
-    >
-      <div className="flex items-center justify-between">
-        <span className="font-medium text-[#F7F5F0]">{title}</span>
-        {selected && <span className="text-xs text-[#C9DCF0]">Selected</span>}
-      </div>
-      <p className="mt-1 text-xs text-white/45">{subtitle}</p>
-    </button>
-  );
-}
-
-// ── Step 4: Appearance — give your Atlas its look & personality ───────────────
+// ── Step 4: Appearance — give your buddy its look & personality ───────────────
 // An expressive sequence the central face cycles through so the user *sees* the
 // emotional range Atlas can wear — the wow moment of the whole wizard.
 const EMOTION_SHOWCASE: FaceState[] = [
@@ -974,7 +909,7 @@ function MeetStep({
         </p>
       </div>
       <p className="mx-auto max-w-xs text-xs leading-relaxed text-white/40">
-        This is your Atlas. You can change any of this later in Settings.
+        This is {bot} — your very own. You can change any of this later in Settings.
       </p>
     </div>
   );

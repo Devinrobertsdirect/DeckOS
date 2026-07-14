@@ -19,9 +19,57 @@ export type VoiceEngine = "browser" | "server";
 
 const VOICE_ENGINE_KEY = "atlas_voice_engine";
 const VOICE_ID_KEY = "deckos_voice"; // shared with the existing voice picker
+const BROWSER_VOICE_KEY = "atlas_browser_voice"; // chosen browser voice (voiceURI)
 
 export function getVoiceEngine(): VoiceEngine {
   return (localStorage.getItem(VOICE_ENGINE_KEY) as VoiceEngine) || "browser";
+}
+
+/** The chosen ElevenLabs voice id, if the user picked one. */
+export function getServerVoiceId(): string | null {
+  return localStorage.getItem(VOICE_ID_KEY);
+}
+export function setServerVoiceId(id: string) {
+  localStorage.setItem(VOICE_ID_KEY, id);
+}
+
+/** The chosen browser voice (voiceURI), if the user picked one of the defaults. */
+export function getBrowserVoiceURI(): string | null {
+  return localStorage.getItem(BROWSER_VOICE_KEY);
+}
+export function setBrowserVoiceURI(uri: string) {
+  localStorage.setItem(BROWSER_VOICE_KEY, uri);
+}
+
+export interface BrowserVoiceOption {
+  uri: string;
+  name: string;
+  lang: string;
+}
+
+/** The top-ranked English browser voices — the "3 default options" to choose from. */
+export function listBrowserVoices(limit = 3): BrowserVoiceOption[] {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) return [];
+  const voices = window.speechSynthesis.getVoices();
+  if (!voices.length) return [];
+  const en = voices.filter((v) => /^en([-_]|$)/i.test(v.lang));
+  const pool = en.length ? en : voices;
+  const ranked = [...pool].sort((a, b) => voiceScore(b) - voiceScore(a));
+  // De-dupe by name (some engines list the same voice twice).
+  const seen = new Set<string>();
+  const out: BrowserVoiceOption[] = [];
+  for (const v of ranked) {
+    if (seen.has(v.name)) continue;
+    seen.add(v.name);
+    out.push({ uri: v.voiceURI, name: cleanVoiceName(v.name), lang: v.lang });
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+function cleanVoiceName(n: string): string {
+  // Trim the noisy "Microsoft X Online (Natural) - English (US)" style names.
+  return n.replace(/^Microsoft\s+/i, "").replace(/\s*\(.*?\)\s*/g, " ").replace(/\s+-\s+.*$/, "").trim() || n;
 }
 
 /**
@@ -38,26 +86,35 @@ export function warmUpVoices() {
   } catch { /* ignore */ }
 }
 
-/** Choose the clearest available English voice, ranked by known-good engines. */
-function pickClearVoice(synth: SpeechSynthesis): SpeechSynthesisVoice | null {
+// Higher score = clearer/more natural, based on common OS/browser voices.
+function voiceScore(v: SpeechSynthesisVoice): number {
+  const n = v.name.toLowerCase();
+  let s = 0;
+  if (/natural|neural|premium|enhanced/.test(n)) s += 50;
+  if (/google/.test(n)) s += 30;
+  if (/(aria|jenny|guy|libby|sonia|ryan)/.test(n)) s += 25; // MS online neural
+  if (/(zira|david|mark|hazel)/.test(n)) s += 12;           // MS local
+  if (/(samantha|alex|daniel|karen|moira)/.test(n)) s += 20; // Apple
+  if (/en[-_]?us/i.test(v.lang)) s += 6;
+  if (v.localService) s += 2; // lower latency, no network hiccup
+  return s;
+}
+
+/**
+ * Resolve which browser voice to speak with: an explicit preview URI wins, then
+ * the user's saved choice, then the best-ranked English voice.
+ */
+function resolveBrowserVoice(synth: SpeechSynthesis, preferURI?: string): SpeechSynthesisVoice | null {
   const voices = synth.getVoices();
   if (!voices.length) return null;
+  const wantURI = preferURI ?? getBrowserVoiceURI() ?? undefined;
+  if (wantURI) {
+    const match = voices.find((v) => v.voiceURI === wantURI);
+    if (match) return match;
+  }
   const en = voices.filter((v) => /^en([-_]|$)/i.test(v.lang));
   const pool = en.length ? en : voices;
-  // Higher score = clearer/more natural, based on common OS/browser voices.
-  const score = (v: SpeechSynthesisVoice): number => {
-    const n = v.name.toLowerCase();
-    let s = 0;
-    if (/natural|neural|premium|enhanced/.test(n)) s += 50;
-    if (/google/.test(n)) s += 30;
-    if (/(aria|jenny|guy|libby|sonia|ryan)/.test(n)) s += 25; // MS online neural
-    if (/(zira|david|mark|hazel)/.test(n)) s += 12;           // MS local
-    if (/(samantha|alex|daniel|karen|moira)/.test(n)) s += 20; // Apple
-    if (/en[-_]?us/i.test(v.lang)) s += 6;
-    if (v.localService) s += 2; // lower latency, no network hiccup
-    return s;
-  };
-  return [...pool].sort((a, b) => score(b) - score(a))[0] ?? null;
+  return [...pool].sort((a, b) => voiceScore(b) - voiceScore(a))[0] ?? null;
 }
 
 export function setVoiceEngine(engine: VoiceEngine) {
@@ -73,6 +130,8 @@ export interface SpeakOptions {
   rate?: number;
   /** Pitch for the browser voice (0–2, default 1). */
   pitch?: number;
+  /** Preview a specific browser voice (voiceURI) without saving it as the choice. */
+  browserVoiceURI?: string;
   /** Fires ~per word for the browser engine (used to pulse the face). */
   onWord?: (charIndex: number) => void;
 }
@@ -120,7 +179,7 @@ export function useAtlasVoice(): AtlasVoice {
         u.rate = opts.rate ?? 1.15;
         u.pitch = opts.pitch ?? 1.0;
         u.volume = 1;
-        u.voice = pickClearVoice(synth);
+        u.voice = resolveBrowserVoice(synth, opts.browserVoiceURI);
         if (u.voice) u.lang = u.voice.lang;
         if (opts.onWord) {
           u.onboundary = (e) => {

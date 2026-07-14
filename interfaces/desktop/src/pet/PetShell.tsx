@@ -6,7 +6,7 @@ import { AtlasFace, type FaceState } from "@/components/faces/AtlasFace";
 import { useAtlasVoice } from "@/genesis/useAtlasVoice";
 import { useAtlasListening } from "@/genesis/useAtlasListening";
 import { getInputMode, setInputMode, acquireMic } from "@/genesis/micAccess";
-import { getUserName, getBotName } from "@/lib/uiMode";
+import { getUserName, getBotName, openDeckOsFeature } from "@/lib/uiMode";
 import { segmentReply, emojiGlyph, type EmotionSegment } from "@/genesis/emotionDirector";
 import { personaPrompt } from "@/genesis/personality";
 import { stripEmoji } from "@/lib/stripText";
@@ -117,6 +117,42 @@ export function PetShell({
 
       let full = "";
       let ok = false;
+
+      // ── Agentic pre-flight: is this a DeckOS ACTION rather than chat? ────────
+      // (drive/turn/stop, remember X, open a tool, status). Deterministic + fast,
+      // so plain conversation isn't slowed. Falls through to chat on no match.
+      try {
+        const ar = await fetch("/api/agent", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message, facts: ctx.facts }),
+        });
+        if (ar.ok) {
+          const decision = (await ar.json()) as {
+            mode: "action" | "chat";
+            speak?: string;
+            ui?: { type: "open"; route: string } | { type: "remember"; fact: string } | { type: "none" };
+          };
+          if (decision.mode === "action" && decision.speak) {
+            full = decision.speak;
+            ok = true;
+            setCaption(stripEmoji(full));
+            setFaceState("happy");
+            for (const seg of segmentReply(full)) queueRef.current.push(seg);
+            void drainQueue();
+            await waitForQueue();
+            appendTurn("atlas", stripEmoji(full));
+            if (decision.ui?.type === "remember" && decision.ui.fact) addFact(decision.ui.fact, "user");
+            setFaceState("idle");
+            clearMood();
+            setBusy(false);
+            // Navigate last, after speaking — this may unmount the buddy.
+            if (decision.ui?.type === "open" && decision.ui.route) openDeckOsFeature(decision.ui.route);
+            return;
+          }
+        }
+      } catch { /* agent unavailable — just talk */ }
+
       try {
         const res = await fetch("/api/chat/stream", {
           method: "POST",

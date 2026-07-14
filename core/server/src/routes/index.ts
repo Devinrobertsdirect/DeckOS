@@ -35,6 +35,7 @@ import providersRouter from "./providers";
 import genesisRouter from "./genesis";
 import capabilitiesRouter from "./capabilities";
 import bodyRouter from "./body";
+import agentRouter from "./agent";
 
 const router: IRouter = Router();
 
@@ -74,5 +75,6 @@ router.use("/providers", providersRouter);
 router.use("/genesis", genesisRouter);
 router.use(capabilitiesRouter);
 router.use(bodyRouter);
+router.use(agentRouter);
 
 export default router;

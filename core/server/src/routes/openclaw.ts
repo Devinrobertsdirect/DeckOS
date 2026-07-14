@@ -2,6 +2,7 @@ import { Router } from "express";
 import { exec }   from "child_process";
 import { promisify } from "util";
 import { logger } from "../lib/logger.js";
+import { botName } from "../lib/identity.js";
 import { getConfig } from "../lib/app-config.js";
 import { bus } from "../lib/bus.js";
 
@@ -342,7 +343,11 @@ router.get("/openclaw/skills", async (req, res) => {
     return qOk && cOk;
   });
 
-  res.json({ skills: matched.slice(0, limit), total: matched.length, source: "curated" });
+  // Example commands in the copy use the bot's name — reflect whatever the user
+  // named it so nothing reads "JARVIS" to a user who renamed their companion.
+  const bot = botName();
+  const skills = matched.slice(0, limit).map((s) => ({ ...s, description: s.description.replace(/JARVIS/g, bot) }));
+  res.json({ skills, total: matched.length, source: "curated" });
 });
 
 // ── GET /api/openclaw/skills/categories ───────────────────────────────────

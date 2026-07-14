@@ -6,6 +6,7 @@
 import { db, notificationsTable } from "@workspace/db";
 import { eq, desc, or, and, lt } from "drizzle-orm";
 import { bus } from "./bus.js";
+import { botName } from "./identity.js";
 import { logger } from "./logger.js";
 import type { BusEvent } from "@workspace/event-bus";
 
@@ -141,7 +142,7 @@ class NotificationService {
         type:     "autonomy.confirmation.required",
         severity: "critical",
         title:    "Action Requires Confirmation",
-        message:  `JARVIS needs your approval to: ${action}.`,
+        message:  `${botName()} needs your approval to: ${action}.`,
         metadata: p,
       });
     }));
@@ -167,7 +168,7 @@ class NotificationService {
       if (e.type !== "memory.stored") return;
       const p = e.payload as Record<string, unknown>;
       if (String(p["notificationType"] ?? "") !== "routine") return;
-      const title   = String(p["title"]   ?? "JARVIS Notification");
+      const title   = String(p["title"]   ?? `${botName()} Notification`);
       const message = String(p["message"] ?? "Routine notification fired.");
       await this.createNotification({
         type:     "routine.notification",
@@ -219,7 +220,7 @@ class NotificationService {
         type:     "briefing.generated",
         severity: "info",
         title:    "Daily Briefing Ready",
-        message:  `JARVIS daily briefing for ${date} is now available.`,
+        message:  `${botName()} daily briefing for ${date} is now available.`,
         metadata: p,
       });
     }));

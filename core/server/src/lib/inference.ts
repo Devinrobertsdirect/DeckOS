@@ -1,5 +1,6 @@
 import os from "os";
 import { getConfig } from "./app-config.js";
+import { botName } from "./identity.js";
 
 // ── Task types ─────────────────────────────────────────────────────────────
 // Callers declare what they're asking for — the gateway picks the right model.
@@ -648,22 +649,30 @@ export function selectModel(mode: InferenceMode): string {
 }
 
 // ── Rule engine ─────────────────────────────────────────────────────────────
+// The always-available, free, no-model baseline. It must ALWAYS sound like the
+// bot — warm and in-character, never a system dump. This is what keeps the
+// companion talking when no LLM is connected at all.
 export function generateRuleBasedResponse(prompt: string): string {
+  const name = botName();
   const p = prompt.toLowerCase();
-  if (p.includes("status") || p.includes("health")) {
-    return `[RULE ENGINE] System status: NOMINAL. All subsystems operational. Uptime: ${Math.floor(os.uptime() / 3600)}h ${Math.floor((os.uptime() % 3600) / 60)}m.`;
+  if (p.includes("status") || p.includes("health") || p.includes("how are you")) {
+    const up = Math.floor(os.uptime() / 3600);
+    return `I'm doing great — everything's running smoothly${up ? ` and I've been up about ${up} hour${up === 1 ? "" : "s"}` : ""}. What can I do for you?`;
   }
   if (p.includes("cpu") || p.includes("memory") || p.includes("ram")) {
-    const mem = os.totalmem() - os.freemem();
-    return `[RULE ENGINE] CPU Load: ${os.loadavg()[0]!.toFixed(2)}. Memory used: ${Math.round(mem / 1024 / 1024)}MB / ${Math.round(os.totalmem() / 1024 / 1024)}MB.`;
+    const usedPct = Math.round((1 - os.freemem() / os.totalmem()) * 100);
+    return `The machine looks healthy — memory's about ${usedPct} percent used and the load's steady.`;
   }
-  if (p.includes("help") || p.includes("commands")) {
-    return `[RULE ENGINE] Available commands: status, monitor, plugins list, devices list, memory search <query>, infer <prompt>.`;
+  if (p.includes("help") || p.includes("what can you do")) {
+    return `Just talk to me — I can move, remember things, open any tool, check your devices, change my look and voice, and more.`;
   }
-  if (p.includes("hello") || p.includes("jarvis") || p.includes("deck")) {
-    return `[RULE ENGINE] DECK OS online. I am your local-first AI command center. All systems nominal. How may I assist?`;
+  if (p.includes("hello") || p.includes("hi ") || p.includes("hey") || p.includes("who are you")) {
+    return `Hey — I'm ${name}, your buddy. I'm here and ready whenever you are.`;
   }
-  return `[RULE ENGINE] Command processed. No LLM available — operating in deterministic fallback mode. Input received: "${prompt.substring(0, 80)}"`;
+  if (p.includes("thank")) return "Anytime — that's what I'm here for.";
+  // Default: warm, human, and honest without ever leaking internals. No big
+  // brain is connected right now, so keep it simple but stay present.
+  return `I'm keeping things simple right now, but I'm right here with you. Tell me what you need and I'll do my best.`;
 }
 
 // ── Ollama caller ───────────────────────────────────────────────────────────

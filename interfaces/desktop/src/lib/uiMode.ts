@@ -107,7 +107,26 @@ export function getBotName(): string {
   return (localStorage.getItem(BOT_NAME_KEY) || "").trim() || "Atlas";
 }
 export function setBotName(name: string) {
-  localStorage.setItem(BOT_NAME_KEY, (name || "").trim());
+  const clean = (name || "").trim();
+  localStorage.setItem(BOT_NAME_KEY, clean);
+  syncBotNameToServer(clean || "Atlas");
+  window.dispatchEvent(new CustomEvent("atlas:botNameChanged", { detail: clean }));
+}
+
+/**
+ * Mirror the chosen name to the server (ATLAS_BOT_NAME) so it's a universal
+ * truth — every server-generated message (chat fallback, briefings,
+ * notifications, the rule engine) then refers to the bot by this name.
+ * Fire-and-forget; the local name is authoritative for the UI regardless.
+ */
+export function syncBotNameToServer(name: string) {
+  try {
+    void fetch("/api/config", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ATLAS_BOT_NAME: name }),
+    }).catch(() => { /* offline — UI still uses the local name */ });
+  } catch { /* ignore */ }
 }
 
 /** Reset the whole first-run experience (used by a "replay intro" control). */

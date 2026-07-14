@@ -1,7 +1,63 @@
 import chalk from 'chalk';
+import { execSync, spawnSync } from 'node:child_process';
 import { info } from '../lib/logger.mjs';
 import { printDivider } from '../lib/banner.mjs';
 import { apiGet, isServerDown, printServerDownHint, printTable, statusDot } from '../lib/api.mjs';
+
+/**
+ * atlas brain --install — give Atlas a FREE local brain so it can always talk,
+ * offline, with no API key. Installs a small Ollama model (default llama3.2:1b,
+ * ~1.3 GB) and points Atlas at it. This is the "no matter what, he can talk"
+ * guarantee, on top of the always-on rule engine.
+ */
+function hasOllama() {
+  try { execSync('ollama --version', { stdio: 'ignore' }); return true; } catch { return false; }
+}
+
+export async function brainInstallCmd(opts = {}) {
+  const model = opts.model || 'llama3.2:1b';
+  console.log('');
+  console.log(chalk.bold('  Atlas — install a free local brain\n'));
+  printDivider();
+  console.log('');
+
+  if (!hasOllama()) {
+    console.log('  Ollama (the free, local AI runtime) isn\'t installed yet.');
+    if (process.platform === 'win32') {
+      console.log(`  Install it: ${chalk.cyan('https://ollama.com/download')} (Windows installer),`);
+      console.log(`  then re-run: ${chalk.cyan('atlas brain --install')}`);
+    } else {
+      console.log(`  Install it: ${chalk.cyan('curl -fsSL https://ollama.com/install.sh | sh')}`);
+      console.log(`  then re-run: ${chalk.cyan('atlas brain --install')}`);
+    }
+    console.log('');
+    process.exitCode = 1;
+    return;
+  }
+
+  console.log(`  Pulling ${chalk.cyan(model)} — small, capable, and free. This is a one-time download.\n`);
+  const pull = spawnSync('ollama', ['pull', model], { stdio: 'inherit' });
+  if (pull.status !== 0) {
+    console.log(chalk.red('\n  Model pull failed. Check your connection and try again.\n'));
+    process.exitCode = 1;
+    return;
+  }
+
+  // Point Atlas at the new model (best-effort — works even if the server is down;
+  // config persists to ~/.atlas/config.json and is picked up on next start).
+  try {
+    await fetch('http://localhost:8080/api/config', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ REASONING_MODEL: model, FAST_MODEL: model }),
+    });
+    console.log(chalk.green(`\n  Done — ${model} is installed and set as Atlas's local brain.`));
+    console.log('  It can now talk for free, fully offline. No API key needed.\n');
+  } catch {
+    console.log(chalk.green(`\n  Done — ${model} installed.`));
+    console.log(`  Start Atlas (${chalk.cyan('atlas start')}) and it'll be detected automatically.\n`);
+  }
+}
 
 /**
  * atlas brain — show the AI Router tier stack (GET /api/ai-router/status).

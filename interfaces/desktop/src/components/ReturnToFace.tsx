@@ -1,5 +1,6 @@
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { AtlasFace } from "@/components/faces/AtlasFace";
+import { AtlasFace, type FaceState } from "@/components/faces/AtlasFace";
 import { setUiMode, getBotName } from "@/lib/uiMode";
 
 /**
@@ -12,6 +13,16 @@ import { setUiMode, getBotName } from "@/lib/uiMode";
  */
 export function ReturnToFace() {
   const bot = getBotName();
+  // Neutral by default; a brief, occasional smile so it feels alive without
+  // grinning nonstop.
+  const [faceState, setFaceState] = useState<FaceState>("idle");
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setFaceState("happy");
+      window.setTimeout(() => setFaceState("idle"), 2500);
+    }, 90_000);
+    return () => window.clearInterval(id);
+  }, []);
   return (
     <motion.button
       type="button"
@@ -32,7 +43,7 @@ export function ReturnToFace() {
         className="flex h-10 w-10 items-center justify-center rounded-full bg-[rgba(var(--primary-rgb),0.10)]"
         aria-hidden
       >
-        <AtlasFace mode="atlas" state="happy" size={38} />
+        <AtlasFace mode="atlas" state={faceState} size={38} />
       </span>
       <span className="font-mono text-[11px] font-medium uppercase tracking-wider text-primary/70 group-hover:text-primary">
         {bot}

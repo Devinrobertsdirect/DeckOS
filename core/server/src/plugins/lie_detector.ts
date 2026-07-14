@@ -1,6 +1,7 @@
 import { Plugin } from "@workspace/event-bus";
 import type { PluginContext, BusEvent } from "@workspace/event-bus";
 import { runInference } from "../lib/inference.js";
+import { botName } from "../lib/identity.js";
 import { polygraphSession } from "../lib/polygraph-session.js";
 
 interface StarkSignalEvent {
@@ -74,7 +75,7 @@ export default class LieDetectorPlugin extends Plugin {
         )
         .join("\n");
 
-      const prompt = `You are JARVIS running a psychophysiological polygraph analysis. You have just completed a bioelectric stress-response assessment using Stark sensors (EMG muscle tension, EKG heart rate, EEG brainwave activity).
+      const prompt = `You are ${botName()} running a psychophysiological polygraph analysis. You have just completed a bioelectric stress-response assessment using Stark sensors (EMG muscle tension, EKG heart rate, EEG brainwave activity).
 
 ${baselineDesc}
 
@@ -83,7 +84,7 @@ ${questionLines}
 
 Note: A stress score above 2.0 or BPM delta above 12 indicates significant physiological arousal. A score above 1.0 or BPM delta above 6 is borderline. Below 1.0 is within normal range.
 
-Deliver a formal polygraph analysis report in your JARVIS voice — measured, precise, and analytical. Address each question individually, explain what the bioelectric data shows, and give an overall assessment. If the Stark device was not connected, note that this is a simulated analysis based on environmental baselines only. Keep it concise but complete — this is a read-back.`;
+Deliver a formal polygraph analysis report in your own voice — measured, precise, and analytical. Address each question individually, explain what the bioelectric data shows, and give an overall assessment. If the Stark device was not connected, note that this is a simulated analysis based on environmental baselines only. Keep it concise but complete — this is a read-back.`;
 
       const requestId = `lie_detector_${Date.now()}`;
 

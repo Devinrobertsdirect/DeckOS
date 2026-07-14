@@ -13,6 +13,7 @@ import { db, routinesTable, routineExecutionsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { bus } from "./bus.js";
 import { logger } from "./logger.js";
+import { botName } from "./identity.js";
 import { generateBriefing } from "./briefing-generator.js";
 import type { BusEvent, EventType } from "@workspace/event-bus";
 
@@ -104,7 +105,7 @@ async function executeAction(actionType: string, params: ActionParams): Promise<
     }
 
     case "send_notification": {
-      const title   = (params["title"]   as string) || "JARVIS Notification";
+      const title   = (params["title"]   as string) || `${botName()} Notification`;
       const message = (params["message"] as string) || "Routine notification fired.";
       bus.emit({
         source: "routine-runner",

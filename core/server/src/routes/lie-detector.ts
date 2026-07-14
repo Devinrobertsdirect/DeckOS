@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { bus } from "../lib/bus.js";
+import { botName } from "../lib/identity.js";
 import { polygraphSession } from "../lib/polygraph-session.js";
 
 const router = Router();
@@ -137,7 +138,7 @@ router.post("/lie-detector/session/analyze", (_req, res) => {
     payload: { sessionId: session.sessionId },
   });
 
-  res.json({ ok: true, message: "Analysis requested — JARVIS is processing bioelectric data" });
+  res.json({ ok: true, message: `Analysis requested — ${botName()} is processing bioelectric data` });
 });
 
 router.delete("/lie-detector/session", (_req, res) => {

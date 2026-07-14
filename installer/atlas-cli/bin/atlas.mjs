@@ -11,7 +11,7 @@ import { doctorCmd } from '../src/commands/doctor.mjs';
 import { updateCmd } from '../src/commands/update.mjs';
 import { devicesCmd } from '../src/commands/devices.mjs';
 import { pluginsListCmd, pluginsStoreCmd, pluginsInstallCmd } from '../src/commands/plugins.mjs';
-import { brainCmd } from '../src/commands/brain.mjs';
+import { brainCmd, brainInstallCmd } from '../src/commands/brain.mjs';
 import { robotConnectCmd } from '../src/commands/robot-connect.mjs';
 import { hardwareCmd } from '../src/commands/hardware.mjs';
 import { printBanner } from '../src/lib/banner.mjs';
@@ -121,9 +121,12 @@ plugins
 // ── brain ──────────────────────────────────────────────────────────────────
 program
   .command('brain')
-  .description('Show the AI Router tier stack (APEX / CORTEX / REFLEX / AUTOPILOT)')
-  .action(async () => {
-    await brainCmd();
+  .description('Show the AI Router tiers, or install a free local brain (--install)')
+  .option('--install', 'Install a free local LLM (Ollama) so Atlas always talks, offline')
+  .option('--model <name>', 'Model to install (default: llama3.2:1b)')
+  .action(async (opts) => {
+    if (opts.install) await brainInstallCmd(opts);
+    else await brainCmd();
   });
 
 // ── robot-connect ──────────────────────────────────────────────────────────

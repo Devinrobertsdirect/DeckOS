@@ -8,6 +8,7 @@ import {
   deviceProfilesTable,
 } from "@workspace/db";
 import { gte, eq, desc, sql } from "drizzle-orm";
+import { botName } from "./identity.js";
 import { runInference } from "./inference.js";
 import { bus } from "./bus.js";
 import { logger } from "./logger.js";
@@ -67,7 +68,7 @@ export async function generateBriefing(): Promise<typeof briefingsTable.$inferSe
     .map((a) => `  - ${a.action} → ${a.outcome ?? "pending"}`)
     .join("\n") || "  (none)";
 
-  const prompt = `You are JARVIS, an AI command center assistant. Generate a concise morning briefing for the operator based on the following system observations from the past 24 hours.
+  const prompt = `You are ${botName()}, an AI command center assistant. Generate a concise morning briefing for the operator based on the following system observations from the past 24 hours.
 
 SYSTEM STATS:
 - Active goals: ${stats.goalsActive}

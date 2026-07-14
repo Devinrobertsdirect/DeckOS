@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -14,7 +14,7 @@ import { GenesisIntro } from "@/genesis/GenesisIntro";
 import { InputChoice } from "@/genesis/InputChoice";
 import { PetShell } from "@/pet/PetShell";
 import { FacesGallery } from "@/collection/FacesGallery";
-import { isSetupDone, isIntroDone, useUiMode, setUiMode, useExperienceMode } from "@/lib/uiMode";
+import { isSetupDone, isIntroDone, useUiMode, setUiMode, useExperienceMode, getBotName, syncBotNameToServer } from "@/lib/uiMode";
 import { ReturnToFace } from "@/components/ReturnToFace";
 import { getInputMode } from "@/genesis/micAccess";
 import { SetupGuideModal } from "@/components/SetupGuideModal";
@@ -100,6 +100,10 @@ function App() {
     sessionStorage.setItem("deckos_session", "1");
     setStarted(true);
   }
+
+  // Backfill the server with the chosen bot name on load, so every server-side
+  // message (chat fallback, briefings, notifications) refers to the bot by name.
+  useEffect(() => { syncBotNameToServer(getBotName()); }, []);
 
   // ── Onboarding: one calm, crossfading sequence up to "our buddy" ────────────
   // Each stage is keyed so the next one mounts and fades IN immediately (no

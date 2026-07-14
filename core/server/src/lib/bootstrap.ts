@@ -2,6 +2,7 @@ import { existsSync } from "fs";
 import path from "path";
 import { bus } from "./bus.js";
 import { migrateConfig } from "./app-config.js";
+import { botName } from "./identity.js";
 import { PluginRegistry } from "./plugin-registry.js";
 import { memoryService } from "./memory-service.js";
 import { runInference, runInferenceStreaming, refreshOllamaDetection, getInferenceState, type InferenceMode } from "./inference.js";
@@ -256,7 +257,7 @@ function registerQueryHandlers(deviceManager: DeviceManager): void {
     });
 
     const basePrompt = await buildPersonalizedPrompt([], "console").catch(
-      () => "You are JARVIS, a precise and capable AI command center assistant.",
+      () => `You are ${botName()}, a precise and capable AI command center assistant.`,
     );
     const aceraCtx = getAceraContext();
     const systemPrompt = aceraCtx
@@ -266,8 +267,8 @@ function registerQueryHandlers(deviceManager: DeviceManager): void {
     // ── Easter egg check ──────────────────────────────────────────────────
     const personaRows = await db.select().from(aiPersonaTable).limit(1).catch(() => []);
     const personaCtx = personaRows.length > 0
-      ? { aiName: personaRows[0]!.aiName, gender: personaRows[0]!.gender }
-      : { aiName: "JARVIS", gender: "neutral" };
+      ? { aiName: botName() !== "Atlas" ? botName() : personaRows[0]!.aiName, gender: personaRows[0]!.gender }
+      : { aiName: botName(), gender: "neutral" };
     const eggReply = checkEasterEgg(prompt, personaCtx);
 
     if (eggReply !== null) {

@@ -1,5 +1,6 @@
 import { db, userCognitiveModelTable, aiPersonaTable } from "@workspace/db";
 import { capabilitiesPromptBlock } from "./capabilities.js";
+import { botName } from "./identity.js";
 
 interface IdentityLayer {
   aiName?: string;
@@ -114,7 +115,9 @@ export async function buildPersonalizedPrompt(
     if (personaRow) persona = personaRow;
   } catch { /* fallback */ }
 
-  const aiName   = (persona.aiName?.trim() || identity.aiName?.trim()) || "Atlas";
+  // The user-given name wins over any DB default, so the bot's identity is
+  // whatever the user named it — everywhere.
+  const aiName   = botName() !== "Atlas" ? botName() : (persona.aiName?.trim() || identity.aiName?.trim() || "Atlas");
   const userName = identity.userName?.trim() || "Commander";
   const answers  = identity.answers ?? [];
 

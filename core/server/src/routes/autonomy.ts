@@ -4,6 +4,7 @@ import { db, autonomyConfigTable, autonomyLogTable, memoryEntriesTable, goalsTab
 import { desc, eq, lt, sql } from "drizzle-orm";
 import { bus } from "../lib/bus.js";
 import { runInference } from "../lib/inference.js";
+import { botName } from "../lib/identity.js";
 
 const router = Router();
 
@@ -142,7 +143,7 @@ async function executeAction(action: string, parameters: Record<string, unknown>
     case "send_notification": {
       const msg = String(parameters.message ?? parameters.title ?? "System alert");
       bus.emit({ source: "autonomy-controller", target: null, type: "notification.created",
-        payload: { title: String(parameters.title ?? "JARVIS"), message: msg, priority: "normal", category: "autonomy", timestamp: new Date().toISOString() } });
+        payload: { title: String(parameters.title ?? botName()), message: msg, priority: "normal", category: "autonomy", timestamp: new Date().toISOString() } });
       return { outcome: "success", result: `Notification dispatched: "${msg}"` };
     }
 

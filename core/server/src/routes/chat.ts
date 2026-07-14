@@ -11,6 +11,7 @@ import { aiPersonaTable } from "@workspace/db";
 import { eq as drEq } from "drizzle-orm";
 import { checkEasterEgg } from "../lib/easter-eggs.js";
 import { getAceraContext, getStarkContext } from "../lib/bootstrap.js";
+import { botName } from "../lib/identity.js";
 
 const router = Router();
 
@@ -91,8 +92,8 @@ router.post("/chat", async (req, res) => {
   // Fetch persona once so we have the AI name + gender for honourifics.
   const personaRows = await db.select().from(aiPersonaTable).limit(1).catch(() => []);
   const personaCtx = personaRows.length > 0
-    ? { aiName: personaRows[0]!.aiName, gender: personaRows[0]!.gender }
-    : { aiName: "JARVIS", gender: "neutral" };
+    ? { aiName: botName() !== "Atlas" ? botName() : personaRows[0]!.aiName, gender: personaRows[0]!.gender }
+    : { aiName: botName(), gender: "neutral" };
 
   const eggResponse = checkEasterEgg(message, personaCtx);
 

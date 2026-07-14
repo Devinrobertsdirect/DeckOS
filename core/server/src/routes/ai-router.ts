@@ -16,6 +16,8 @@ import {
   MODEL_CONFIG,
   CLAUDE_MODELS,
   getClaudeModel,
+  getSpeedMode,
+  resolveApexModel,
 } from "../lib/inference.js";
 import { bus } from "../lib/bus.js";
 import { broadcast } from "../lib/ws-server.js";
@@ -129,6 +131,11 @@ router.get("/ai-router/status", async (req, res) => {
   const resolvedCortex = resolveBestModel("cortex", MODEL_CONFIG.REASONING);
   const resolvedReflex  = resolveBestModel("reflex",  MODEL_CONFIG.FAST);
   const resolvedApex    = await getClaudeModel();
+  const speedMode       = await getSpeedMode();
+  // What an interactive chat will actually use right now (Haiku when fast+Claude).
+  const interactiveModel = state.claudeAvailable
+    ? await resolveApexModel(true)
+    : (state.ollamaAvailable ? resolvedCortex : MODEL_CONFIG.RULE_ENGINE);
   const activeModel     = state.ollamaAvailable ? resolvedCortex : null;
 
   const body = GetAiRouterStatusResponse.parse({
@@ -147,6 +154,8 @@ router.get("/ai-router/status", async (req, res) => {
     openclawAvailable: state.openclawAvailable ?? false,
     claudeAvailable:   state.claudeAvailable   ?? false,
     cloudPreference:   state.cloudPreference,
+    speedMode,
+    interactiveModel,
     ollamaModels: state.ollamaModels,
     claudeModels: CLAUDE_MODELS,
     models: {

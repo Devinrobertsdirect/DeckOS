@@ -133,6 +133,7 @@ router.post("/chat", async (req, res) => {
         ...(history ?? []).slice(-12),
       ],
       useCache: false, // conversations shouldn't be cached
+      preferFast: true, // interactive chat → fastest brain (Haiku) when available
       onTierResolved: requestId
         ? (resolvedTier, model) => {
             broadcast({

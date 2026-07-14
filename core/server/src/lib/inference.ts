@@ -37,6 +37,8 @@ export type InferenceOptions = {
   context?: Array<{ role: string; content: string }>;
   useCache?: boolean;
   latencyBudgetMs?: number; // if set and < 200, forces fast model
+  /** Prefer the fastest available model (Haiku on apex) — interactive chat/intro. */
+  preferFast?: boolean;
   /** Called synchronously once tier+model are resolved, BEFORE the slow LLM call */
   onTierResolved?: (tier: Tier, model: string) => void;
 };
@@ -73,6 +75,30 @@ export const CLAUDE_MODELS = [
 ] as const;
 
 export const DEFAULT_CLAUDE_MODEL = "claude-sonnet-5";
+
+// The fastest current-gen Claude — used for latency-sensitive interactive chat
+// (Pet mode, streaming, the intro) when SPEED_MODE prefers speed.
+export const FAST_CLAUDE_MODEL = "claude-haiku-4-5-20251001";
+
+/**
+ * SPEED_MODE (config/env, default "fast"): when "fast", interactive endpoints
+ * that pass preferFast use the fastest available brain — Haiku on the apex tier —
+ * instead of the heavier default model. "quality" keeps the configured model.
+ */
+export async function getSpeedMode(): Promise<"fast" | "quality"> {
+  try {
+    const v = (await getConfig("SPEED_MODE")) ?? process.env["SPEED_MODE"] ?? "fast";
+    return v === "quality" ? "quality" : "fast";
+  } catch {
+    return process.env["SPEED_MODE"] === "quality" ? "quality" : "fast";
+  }
+}
+
+/** The apex model to use, honouring preferFast + SPEED_MODE (fast → Haiku). */
+export async function resolveApexModel(preferFast: boolean): Promise<string> {
+  if (preferFast && (await getSpeedMode()) === "fast") return FAST_CLAUDE_MODEL;
+  return getClaudeModel();
+}
 
 // ── Inference state ─────────────────────────────────────────────────────────
 const inferenceState: {
@@ -746,7 +772,7 @@ export async function runInferenceStreaming(
   opts: InferenceOptions,
   onToken: (token: string) => void,
 ): Promise<InferenceResult> {
-  const { prompt, mode, task, context = [], latencyBudgetMs, onTierResolved } = opts;
+  const { prompt, mode, task, context = [], latencyBudgetMs, preferFast = false, onTierResolved } = opts;
   inferenceState.totalRequests++;
 
   // Resolve cloud preference up-front (resolveGateway is sync) and cache it
@@ -754,7 +780,8 @@ export async function runInferenceStreaming(
   inferenceState.cloudPreference = cloudPreference;
 
   const tier = resolveGateway(task, mode, latencyBudgetMs, cloudPreference);
-  const claudeModel = tier === "apex" ? await getClaudeModel() : null;
+  // Prefer the fastest brain (Haiku) for interactive chat when SPEED_MODE=fast.
+  const claudeModel = tier === "apex" ? await resolveApexModel(preferFast) : null;
   // Use discovered Ollama models when available — never use hardcoded defaults blindly
   const model = tier === "apex" && claudeModel
     ? `claude:${claudeModel}`
@@ -857,7 +884,7 @@ export async function runInferenceStreaming(
 
 // ── Primary inference entry point ───────────────────────────────────────────
 export async function runInference(opts: InferenceOptions): Promise<InferenceResult> {
-  const { prompt, mode, task, context = [], useCache = true, latencyBudgetMs, onTierResolved } = opts;
+  const { prompt, mode, task, context = [], useCache = true, latencyBudgetMs, preferFast = false, onTierResolved } = opts;
   inferenceState.totalRequests++;
 
   // Read dynamic model overrides from DB/env; resolve cloud preference up-front
@@ -866,7 +893,8 @@ export async function runInference(opts: InferenceOptions): Promise<InferenceRes
   inferenceState.cloudPreference = cloudPreference;
 
   const tier = resolveGateway(task, mode, latencyBudgetMs, cloudPreference);
-  const claudeModel = tier === "apex" ? await getClaudeModel() : null;
+  // Prefer the fastest brain (Haiku) for interactive requests when SPEED_MODE=fast.
+  const claudeModel = tier === "apex" ? await resolveApexModel(preferFast) : null;
   const model = tier === "apex"    ? `claude:${claudeModel || DEFAULT_CLAUDE_MODEL}`
               : tier === "cortex"  ? dynModels.reasoning
               : tier === "reflex"  ? dynModels.fast

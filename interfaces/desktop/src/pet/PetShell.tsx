@@ -220,10 +220,11 @@ export function PetShell({
       try {
         const r = await fetch("/api/ai-router/status");
         if (!r.ok) throw new Error();
-        const d = (await r.json()) as { claudeAvailable?: boolean; ollamaAvailable?: boolean; activeModel?: string; models?: { apex?: string; cortex?: string } };
+        const d = (await r.json()) as { claudeAvailable?: boolean; ollamaAvailable?: boolean; activeModel?: string; interactiveModel?: string; models?: { apex?: string; cortex?: string } };
         const online = !!(d.claudeAvailable || d.ollamaAvailable);
         const label = d.claudeAvailable ? "Claude" : d.ollamaAvailable ? "Local" : "Rules";
-        const model = d.activeModel || d.models?.apex || d.models?.cortex || "rule engine";
+        // Show the model interactive chat actually uses (Haiku when fast + Claude).
+        const model = d.interactiveModel || d.activeModel || d.models?.apex || d.models?.cortex || "rule engine";
         if (alive) setBrain({ label, model, online });
       } catch { if (alive) setBrain({ label: "Offline", model: "—", online: false }); }
     };

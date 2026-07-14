@@ -115,6 +115,7 @@ router.post("/intro", async (req, res) => {
       task: "chat",
       context: [{ role: "system", content: system }],
       useCache: false,
+      preferFast: true, // the intro should generate fast — Haiku when available
     });
     const beats = parseBeats(result.response);
     if (beats) {

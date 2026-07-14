@@ -70,6 +70,7 @@ router.post("/stream", async (req, res) => {
         task: "chat",
         context,
         useCache: false, // conversations shouldn't be cached
+        preferFast: true, // interactive chat → fastest brain (Haiku) when available
       },
       (token) => {
         if (!res.writableEnded) {

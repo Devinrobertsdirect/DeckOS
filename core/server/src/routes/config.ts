@@ -9,6 +9,7 @@ import {
   getInferenceState,
   getClaudeModel,
   getCloudPreference,
+  refreshOllamaDetection,
   CLAUDE_MODELS,
   DEFAULT_CLAUDE_MODEL,
 } from "../lib/inference.js";
@@ -92,15 +93,17 @@ router.get("/config", async (_req, res) => {
     CLAUDE_MODEL:      process.env["CLAUDE_MODEL"]      ?? DEFAULT_CLAUDE_MODEL,
     CLOUD_PREFERENCE:  process.env["CLOUD_PREFERENCE"]  ?? "local-first",
     CLAUDE_MAX_TOKENS: process.env["CLAUDE_MAX_TOKENS"] ?? "4096",
+    SPEED_MODE:        process.env["SPEED_MODE"]        ?? "fast",
     ...config,
   };
 
   // claudeModels: valid CLAUDE_MODEL values for the settings UI dropdown;
-  // cloudPreferences: valid CLOUD_PREFERENCE values
+  // cloudPreferences / speedModes: valid values
   res.json({
     config: merged,
     claudeModels: CLAUDE_MODELS,
     cloudPreferences: ["local-first", "cloud-first", "local-only"],
+    speedModes: ["fast", "quality"],
   });
 });
 
@@ -116,15 +119,19 @@ router.put("/config", async (req, res) => {
 
   const updates = parsed.data;
   for (const [key, value] of Object.entries(updates)) {
-    await setConfig(key, value);
-    // Mirror to process.env so live code picks it up without restart
+    // Mirror to process.env FIRST so keys apply immediately even if the database
+    // is down (local-first: the app must work without Postgres).
     process.env[key] = value;
     if (key === "OPENAI_API_KEY") {
       process.env["AI_INTEGRATIONS_OPENAI_API_KEY"] = value;
     }
+    // Persist to the config store — best-effort; a missing DB is non-fatal.
+    await setConfig(key, value).catch(() => { /* keys still live in process.env */ });
   }
 
   invalidateConfigCache();
+  // Re-detect providers so a freshly-added Claude/Ollama key lights up now.
+  void refreshOllamaDetection().catch(() => {});
   res.json({ ok: true, updated: Object.keys(updates) });
 });
 
@@ -135,7 +142,12 @@ router.delete("/config/:key", async (req, res) => {
     res.status(400).json({ error: "Key required" });
     return;
   }
-  await deleteConfig(key);
+  // Clear the live env first so it applies with or without a database.
+  delete process.env[key];
+  if (key === "OPENAI_API_KEY") delete process.env["AI_INTEGRATIONS_OPENAI_API_KEY"];
+  await deleteConfig(key).catch(() => { /* DB down — env already cleared */ });
+  invalidateConfigCache();
+  void refreshOllamaDetection().catch(() => {});
   res.json({ ok: true, deleted: key });
 });
 

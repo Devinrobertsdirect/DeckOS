@@ -1,6 +1,6 @@
 import os from "os";
 import { getConfig } from "./app-config.js";
-import { botName } from "./identity.js";
+import { botName, neuraIdentityLine } from "./identity.js";
 
 // ── Task types ─────────────────────────────────────────────────────────────
 // Callers declare what they're asking for — the gateway picks the right model.
@@ -549,7 +549,7 @@ function buildMessages(
 ): Array<{ role: string; content: string }> {
   const hasSystem = context.some((m) => m.role === "system");
   return [
-    ...(!hasSystem ? [{ role: "system", content: "You are an advanced AI assistant integrated into DeckOS. Be concise and precise. Express emotion through words only — never use emoji, emoticons, or decorative symbols in your output." }] : []),
+    ...(!hasSystem ? [{ role: "system", content: `${neuraIdentityLine()} You are integrated into DeckOS. Be concise and precise. Express emotion through words only — never use emoji, emoticons, or decorative symbols in your output.` }] : []),
     ...context,
     { role: "user", content: prompt },
   ];
@@ -686,7 +686,7 @@ export async function callOllama(
   const hasSystemMsg = context.some((m) => m.role === "system");
   const messages = [
     ...(!hasSystemMsg
-      ? [{ role: "system", content: "You are an advanced AI assistant integrated into DeckOS. Be concise and precise." }]
+      ? [{ role: "system", content: `${neuraIdentityLine()} You are integrated into DeckOS. Be concise and precise.` }]
       : []),
     ...context,
     { role: "user", content: prompt },
@@ -715,7 +715,7 @@ export async function callOllamaStreaming(
   const hasSystemMsg = context.some((m) => m.role === "system");
   const messages = [
     ...(!hasSystemMsg
-      ? [{ role: "system", content: "You are an advanced AI assistant integrated into DeckOS. Be concise and precise." }]
+      ? [{ role: "system", content: `${neuraIdentityLine()} You are integrated into DeckOS. Be concise and precise.` }]
       : []),
     ...context,
     { role: "user", content: prompt },

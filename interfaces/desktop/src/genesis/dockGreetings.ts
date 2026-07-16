@@ -36,7 +36,7 @@ const ASKS = [
 
 /** The two-beat plug-in moment: a brief "syncing" caption, then the spoken line. */
 export function dockLines(botName: string, record?: Record | null): { sync: string; speak: string } {
-  const name = (botName || "").trim() || "Atlas";
+  const name = (botName || "").trim() || "Neura";
   const boot = record?.boot;
   const bootBit = boot ? ` That's wake number ${boot} for me, by the way.` : "";
   const sync = record ? "Syncing my records…" : "Syncing…";

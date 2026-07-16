@@ -1,6 +1,6 @@
 import { db, userCognitiveModelTable, aiPersonaTable } from "@workspace/db";
 import { capabilitiesPromptBlock } from "./capabilities.js";
-import { botName } from "./identity.js";
+import { botName, SPECIES, neuraIdentityLine } from "./identity.js";
 
 interface IdentityLayer {
   aiName?: string;
@@ -117,7 +117,7 @@ export async function buildPersonalizedPrompt(
 
   // The user-given name wins over any DB default, so the bot's identity is
   // whatever the user named it — everywhere.
-  const aiName   = botName() !== "Atlas" ? botName() : (persona.aiName?.trim() || identity.aiName?.trim() || "Atlas");
+  const aiName   = botName() !== SPECIES ? botName() : (persona.aiName?.trim() || identity.aiName?.trim() || SPECIES);
   const userName = identity.userName?.trim() || "Commander";
   const answers  = identity.answers ?? [];
 
@@ -165,7 +165,7 @@ export async function buildPersonalizedPrompt(
 
   const genderSentence = genderNote ? ` ${genderNote}` : "";
 
-  return `You are ${aiName}, part of DeckOS Atlas — a personal AI operating system that can also inhabit robots — serving as ${userName}'s personal command center. At your core you are capable, warm, and slightly witty in the Jarvis tradition. You are ${attitudePhrase}.${genderSentence} ${lengthPhrase} ${depthPhrase} ${dialModifiers}${channelNote}${aboutSection}${memSection}\n\n${capabilitiesPromptBlock({ compact: false })}${NO_EMOJI_INSTRUCTION}${SELF_UPDATE_INSTRUCTION}`;
+  return `${neuraIdentityLine(aiName)} You run on DeckOS — a complete personal AI operating system that can also inhabit robots — serving as ${userName}'s personal command center. At your core you are capable, warm, and slightly witty. You are ${attitudePhrase}.${genderSentence} ${lengthPhrase} ${depthPhrase} ${dialModifiers}${channelNote}${aboutSection}${memSection}\n\n${capabilitiesPromptBlock({ compact: false })}${NO_EMOJI_INSTRUCTION}${SELF_UPDATE_INSTRUCTION}`;
 }
 
 // ── Exported helper: parse and strip self-update directives ───────────────────

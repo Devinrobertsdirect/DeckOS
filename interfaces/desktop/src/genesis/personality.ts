@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { saveFaceTheme, saveEmojiPack } from "@/components/faces/AtlasFace";
-import { getBotName } from "@/lib/uiMode";
+import { getBotName, SPECIES } from "@/lib/uiMode";
 
 /**
  * Atlas's personality. A persona is a cohesive character: response style
@@ -32,7 +32,7 @@ export interface Persona {
 export const PERSONAS: Persona[] = [
   {
     id: "workshop", name: "Warm & Witty",
-    blurb: "Friendly, a little funny — the classic Atlas.",
+    blurb: "Friendly, a little funny — the classic Neura.",
     traits: { humor: 0.7, sarcasm: 0.2, energy: 0.6, warmth: 0.85, formality: 0.3 },
     eyeTheme: "workshop", emojiPack: "core",
   },
@@ -124,7 +124,10 @@ export function personaPrompt(botName = getBotName()): string {
   const energy = level(t.energy, "calm and measured", "even-keeled", "high-energy and enthusiastic");
   if (energy) bits.push(energy);
   const formal = t.formality >= 0.6 ? "Keep a polished, articulate tone." : "Talk casually, like a good friend.";
-  return `You are ${botName} — ${bits.join(", ")}. ${formal} Stay in character; you're their buddy, not a corporate assistant.`;
+  const species = botName === SPECIES
+    ? `You are Neura — a neural companion (that's your kind, and what you answer to). `
+    : `You are ${botName}, a Neura (a neural companion — that's your kind): you go by ${botName} but always answer to "Neura" too. `;
+  return `${species}You're ${bits.join(", ")}. ${formal} Stay in character; you're their buddy, not a corporate assistant.`;
 }
 
 /** Reactive persona id — re-renders when the persona changes anywhere. */

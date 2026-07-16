@@ -256,7 +256,7 @@ export function GenesisSetup({ onComplete }: { onComplete: () => void }) {
   // ── Step content ────────────────────────────────────────────────────────────
   // Warm, adoption-flavoured copy — you're not filling a form, you're bringing
   // a new companion home. Titles interpolate the name once it's chosen.
-  const botLabel = botName.trim() || "Atlas";
+  const botLabel = botName.trim() || "Neura";
   const stepTitle = [
     "Bring your AIs along",
     "Let's get acquainted",
@@ -475,7 +475,7 @@ function NamesStep({
         />
         <div className="w-full">
           <label htmlFor="atlas-bot-name" className="mb-2 block text-sm text-white/60">
-            Name your AI
+            Name your Neura
           </label>
           <Input
             id="atlas-bot-name"
@@ -483,14 +483,14 @@ function NamesStep({
             onChange={(e) => onBotName(e.target.value)}
             onFocus={onFocus}
             onBlur={onBlur}
-            placeholder="Atlas"
+            placeholder="Neura"
             autoComplete="off"
             spellCheck={false}
             className={INPUT_CLASS + " h-11 text-base"}
           />
         </div>
         <p className="text-center text-xs text-white/30">
-          These are just for us. You can change them any time.
+          A nickname for your Neura — it always answers to "Neura" too. You can change it any time.
         </p>
       </div>
     </div>
@@ -535,13 +535,13 @@ function ExplainerStep() {
   const points: { icon: string; title: string; body: string }[] = [
     {
       icon: "🔌",
-      title: "Atlas is the hub — the AIs are the power",
-      body: "On its own, Atlas organizes your day. Plugged into services like Claude or Gemini, it gets dramatically smarter — you choose which ones.",
+      title: "Neura is the hub — the AIs are the power",
+      body: "On its own, Neura organizes your day. Plugged into services like Claude or Gemini, it gets dramatically smarter — you choose which ones.",
     },
     {
       icon: "🔑",
       title: "A key is just a private password",
-      body: "Each service gives you a key — a long password that lets Atlas use your account. You paste it once. Atlas does the talking from then on.",
+      body: "Each service gives you a key — a long password that lets Neura use your account. You paste it once. Neura does the talking from then on.",
     },
     {
       icon: "🏠",
@@ -551,7 +551,7 @@ function ExplainerStep() {
     {
       icon: "⏭️",
       title: "Totally optional — skip and add later",
-      body: "Atlas already works with the free brain running on your computer. Connect nothing now if you like; everything on the next screen can wait.",
+      body: "Neura already works with the free brain running on your computer. Connect nothing now if you like; everything on the next screen can wait.",
     },
   ];
   return (
@@ -894,7 +894,7 @@ function MeetStep({
   voiceEngine: VoiceEngine;
 }) {
   const theme = useFaceTheme();
-  const bot = botName.trim() || "Atlas";
+  const bot = botName.trim() || "Neura";
   const voiceLabel = voiceEngine === "server" ? "ElevenLabs" : "Default";
   return (
     <div className="flex h-full flex-col items-center justify-center gap-6 text-center">

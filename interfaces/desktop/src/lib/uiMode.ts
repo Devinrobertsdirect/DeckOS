@@ -101,15 +101,22 @@ export function setUserName(name: string) {
   localStorage.setItem(NAME_KEY, name);
 }
 
-// What the user named their AI (defaults to "Atlas").
+// Every companion is a "Neura" (its species/classification — it always answers
+// to Neura); the user layers a personal nickname on top. Until named, the
+// nickname IS the species name.
+export const SPECIES = "Neura";
 const BOT_NAME_KEY = "atlas_bot_name";
 export function getBotName(): string {
-  return (localStorage.getItem(BOT_NAME_KEY) || "").trim() || "Atlas";
+  return (localStorage.getItem(BOT_NAME_KEY) || "").trim() || SPECIES;
+}
+/** True while the companion still goes by the species name (unnamed). */
+export function isBotUnnamed(): boolean {
+  return getBotName() === SPECIES;
 }
 export function setBotName(name: string) {
   const clean = (name || "").trim();
   localStorage.setItem(BOT_NAME_KEY, clean);
-  syncBotNameToServer(clean || "Atlas");
+  syncBotNameToServer(clean || SPECIES);
   window.dispatchEvent(new CustomEvent("atlas:botNameChanged", { detail: clean }));
 }
 

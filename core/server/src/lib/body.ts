@@ -9,6 +9,7 @@
  */
 import { createBody, detectBackend, desktopProfile, SerialBridgeBody, type AtlasBody, type DetectResult, type HardwareProfile } from "../hal/index.js";
 import { SerialPortTransport, listBoardPorts } from "./serialTransport.js";
+import { discoverRoles } from "./boardRoles.js";
 
 let body: AtlasBody | null = null;
 let starting: Promise<AtlasBody> | null = null;
@@ -28,12 +29,22 @@ function serialProfile(port: string): HardwareProfile {
   };
 }
 
-/** Which board port to use: an explicit ATLAS_SERIAL, else the first USB board. */
+/**
+ * Which board port the DRIVE body uses: an explicit ATLAS_SERIAL, else a USB
+ * board. With a single board it's just that one (unchanged, verified path).
+ * With two+ boards we probe roles and steer clear of the FACE node so the
+ * motors and the eyes don't share a port.
+ */
 async function pickPort(): Promise<string | null> {
   const forced = process.env["ATLAS_SERIAL"]?.trim();
   if (forced) return forced;
-  const ports = await listBoardPorts();
-  return ports[0]?.path ?? null;
+  const facePort = process.env["ATLAS_FACE_SERIAL"]?.trim();
+  let ports = (await listBoardPorts()).map((p) => p.path);
+  if (facePort) ports = ports.filter((p) => p !== facePort);
+  if (ports.length <= 1) return ports[0] ?? null;
+  // Multiple boards → avoid the face node; take the first non-face port.
+  const roles = await discoverRoles();
+  return ports.find((p) => roles.get(p) !== "face") ?? ports[0] ?? null;
 }
 
 async function connectSerial(port: string): Promise<AtlasBody | null> {

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod/v4";
 import { getFace, isFaceState } from "../lib/faceLink.js";
-import { AWP_FACE_STATES } from "../hal/protocol.js";
+import { AWP_FACE_STATES, type InputMsg } from "../hal/protocol.js";
 
 /**
  * /api/face — the physical FACE node (round-LCD eyes + touch + knob), separate
@@ -43,6 +43,28 @@ router.post("/face", async (req, res) => {
   const face = await getFace();
   const snap = face.setFace(parsed.data.state, parsed.data.color, parsed.data.bright);
   res.json({ ok: true, ...snap });
+});
+
+const InputSchema = z.object({
+  kind: z.enum(["tap", "touch", "release", "long", "knob", "press"]),
+  x: z.number().optional(),
+  y: z.number().optional(),
+  dir: z.number().optional(),
+  delta: z.number().optional(),
+});
+
+// POST /api/face/input — feed an input event as if from the panel. Lets the
+// on-screen face tap use the exact same touch→action path as a hardware tap,
+// and makes that path testable off-robot. The event is broadcast to clients.
+router.post("/face/input", async (req, res) => {
+  const parsed = InputSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Send { kind: tap|touch|release|long|knob|press, x?, y?, dir?, delta? }" });
+    return;
+  }
+  const face = await getFace();
+  face.injectInput({ t: "INPUT", ...parsed.data } as InputMsg);
+  res.json({ ok: true });
 });
 
 export default router;

@@ -4,7 +4,8 @@ import { FacesGallery } from "@/collection/FacesGallery";
 import { CapabilitiesPanel } from "@/pet/CapabilitiesPanel";
 import { BuddySettings } from "@/pet/BuddySettings";
 import { AtlasFace, type FaceState } from "@/components/faces/AtlasFace";
-import { useAtlasVoice } from "@/genesis/useAtlasVoice";
+import { useAtlasVoice, nudgeVoiceRate } from "@/genesis/useAtlasVoice";
+import { useLatestEvent } from "@/contexts/WebSocketContext";
 import { useAtlasListening } from "@/genesis/useAtlasListening";
 import { getInputMode, setInputMode, acquireMic } from "@/genesis/micAccess";
 import { getUserName, getBotName, setExperienceMode } from "@/lib/uiMode";
@@ -293,6 +294,31 @@ export function PetShell({
     if (res.granted) { setInputMode("voice"); setMicOn(true); }
     else { setCaption("I couldn't turn on the microphone — you can still type to me."); }
   }, [micOn]);
+
+  // ── Physical face input (touch / knob / press from the hardware panel) ───────
+  // Same path whether it's a real panel tap or the on-screen face — the brain
+  // broadcasts "atlas.faceInput" over WS. Tap wakes, press interrupts, knob tunes.
+  const faceInputEv = useLatestEvent("atlas.faceInput");
+  const handledInputAt = useRef<string>("");
+  useEffect(() => {
+    if (!faceInputEv || faceInputEv.timestamp === handledInputAt.current) return;
+    handledInputAt.current = faceInputEv.timestamp;
+    const p = (faceInputEv.payload ?? {}) as { kind?: string; dir?: number };
+    switch (p.kind) {
+      case "tap":
+      case "touch":
+        void toggleMic();                       // tap the face to start/stop listening
+        break;
+      case "press":
+        cancelRef.current = true;               // knob click interrupts current speech
+        break;
+      case "knob": {
+        const r = nudgeVoiceRate((p.dir ?? 0) > 0 ? 0.06 : -0.06);
+        setCaption(`Voice speed ${r.toFixed(2)}×`);
+        break;
+      }
+    }
+  }, [faceInputEv, toggleMic]);
 
   // ── Live brain detection ────────────────────────────────────────────────────
   useEffect(() => {

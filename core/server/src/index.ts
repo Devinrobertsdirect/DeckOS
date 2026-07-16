@@ -2,7 +2,8 @@ import http from "http";
 import app from "./app.js";
 import { logger, isDaemon } from "./lib/logger.js";
 import { bootstrap, teardown } from "./lib/bootstrap.js";
-import { attachWebSocketServer } from "./lib/ws-server.js";
+import { attachWebSocketServer, broadcast } from "./lib/ws-server.js";
+import { getFace } from "./lib/faceLink.js";
 
 const rawPort = process.env["PORT"];
 
@@ -36,6 +37,14 @@ async function main() {
 
   const server = http.createServer(app);
   attachWebSocketServer(server);
+
+  // Push face-node input (touch/knob/press) to clients so the buddy reacts —
+  // tap to wake, knob to tune, press to interrupt. Lazy face link; sim-safe.
+  void getFace().then((face) => {
+    face.onInput((msg) => {
+      broadcast({ type: "atlas.faceInput", source: "face", payload: msg, timestamp: new Date().toISOString() });
+    });
+  }).catch(() => { /* no face link — fine */ });
 
   server.listen(port, (err?: Error) => {
     if (err) {

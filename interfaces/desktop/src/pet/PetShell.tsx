@@ -9,6 +9,7 @@ import { useAtlasListening } from "@/genesis/useAtlasListening";
 import { getInputMode, setInputMode, acquireMic } from "@/genesis/micAccess";
 import { getUserName, getBotName, setExperienceMode } from "@/lib/uiMode";
 import { applyClientAction, type UiAction } from "@/pet/agentActions";
+import { mirrorFace } from "@/lib/hardwareFace";
 import { segmentReply, emojiGlyph, type EmotionSegment } from "@/genesis/emotionDirector";
 import { personaPrompt } from "@/genesis/personality";
 import { stripEmoji } from "@/lib/stripText";
@@ -68,6 +69,10 @@ export function PetShell({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [newFact, setNewFact] = useState("");
   const [brain, setBrain] = useState<{ label: string; model: string; online: boolean } | null>(null);
+
+  // Mirror every expression change onto a physical face panel, if one is
+  // attached (no-op cost otherwise — the server face link runs in sim mode).
+  useEffect(() => { mirrorFace(faceState, eyeColor); }, [faceState, eyeColor]);
 
   const busyRef = useRef(false);
   busyRef.current = busy;

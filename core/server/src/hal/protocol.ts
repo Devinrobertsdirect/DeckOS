@@ -15,10 +15,26 @@
 
 export const AWP_VERSION = 1;
 
+/**
+ * The canonical face-state vocabulary a face node must understand. Mirrors the
+ * app's `FaceState` (interfaces/desktop/.../atlasFaceEngine.ts) so the brain,
+ * the browser face, and the physical LCD face all speak the same expressions.
+ * Kept as a plain list (not an enum) so the wire value stays a tolerant string.
+ */
+export const AWP_FACE_STATES = [
+  "idle", "listening", "thinking", "talking", "happy", "confused", "excited",
+  "charging", "sleeping", "angry", "suspicious", "sad", "love", "wink", "starstruck",
+] as const;
+export type AwpFaceState = (typeof AWP_FACE_STATES)[number];
+
 // ── Message shapes (decoded) ─────────────────────────────────────────────────
 export type DriveCmd = { t: "DRIVE"; l: number; r: number };   // l/r ∈ [-1, 1]
 export type StopCmd = { t: "STOP" };
-export type FaceCmd = { t: "FACE"; state: string; color?: string };
+/**
+ * Set the face. `state` is one of AWP_FACE_STATES; `color` is the eye colour as
+ * "r,g,b" (the "seam" accent), `bright` an optional 0..100 idle-glow level.
+ */
+export type FaceCmd = { t: "FACE"; state: string; color?: string; bright?: number };
 export type EstopCmd = { t: "ESTOP"; on: boolean };
 export type ServoCmd = { t: "SERVO"; id: number; deg: number };
 export type ToneCmd = { t: "TONE"; hz: number; ms: number };
@@ -30,7 +46,13 @@ export type SyncCmd = { t: "SYNC" };
 export type Command =
   | DriveCmd | StopCmd | FaceCmd | EstopCmd | ServoCmd | ToneCmd | CfgCmd | PingCmd | HelloCmd | SyncCmd;
 
-export type ReadyMsg = { t: "READY"; v: number; board: string; caps: string[] };
+/**
+ * A node announces itself with READY. `role` tells the brain what this node is —
+ * "face" (an LCD/eyes+touch co-processor), "drive" (motors/encoders), or "body"
+ * (both, the classic all-in-one) — so one Pi can run a face node and a drive
+ * node on two separate links without confusing them.
+ */
+export type ReadyMsg = { t: "READY"; v: number; board: string; caps: string[]; role?: string };
 export type TelemetryMsg = {
   t: "TEL";
   encL?: number; encR?: number;
@@ -44,8 +66,20 @@ export type PongMsg = { t: "PONG"; n: number };
 export type LogMsg = { t: "LOG"; msg: string };
 /** The body's persistent logbook, dropped off on connect / SYNC. */
 export type RecordMsg = { t: "RECORD"; boot: number; lifeSec: number; sessMs: number };
+/**
+ * User input from a face node — the CrowPanel/CYD's touch panel and rotary knob.
+ * The brain turns these into buddy actions (tap → wake/listen, knob → volume,
+ * press → confirm). Coordinates are in panel pixels (0..width, 0..height).
+ */
+export type InputMsg = {
+  t: "INPUT";
+  kind: "tap" | "touch" | "release" | "long" | "knob" | "press";
+  x?: number; y?: number;   // tap/touch position
+  dir?: number;             // knob: -1 (ccw) | +1 (cw)
+  delta?: number;           // knob: accumulated steps since last report
+};
 
-export type Report = ReadyMsg | TelemetryMsg | EventMsg | PongMsg | LogMsg | RecordMsg;
+export type Report = ReadyMsg | TelemetryMsg | EventMsg | PongMsg | LogMsg | RecordMsg | InputMsg;
 
 // ── Encode (brain → body) ────────────────────────────────────────────────────
 function clamp(n: number, lo: number, hi: number): number {
@@ -63,7 +97,7 @@ export function encodeCommand(cmd: Command): string {
       return `DRIVE l=${l} r=${r}`;
     }
     case "STOP": return "STOP";
-    case "FACE": return `FACE state=${sanitize(cmd.state)}${cmd.color ? ` color=${sanitize(cmd.color)}` : ""}`;
+    case "FACE": return `FACE state=${sanitize(cmd.state)}${cmd.color ? ` color=${sanitize(cmd.color)}` : ""}${cmd.bright !== undefined ? ` bright=${clamp(cmd.bright, 0, 100) | 0}` : ""}`;
     case "ESTOP": return `ESTOP on=${cmd.on ? 1 : 0}`;
     case "SERVO": return `SERVO id=${cmd.id | 0} deg=${clamp(cmd.deg, 0, 180) | 0}`;
     case "TONE": return `TONE hz=${cmd.hz | 0} ms=${cmd.ms | 0}`;
@@ -85,7 +119,7 @@ export function decodeReport(line: string): Report | null {
   const kv = parseKv(rest);
   switch (verb) {
     case "READY":
-      return { t: "READY", v: int(kv["v"], 1), board: kv["board"] ?? "unknown", caps: (kv["caps"] ?? "").split(",").filter(Boolean) };
+      return { t: "READY", v: int(kv["v"], 1), board: kv["board"] ?? "unknown", role: kv["role"], caps: (kv["caps"] ?? "").split(",").filter(Boolean) };
     case "TEL":
       return {
         t: "TEL",
@@ -96,6 +130,11 @@ export function decodeReport(line: string): Report | null {
         yaw: numOrU(kv["yaw"]),
       };
     case "EVENT": return { t: "EVENT", e: kv["e"] ?? "" };
+    case "INPUT": return {
+      t: "INPUT",
+      kind: (["tap", "touch", "release", "long", "knob", "press"].includes(kv["kind"] ?? "") ? kv["kind"] : "tap") as InputMsg["kind"],
+      x: numOrU(kv["x"]), y: numOrU(kv["y"]), dir: numOrU(kv["dir"]), delta: numOrU(kv["delta"]),
+    };
     case "RECORD": return { t: "RECORD", boot: int(kv["boot"], 0), lifeSec: int(kv["life_s"], 0), sessMs: int(kv["sess_ms"], 0) };
     case "PONG": return { t: "PONG", n: int(kv["n"], 0) };
     case "LOG": return { t: "LOG", msg: rest.join(" ").replace(/^msg=/, "") };

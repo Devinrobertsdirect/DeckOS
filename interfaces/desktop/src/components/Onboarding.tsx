@@ -44,8 +44,8 @@ export function isInitialized(): boolean {
 // Color system
 // ─────────────────────────────────────────────
 const COLOR_LABEL: Record<ColorScheme, string> = {
-  steel:  "ATLAS STEEL",
-  ice:    "ATLAS ICE",
+  steel:  "NEURA STEEL",
+  ice:    "NEURA ICE",
   blue:   "COBALT",
   green:  "EMERALD",
   yellow: "AMBER",
@@ -60,7 +60,7 @@ const COLOR_HEX: Record<ColorScheme, string> = {
   red:    "#f03248",
 };
 const COLOR_DESC: Record<ColorScheme, string> = {
-  steel:  "the Atlas signature",
+  steel:  "the Neura signature",
   ice:    "calm precision",
   blue:   "deep focus",
   green:  "growth & clarity",
@@ -422,7 +422,7 @@ function ColorPickPhase({ onNext }: { onNext: (c: ColorScheme) => void }) {
       >
         <div className="text-center space-y-1">
           <div className="text-primary/30 font-mono text-xs tracking-[0.4em] uppercase">
-            DeckOS Atlas // First Boot
+            DeckOS // First Boot
           </div>
           <div className="text-primary font-mono text-xl tracking-[0.3em] uppercase">
             Choose Your System Color
@@ -525,7 +525,7 @@ function BootPhase({ aiName, onNext }: { aiName: string; onNext: () => void }) {
         <div className="text-center space-y-1 mb-2">
           <div className="text-primary font-sans text-4xl font-bold tracking-[0.3em] uppercase
             drop-shadow-[0_0_20px_rgba(var(--primary-rgb),0.7)] animate-[ob-glow-in_1s_ease_both]">
-            DECKOS ATLAS
+            DECKOS
           </div>
           <div className="text-primary/40 font-mono text-xs tracking-widest">{aiName} — FIRST BOOT</div>
         </div>

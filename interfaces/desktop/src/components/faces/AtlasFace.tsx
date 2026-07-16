@@ -172,7 +172,7 @@ export function AtlasFace({
       height={size}
       className={className}
       style={{ display: "block", margin: "0 auto", width: size, height: size }}
-      aria-label={`Atlas face — ${state}`}
+      aria-label={`Neura face — ${state}`}
       role="img"
     />
   );

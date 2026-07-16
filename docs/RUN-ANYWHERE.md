@@ -1,6 +1,6 @@
-# Atlas Runs Anywhere — one brain, any body
+# Neura Runs Anywhere — one brain, any body
 
-Atlas is **takeover software**: install it and it becomes the assistant on a
+Neura is **takeover software**: install it and it becomes the assistant on a
 Linux or Windows desktop, the brain of a Raspberry Pi robot, or the host for a
 microcontroller body — **without changing the app**. The trick is a hard line
 between the brain and the body.

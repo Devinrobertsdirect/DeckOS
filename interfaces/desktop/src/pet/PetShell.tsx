@@ -572,7 +572,7 @@ export function PetShell({
                 </div>
                 <form className="flex gap-2 border-t border-primary/15 p-3"
                   onSubmit={(e) => { e.preventDefault(); if (newFact.trim()) { addFact(newFact.trim(), "user"); setNewFact(""); } }}>
-                  <input value={newFact} onChange={(e) => setNewFact(e.target.value)} placeholder="Tell Atlas to remember something…"
+                  <input value={newFact} onChange={(e) => setNewFact(e.target.value)} placeholder="Tell Neura to remember something…"
                     className="min-w-0 flex-1 rounded-full border border-primary/20 bg-background/60 px-3 py-1.5 text-sm focus:border-primary/50 focus:outline-none" />
                   <button type="submit" className="rounded-full bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-40" disabled={!newFact.trim()}>Add</button>
                 </form>

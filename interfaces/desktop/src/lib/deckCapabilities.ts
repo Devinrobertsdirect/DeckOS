@@ -39,7 +39,7 @@ export const CATEGORY_ORDER: CapabilityCategory[] = [
 // Minimal fallback (server offline) — the launchable highlights.
 const FALLBACK: DeckCapability[] = [
   { id: "memory", title: "Memory & Your Profile", category: "memory", uiRoute: "/memory", primaryEndpoint: "", userPhrasings: ["What do you know about me?", "Remember this for me"],
-    summary: "Everything Atlas remembers about you — view, search, edit, or wipe it." },
+    summary: "Everything Neura remembers about you — view, search, edit, or wipe it." },
   { id: "routines-automation", title: "Routines & Automations", category: "automation", uiRoute: "/routines", primaryEndpoint: "", userPhrasings: ["Set up a morning routine"],
     summary: "Create and run scheduled or triggered routines." },
   { id: "daily-briefings", title: "Briefings", category: "insight", uiRoute: "/briefings", primaryEndpoint: "", userPhrasings: ["Give me my briefing"],
@@ -51,7 +51,7 @@ const FALLBACK: DeckCapability[] = [
   { id: "activity-timeline", title: "Activity Timeline", category: "system", uiRoute: "/timeline", primaryEndpoint: "", userPhrasings: ["What happened today?"],
     summary: "A searchable history of everything across the system." },
   { id: "skills-plugins", title: "Skills & Plugins", category: "automation", uiRoute: "/plugins/store", primaryEndpoint: "", userPhrasings: ["What add-ons can I install?"],
-    summary: "Extend Atlas with skills from the store." },
+    summary: "Extend Neura with skills from the store." },
   { id: "provider-setup", title: "AI Providers & Settings", category: "setup", uiRoute: "/settings", primaryEndpoint: "", userPhrasings: ["Connect my Claude key"],
     summary: "Connect cloud AIs, keys, and preferences." },
 ];

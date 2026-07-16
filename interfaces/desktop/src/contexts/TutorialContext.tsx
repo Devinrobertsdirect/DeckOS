@@ -60,7 +60,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   {
     id: "browse_plugins",
     title: "Browse Skills",
-    desc: "Open the Plugin Store and see what you can add to DeckOS Atlas.",
+    desc: "Open the Plugin Store and see what you can add to DeckOS.",
     targetRoute: "/plugins/store",
     actionHint: "Click PLUGIN.STORE in the sidebar",
     completedBy: "route",
@@ -68,7 +68,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   {
     id: "open_settings",
     title: "Configure Base",
-    desc: "Visit Settings to connect an AI model and fine-tune DeckOS Atlas.",
+    desc: "Visit Settings to connect an AI model and fine-tune DeckOS.",
     targetRoute: "/settings",
     actionHint: "Click SETTINGS in the sidebar",
     completedBy: "route",

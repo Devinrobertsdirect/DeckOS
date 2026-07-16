@@ -111,7 +111,7 @@ export const VOICE_OPTIONS = [
 export const FACE_OPTIONS: { id: FaceStyle; label: string; description: string }[] = [
   {
     id: "atlas",
-    label: "ATLAS",
+    label: "NEURA",
     description: "The companion face — two eyes, eight moods, no mouth needed",
   },
   {
@@ -951,7 +951,7 @@ function FirstContactStep({
   const humorWord  = humor > 0.6 ? "with occasional wit" : humor > 0.3 ? "with subtle personality" : "formally";
   const lengthWord = verbosity > 0.6 ? "Give a thorough, detailed introduction." : verbosity > 0.3 ? "Keep it concise but warm." : "Be extremely brief.";
 
-  const systemPrompt = `You are ${aiName}, the voice of DeckOS Atlas — a personal AI operating system. Your personality: ${toneWord}, speaking ${humorWord}. ${lengthWord} You are meeting your user for the first time. Introduce yourself with your name, reference that you have been calibrated and personalized, and ask the user one opening question to learn about them. Sound like an intelligent, alive AI — not a generic chatbot. Avoid markdown. Speak naturally.`;
+  const systemPrompt = `You are ${aiName}, the voice of DeckOS — a personal AI operating system. Your personality: ${toneWord}, speaking ${humorWord}. ${lengthWord} You are meeting your user for the first time. Introduce yourself with your name, reference that you have been calibrated and personalized, and ask the user one opening question to learn about them. Sound like an intelligent, alive AI — not a generic chatbot. Avoid markdown. Speak naturally.`;
 
   useEffect(() => {
     let cancelled = false;
@@ -971,14 +971,14 @@ function FirstContactStep({
 
         if (res.ok) {
           const data = await res.json() as { response?: string };
-          const intro = data.response ?? `Online. I am ${aiName}, running on DeckOS Atlas — your personal AI operating system. Calibration complete — I have been shaped to your preferences. What shall we accomplish today?`;
+          const intro = data.response ?? `Online. I am ${aiName}, running on DeckOS — your personal AI operating system. Calibration complete — I have been shaped to your preferences. What shall we accomplish today?`;
           if (!cancelled) setText(intro);
         } else {
           throw new Error("AI offline");
         }
       } catch {
         if (!cancelled) {
-          setText(`Online. I am ${aiName}, running on DeckOS Atlas — your personal AI operating system. All systems are nominal and I have been calibrated to your preferences. I am ready to serve. What shall we accomplish today?`);
+          setText(`Online. I am ${aiName}, running on DeckOS — your personal AI operating system. All systems are nominal and I have been calibrated to your preferences. I am ready to serve. What shall we accomplish today?`);
         }
       }
       if (!cancelled) setLoading(false);

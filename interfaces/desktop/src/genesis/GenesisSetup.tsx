@@ -557,7 +557,7 @@ function ExplainerStep() {
   return (
     <div className="mx-auto flex h-full max-w-xl flex-col justify-center gap-3">
       <p className="mb-1 text-center text-sm text-white/55">
-        Think of the next screen like giving Atlas a phone book of brilliant
+        Think of the next screen like giving Neura a phone book of brilliant
         friends it can call for you.
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
@@ -595,9 +595,9 @@ function ProvidersStep({
       {/* Plain-language primer, folded into the keys screen. */}
       <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3.5 text-xs leading-relaxed text-white/60">
         <span className="text-[#C9DCF0]">New to this?</span> A “key” is just a
-        private password an AI service gives you. Paste it once and Atlas does the
+        private password an AI service gives you. Paste it once and Neura does the
         talking — keys stay on your machine and can be removed any time. Everything
-        here is optional; Atlas already works with the free brain on your computer.
+        here is optional; Neura already works with the free brain on your computer.
       </div>
       {CATEGORY_ORDER.map(({ cat, label }) => {
         const items = providersByCategory(cat);
@@ -721,8 +721,8 @@ const EMOTION_SHOWCASE: FaceState[] = [
 // The six accent schemes as swatches. Hexes mirror the app's ColorScheme map so
 // clicking one recolours the eyes (which follow the accent) live.
 const ACCENT_SWATCHES: { scheme: ColorScheme; hex: string; label: string }[] = [
-  { scheme: "steel", hex: "#4A7FB5", label: "Atlas Steel" },
-  { scheme: "ice", hex: "#C9DCF0", label: "Atlas Ice" },
+  { scheme: "steel", hex: "#4A7FB5", label: "Neura Steel" },
+  { scheme: "ice", hex: "#C9DCF0", label: "Neura Ice" },
   { scheme: "blue", hex: "#3f84f3", label: "Cobalt" },
   { scheme: "green", hex: "#11d97a", label: "Emerald" },
   { scheme: "yellow", hex: "#ffc820", label: "Amber" },

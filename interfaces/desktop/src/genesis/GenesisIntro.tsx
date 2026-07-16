@@ -225,7 +225,7 @@ export function GenesisIntro({ onComplete }: { onComplete: () => void }) {
           textTransform: "uppercase", color: "rgba(201,220,240,0.55)",
           animation: "atlasPulse 2.4s ease-in-out infinite",
         }}>
-          tap to wake Atlas
+          tap to wake Neura
         </div>
       )}
 

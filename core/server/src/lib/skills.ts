@@ -516,7 +516,7 @@ const joke: Skill = {
     return { speak: "Why did the robot cross the road? It was programmed by a chicken." };
   },
 };
-const whoAreYou = social("who-are-you", /\bwho are you\b|\bwhat'?s your name\b|\bwhat kind of (ai|robot|thing) are you\b/, "I'm your Atlas — the face of DeckOS. I run your whole system and keep you company.", 8);
+const whoAreYou = social("who-are-you", /\bwho are you\b|\bwhat'?s your name\b|\bwhat kind of (ai|robot|thing) are you\b/, "I'm your Neura — the face of DeckOS. I run your whole system and keep you company.", 8);
 const helpSkill: Skill = {
   id: "help",
   handle({ lower }) {

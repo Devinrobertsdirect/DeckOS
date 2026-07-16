@@ -21,8 +21,8 @@ const COLOR_HEX: Record<ColorScheme, string> = {
   red:    "#f03248",
 };
 const COLOR_NAME: Record<ColorScheme, string> = {
-  steel:  "ATLAS STEEL",
-  ice:    "ATLAS ICE",
+  steel:  "NEURA STEEL",
+  ice:    "NEURA ICE",
   blue:   "COBALT",
   green:  "EMERALD",
   yellow: "AMBER",
@@ -53,8 +53,8 @@ function HudCorners() {
   );
 }
 
-const TITLE = "ATLAS";
-const SUBTITLE = "DECKOS ATLAS — PERSONAL AI OPERATING SYSTEM";
+const TITLE = "NEURA";
+const SUBTITLE = "DECKOS — PERSONAL AI OPERATING SYSTEM";
 
 export function StartScreen({ onStart }: Props) {
   const [settingsOpen, setSettingsOpen]   = useState(false);

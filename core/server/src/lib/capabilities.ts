@@ -7,7 +7,7 @@
  *   2. The client — GET /api/capabilities serves this to the "what can I do?"
  *      launcher so Atlas can open any tool by its uiRoute.
  *
- * Atlas is the face; DeckOS is the body. Keep this list honest — every entry
+ * Neura is the face; DeckOS is the body. Keep this list honest — every entry
  * maps to a real capability in the codebase.
  */
 
@@ -33,17 +33,17 @@ export interface DeckCapability {
 export const DECKOS_CAPABILITIES: DeckCapability[] = [
   {
     id: "conversation",
-    title: "Talk to Atlas",
-    summary: "Have a natural streaming back-and-forth with Atlas — ask anything, think out loud, or just chat — with the thread kept so you can scroll back through what you said earlier.",
+    title: "Talk to Neura",
+    summary: "Have a natural streaming back-and-forth with Neura — ask anything, think out loud, or just chat — with the thread kept so you can scroll back through what you said earlier.",
     category: "brain",
     uiRoute: "",
     primaryEndpoint: "POST /api/chat",
-    userPhrasings: ["Hey Atlas, what's the plan today?", "Help me think through this", "What were we just talking about?"],
+    userPhrasings: ["Hey Neura, what's the plan today?", "Help me think through this", "What were we just talking about?"],
   },
   {
     id: "ai-intelligence",
     title: "Brain, Thinking Depth & Local AI",
-    summary: "Pick how hard Atlas thinks and which brain runs it — a fast private on-device model, deeper reasoning, or the cloud — see whether it's online, spin up the local engine, and peek at how it routed your request.",
+    summary: "Pick how hard Neura thinks and which brain runs it — a fast private on-device model, deeper reasoning, or the cloud — see whether it's online, spin up the local engine, and peek at how it routed your request.",
     category: "brain",
     uiRoute: "/ai",
     primaryEndpoint: "GET /api/ai-router/status",
@@ -52,7 +52,7 @@ export const DECKOS_CAPABILITIES: DeckCapability[] = [
   {
     id: "personality-voice",
     title: "Personality & Voice Style",
-    summary: "Shape who Atlas is — its name, voice, attitude and quirks like wit or snark — plus how it delivers replies, from brisk and formal to warm and detailed.",
+    summary: "Shape who Neura is — its name, voice, attitude and quirks like wit or snark — plus how it delivers replies, from brisk and formal to warm and detailed.",
     category: "brain",
     uiRoute: "/ai/personality",
     primaryEndpoint: "GET /api/ai/persona",
@@ -61,7 +61,7 @@ export const DECKOS_CAPABILITIES: DeckCapability[] = [
   {
     id: "feedback-learning",
     title: "Learns From Your Feedback",
-    summary: "Atlas tunes how chatty, proactive and formal it is from what you accept, ignore or reject — and you can see or reset what it's picked up about your style.",
+    summary: "Neura tunes how chatty, proactive and formal it is from what you accept, ignore or reject — and you can see or reset what it's picked up about your style.",
     category: "brain",
     uiRoute: "",
     primaryEndpoint: "POST /api/feedback/signal",
@@ -70,7 +70,7 @@ export const DECKOS_CAPABILITIES: DeckCapability[] = [
   {
     id: "memory",
     title: "Memory & Your Profile",
-    summary: "The living model of you plus everything Atlas remembers — your identity, preferences and goals alongside short-term notes and long-term facts you can search, recall, edit, export or wipe.",
+    summary: "The living model of you plus everything Neura remembers — your identity, preferences and goals alongside short-term notes and long-term facts you can search, recall, edit, export or wipe.",
     category: "memory",
     uiRoute: "/memory",
     primaryEndpoint: "GET /api/memory/search",
@@ -88,16 +88,16 @@ export const DECKOS_CAPABILITIES: DeckCapability[] = [
   {
     id: "goals-planning",
     title: "Goals & Planning",
-    summary: "Track what you're working toward with priorities, deadlines and sub-goals; Atlas can draft a step-by-step plan with a confidence score and risk notes, and goals quietly lose momentum if untouched.",
+    summary: "Track what you're working toward with priorities, deadlines and sub-goals; Neura can draft a step-by-step plan with a confidence score and risk notes, and goals quietly lose momentum if untouched.",
     category: "brain",
     uiRoute: "",
     primaryEndpoint: "GET /api/goals",
-    userPhrasings: ["Add a goal to finish the Atlas face by Friday", "Make me a plan for this goal", "How's my progress on the robot project?", "Mark step 3 as done"],
+    userPhrasings: ["Add a goal to finish the Neura face by Friday", "Make me a plan for this goal", "How's my progress on the robot project?", "Mark step 3 as done"],
   },
   {
     id: "autonomy-controls",
     title: "Autonomy & Safety Controls",
-    summary: "Decide how much Atlas may do on its own — a safety level, an allow/block list, and a confirm-first switch — then let it carry out safe tasks like reminders, with every action written to an audit log.",
+    summary: "Decide how much Neura may do on its own — a safety level, an allow/block list, and a confirm-first switch — then let it carry out safe tasks like reminders, with every action written to an audit log.",
     category: "automation",
     uiRoute: "/ai",
     primaryEndpoint: "POST /api/autonomy/execute",
@@ -123,8 +123,8 @@ export const DECKOS_CAPABILITIES: DeckCapability[] = [
   },
   {
     id: "vision",
-    title: "Atlas's Eyes (Vision)",
-    summary: "Let Atlas look through your camera — it can greet you by genuinely seeing you, or describe your surroundings, the lighting and the objects in the room.",
+    title: "Neura's Eyes (Vision)",
+    summary: "Let Neura look through your camera — it can greet you by genuinely seeing you, or describe your surroundings, the lighting and the objects in the room.",
     category: "insight",
     uiRoute: "",
     primaryEndpoint: "POST /api/vision/analyze",
@@ -133,7 +133,7 @@ export const DECKOS_CAPABILITIES: DeckCapability[] = [
   {
     id: "voice-io",
     title: "Speaking & Listening (Voice)",
-    summary: "Atlas speaks its replies aloud in your chosen voice and transcribes what you say, so you can have a hands-free spoken conversation.",
+    summary: "Neura speaks its replies aloud in your chosen voice and transcribes what you say, so you can have a hands-free spoken conversation.",
     category: "comms",
     uiRoute: "",
     primaryEndpoint: "POST /api/vision/tts",
@@ -142,16 +142,16 @@ export const DECKOS_CAPABILITIES: DeckCapability[] = [
   {
     id: "messaging-channels",
     title: "Chat From Your Messaging Apps",
-    summary: "Talk to Atlas from WhatsApp, Discord, Telegram, iMessage, Slack, Signal and more — it replies with full memory of the conversation, just like in the app.",
+    summary: "Talk to Neura from WhatsApp, Discord, Telegram, iMessage, Slack, Signal and more — it replies with full memory of the conversation, just like in the app.",
     category: "comms",
     uiRoute: "",
     primaryEndpoint: "POST /api/channels/inbound",
-    userPhrasings: ["Can I text you on WhatsApp?", "Hook Atlas up to my Telegram", "Which chat apps am I connected to?", "Reply to me on Discord instead"],
+    userPhrasings: ["Can I text you on WhatsApp?", "Hook Neura up to my Telegram", "Which chat apps am I connected to?", "Reply to me on Discord instead"],
   },
   {
     id: "daily-briefings",
     title: "Briefings",
-    summary: "Pulls together a short catch-up of what's been going on and what matters right now — grab the latest one or have Atlas put together a fresh briefing on demand.",
+    summary: "Pulls together a short catch-up of what's been going on and what matters right now — grab the latest one or have Neura put together a fresh briefing on demand.",
     category: "insight",
     uiRoute: "/briefings",
     primaryEndpoint: "GET /api/briefings/latest",
@@ -160,7 +160,7 @@ export const DECKOS_CAPABILITIES: DeckCapability[] = [
   {
     id: "predictions-foresight",
     title: "Predictions & Foresight",
-    summary: "Atlas watches your goals, recent errors and habits to surface proactive suggestions — a creeping deadline, a stalled goal, a repeated task worth automating — which you can accept or wave off.",
+    summary: "Neura watches your goals, recent errors and habits to surface proactive suggestions — a creeping deadline, a stalled goal, a repeated task worth automating — which you can accept or wave off.",
     category: "insight",
     uiRoute: "",
     primaryEndpoint: "POST /api/predictions/generate",
@@ -169,7 +169,7 @@ export const DECKOS_CAPABILITIES: DeckCapability[] = [
   {
     id: "presence-initiative",
     title: "Presence, Nudges & Check-ins",
-    summary: "The buddy side of Atlas — it tracks whether you're around, gently nudges you about things that matter, keeps threads of what you're in the middle of, and lets you dial how proactive it should be.",
+    summary: "The buddy side of Neura — it tracks whether you're around, gently nudges you about things that matter, keeps threads of what you're in the middle of, and lets you dial how proactive it should be.",
     category: "insight",
     uiRoute: "",
     primaryEndpoint: "GET /api/presence",
@@ -187,7 +187,7 @@ export const DECKOS_CAPABILITIES: DeckCapability[] = [
   {
     id: "skills-plugins",
     title: "Skills & Plugins",
-    summary: "Extend Atlas with add-ons — browse the ClawHub and community catalogs for skills like Spotify or Home Assistant, install, remove, enable or review them, and manage the built-in plugins.",
+    summary: "Extend Neura with add-ons — browse the ClawHub and community catalogs for skills like Spotify or Home Assistant, install, remove, enable or review them, and manage the built-in plugins.",
     category: "automation",
     uiRoute: "/plugins/store",
     primaryEndpoint: "GET /api/plugins/store/registry",
@@ -196,7 +196,7 @@ export const DECKOS_CAPABILITIES: DeckCapability[] = [
   {
     id: "provider-setup",
     title: "AI Providers, Keys & Settings",
-    summary: "Hook Atlas up to cloud AIs like Claude, Gemini, Perplexity and OpenAI — add and test API keys, set local-first vs cloud preference and speed, and test your Ollama or Open WebUI connection.",
+    summary: "Hook Neura up to cloud AIs like Claude, Gemini, Perplexity and OpenAI — add and test API keys, set local-first vs cloud preference and speed, and test your Ollama or Open WebUI connection.",
     category: "setup",
     uiRoute: "/settings",
     primaryEndpoint: "GET /api/providers",
@@ -205,7 +205,7 @@ export const DECKOS_CAPABILITIES: DeckCapability[] = [
   {
     id: "system-monitor",
     title: "System Monitor",
-    summary: "Check how your machine is doing — CPU, memory, uptime and recent events — and set the thresholds where Atlas should start warning you.",
+    summary: "Check how your machine is doing — CPU, memory, uptime and recent events — and set the thresholds where Neura should start warning you.",
     category: "system",
     uiRoute: "/hud",
     primaryEndpoint: "GET /api/system/stats",
@@ -223,7 +223,7 @@ export const DECKOS_CAPABILITIES: DeckCapability[] = [
   {
     id: "phone-pairing",
     title: "Phone Pairing & Setup",
-    summary: "Connect your phone to this DeckOS — grab the pairing code and mobile link, reset it whenever you want, and get Atlas's spoken first-run welcome.",
+    summary: "Connect your phone to this DeckOS — grab the pairing code and mobile link, reset it whenever you want, and get Neura's spoken first-run welcome.",
     category: "setup",
     uiRoute: "/settings",
     primaryEndpoint: "GET /api/pairing/code",
@@ -232,16 +232,16 @@ export const DECKOS_CAPABILITIES: DeckCapability[] = [
   {
     id: "system-maintenance",
     title: "Updates & Reset",
-    summary: "Check which version you're running, update Atlas to the latest release, or wipe what it's learned about you and restore factory settings.",
+    summary: "Check which version you're running, update Neura to the latest release, or wipe what it's learned about you and restore factory settings.",
     category: "system",
     uiRoute: "/settings",
     primaryEndpoint: "POST /api/admin/update",
-    userPhrasings: ["Update Atlas to the latest version", "What version am I on?", "Reset Atlas to factory settings"],
+    userPhrasings: ["Update Neura to the latest version", "What version am I on?", "Reset Neura to factory settings"],
   },
   {
     id: "lie-detector",
     title: "Lie Detector",
-    summary: "Run a playful polygraph session — Atlas calibrates, records your answers question by question, and gives each one a stress score and a truth verdict.",
+    summary: "Run a playful polygraph session — Neura calibrates, records your answers question by question, and gives each one a stress score and a truth verdict.",
     category: "insight",
     uiRoute: "/lie-detector",
     primaryEndpoint: "POST /api/lie-detector/session/start",

@@ -447,11 +447,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <div className="flex items-center gap-3">
           <img
             src={`${import.meta.env.BASE_URL}logo.png`}
-            alt="DeckOS Atlas"
+            alt="DeckOS"
             className="w-8 h-8 object-contain pulse-glow"
           />
           <div>
-            <h1 className="text-xl font-bold text-primary tracking-widest uppercase m-0 leading-none">DeckOS Atlas</h1>
+            <h1 className="text-xl font-bold text-primary tracking-widest uppercase m-0 leading-none">DeckOS</h1>
             <p className="text-xs text-primary/50 font-mono">SYS.VER.9.4.2 // {aiName}</p>
           </div>
         </div>

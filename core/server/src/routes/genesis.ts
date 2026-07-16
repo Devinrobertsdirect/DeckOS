@@ -28,7 +28,7 @@ type Beat = z.infer<typeof BeatSchema>;
 
 const IntroRequest = z.object({
   name: z.string().max(60).optional().default(""),
-  botName: z.string().max(60).optional().default("Atlas"),
+  botName: z.string().max(60).optional().default("Neura"),
   providers: z.array(z.string().max(40)).max(12).optional().default([]),
 });
 
@@ -46,7 +46,7 @@ function spokenList(items: string[]): string {
 }
 
 /** Hand-written fallback — tighter and more varied than a single tone. */
-function fallbackBeats(name: string, providers: string[], hour: number, bot = "Atlas"): Beat[] {
+function fallbackBeats(name: string, providers: string[], hour: number, bot = "Neura"): Beat[] {
   const who = name.trim() || "friend";
   const greet = timeGreeting(hour);
   const mind = providers.length
@@ -91,7 +91,7 @@ router.post("/intro", async (req, res) => {
     return;
   }
   const { name, botName, providers } = parsed.data;
-  const bot = (botName || "Atlas").trim() || "Atlas";
+  const bot = (botName || "Neura").trim() || "Neura";
   const hour = new Date().getHours();
 
   const system =

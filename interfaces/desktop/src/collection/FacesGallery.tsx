@@ -20,8 +20,8 @@ import { setPersona } from "@/genesis/personality";
 // ─────────────────────────────────────────────────────────────────────────────
 const COLOR_ORDER: ColorScheme[] = ["steel", "ice", "blue", "green", "yellow", "red"];
 const COLOR_META: Record<ColorScheme, { label: string; hex: string; desc: string }> = {
-  steel:  { label: "ATLAS STEEL", hex: "#4A7FB5", desc: "the Atlas signature" },
-  ice:    { label: "ATLAS ICE",   hex: "#C9DCF0", desc: "calm precision" },
+  steel:  { label: "NEURA STEEL", hex: "#4A7FB5", desc: "the Neura signature" },
+  ice:    { label: "NEURA ICE",   hex: "#C9DCF0", desc: "calm precision" },
   blue:   { label: "COBALT",      hex: "#3f84f3", desc: "deep focus" },
   green:  { label: "EMERALD",     hex: "#11d97a", desc: "growth & clarity" },
   yellow: { label: "AMBER",       hex: "#ffc820", desc: "energy & focus" },
@@ -188,7 +188,7 @@ export function FacesGallery({ onClose }: { onClose: () => void }) {
       >
         <div className="min-w-0">
           <div className="font-mono text-[10px] uppercase tracking-[0.35em] text-primary/35">
-            DeckOS Atlas // Collection Wall
+            DeckOS // Collection Wall
           </div>
           <h1 className="truncate font-sans text-xl font-bold uppercase tracking-[0.22em] text-primary sm:text-2xl">
             Your {botName} — Collection

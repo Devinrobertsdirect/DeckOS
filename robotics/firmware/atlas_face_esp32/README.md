@@ -12,7 +12,7 @@ present) come back as input events.
 
 ```
 brain → face:  FACE state=<expr> color=<r,g,b> [bright=0..100]
-               HELLO v=1 name=AtlasBrain
+               HELLO v=1 name=NeuraBrain
                PING n=<k>
 face  → brain: READY v=1 board=atlas-face role=face caps=face,touch
                INPUT kind=tap x=<px> y=<px>

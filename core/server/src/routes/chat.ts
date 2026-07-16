@@ -98,7 +98,7 @@ router.post("/chat", async (req, res) => {
   const eggResponse = checkEasterEgg(message, personaCtx);
 
   const baseSystemPrompt = await buildPersonalizedPrompt(recentMemory.map((m) => m.content), channel)
-    .catch(() => "You are Atlas, the AI core of DeckOS Atlas. Be concise, capable, and warm.");
+    .catch(() => "You are Neura, the AI core of DeckOS. Be concise, capable, and warm.");
   const aceraCtx = getAceraContext();
   const starkCtx = getStarkContext();
   // The client-chosen personality (name + traits) leads the prompt so replies

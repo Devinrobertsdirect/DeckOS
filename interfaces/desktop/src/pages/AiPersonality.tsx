@@ -41,8 +41,8 @@ export const VOICE_CHANGED_EVENT = "deckos:voiceChanged";
 // ── Constants ──────────────────────────────────────────────────────────────
 
 const PRESET_COLORS = [
-  { label: "ATLAS STEEL", value: "#4a7fb5" },
-  { label: "ATLAS ICE",   value: "#c9dcf0" },
+  { label: "NEURA STEEL", value: "#4a7fb5" },
+  { label: "NEURA ICE",   value: "#c9dcf0" },
   { label: "COBALT",   value: "#3f84f3" },
   { label: "CYAN",     value: "#00d4ff" },
   { label: "EMERALD",  value: "#11d97a" },

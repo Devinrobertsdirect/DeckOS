@@ -53,7 +53,7 @@ router.post("/chat", async (req, res) => {
   }
 
   const messages: ProviderMessage[] = [
-    { role: "system", content: system || "You are Atlas." },
+    { role: "system", content: system || "You are Neura." },
     { role: "user", content: message },
   ];
 

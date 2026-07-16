@@ -74,7 +74,7 @@ class FaceLink {
     this.port = port;
     // Say hello, then push the current face so a freshly-connected panel
     // immediately matches whatever mood the brain is already in.
-    this.send(encodeCommand({ t: "HELLO", v: AWP_VERSION, name: "AtlasBrain" }));
+    this.send(encodeCommand({ t: "HELLO", v: AWP_VERSION, name: "NeuraBrain" }));
     this.pushFace();
   }
 

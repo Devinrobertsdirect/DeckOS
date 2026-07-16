@@ -128,7 +128,7 @@ export function BuddySettings({ onClose }: { onClose: () => void }) {
             </label>
             <label className="block">
               <span className="mb-1.5 block text-xs text-muted-foreground">Your bot's name</span>
-              <Input value={botName} onChange={(e) => setBotNameL(e.target.value)} onBlur={commitNames} placeholder="Atlas" />
+              <Input value={botName} onChange={(e) => setBotNameL(e.target.value)} onBlur={commitNames} placeholder="Neura" />
             </label>
           </div>
         </Section>

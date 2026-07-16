@@ -769,7 +769,7 @@ export default function Dashboard() {
             <div className="p-4 border-t border-primary/10 font-mono">
               <div className="text-primary/40 text-xs uppercase tracking-wider mb-1">FIELD.SENSORS</div>
               <div className="text-primary/35 text-[10px] leading-relaxed">
-                No live sensor feeds. Open DeckOS Atlas on your phone to stream location, battery, and network data.
+                No live sensor feeds. Open DeckOS on your phone to stream location, battery, and network data.
               </div>
             </div>
           )}

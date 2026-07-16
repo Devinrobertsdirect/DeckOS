@@ -36,7 +36,7 @@ function TutorialPrompt() {
             Want a guided walkthrough?
           </div>
           <p className="text-primary/60 text-xs leading-relaxed">
-            Complete 7 short missions to get familiar with DeckOS Atlas — go at your own
+            Complete 7 short missions to get familiar with DeckOS — go at your own
             pace and explore the real app as you go. No slides, no reading required.
           </p>
 
@@ -138,7 +138,7 @@ function QuestPanel() {
                 ALL SYSTEMS MASTERED
               </div>
               <p className="text-primary/50 text-[10px] text-center leading-relaxed">
-                You're ready to operate DeckOS Atlas at full capacity. Press <kbd className="border border-primary/30 px-1 text-primary">?</kbd> any time for the reference guide.
+                You're ready to operate DeckOS at full capacity. Press <kbd className="border border-primary/30 px-1 text-primary">?</kbd> any time for the reference guide.
               </p>
               <button
                 onClick={dismissTutorial}

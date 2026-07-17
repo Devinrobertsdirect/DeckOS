@@ -35,7 +35,7 @@ async function buildAll() {
     outfile: path.resolve(distDir, "community-plugin-worker.mjs"),
     logLevel: "info",
     external: [
-      "*.node", "mqtt", "ws", "sharp", "better-sqlite3", "sqlite3", "canvas", "bcrypt", "argon2",
+      "*.node", "sharp", "better-sqlite3", "sqlite3", "canvas", "bcrypt", "argon2",
       "fsevents", "re2", "farmhash", "xxhash-addon", "bufferutil", "utf-8-validate",
     ],
     sourcemap: "linked",
@@ -57,9 +57,7 @@ async function buildAll() {
     // - use path traversal to read files (e.g. @google-cloud/secret-manager loads sibling .proto files)
     external: [
       "*.node",
-      "mqtt",
-      "ws",
-      "sharp",
+              "sharp",
       "better-sqlite3",
       "sqlite3",
       "canvas",
@@ -154,7 +152,7 @@ globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
   if (pluginEntryPoints.length > 0) {
     const pluginsDistDir = path.resolve(distDir, "plugins");
     const externalList = [
-      "*.node", "mqtt", "ws", "sharp", "better-sqlite3", "sqlite3", "canvas", "bcrypt", "argon2",
+      "*.node", "sharp", "better-sqlite3", "sqlite3", "canvas", "bcrypt", "argon2",
       "fsevents", "re2", "farmhash", "xxhash-addon", "bufferutil", "utf-8-validate",
       "ssh2", "cpu-features", "dtrace-provider", "isolated-vm", "lightningcss",
       "pg-native", "oracledb", "mongodb-client-encryption", "nodemailer", "handlebars",

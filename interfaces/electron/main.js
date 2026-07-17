@@ -83,7 +83,7 @@ function handleWsEventForNotification(msg) {
       const value = payload.value != null ? ` (${Math.round(payload.value)}%)` : "";
       showNotification(
         `system.resource.alert.${resource}`,
-        "Atlas — System Alert",
+        "Neura — System Alert",
         `High ${resource} usage detected${value}. Check the System tab.`
       );
       break;
@@ -93,7 +93,7 @@ function handleWsEventForNotification(msg) {
       const pluginId = payload.pluginId ?? payload.plugin ?? "plugin";
       showNotification(
         `plugin.error.${pluginId}`,
-        "Atlas — Plugin Error",
+        "Neura — Plugin Error",
         `Plugin "${pluginId}" encountered an error.`
       );
       break;
@@ -104,7 +104,7 @@ function handleWsEventForNotification(msg) {
       const body = payload.body ?? payload.message ?? "";
       showNotification(
         `notification.created.${title}`,
-        `Atlas — ${title}`,
+        `Neura — ${title}`,
         body
       );
       break;
@@ -114,7 +114,7 @@ function handleWsEventForNotification(msg) {
       const name = payload.name ?? payload.routineName ?? "Routine";
       showNotification(
         `routine.completed.${name}`,
-        "Atlas — Routine Complete",
+        "Neura — Routine Complete",
         `"${name}" finished successfully.`
       );
       break;
@@ -124,7 +124,7 @@ function handleWsEventForNotification(msg) {
       const message = payload.message ?? payload.error ?? "An unexpected system error occurred.";
       showNotification(
         "system.error",
-        "Atlas — System Error",
+        "Neura — System Error",
         message
       );
       break;
@@ -135,7 +135,7 @@ function handleWsEventForNotification(msg) {
       if (mainWindow && !mainWindow.isVisible()) {
         showNotification(
           "ai.inference_completed",
-          "Atlas — Response Ready",
+          "Neura — Response Ready",
           payload.summary ?? "AI inference completed."
         );
       }
@@ -180,9 +180,9 @@ const ICONS = {
 };
 
 const STATUS_LABELS = {
-  offline: "Atlas — offline",
-  online: "Atlas — online",
-  speaking: "Atlas — speaking",
+  offline: "Neura — offline",
+  online: "Neura — online",
+  speaking: "Neura — speaking",
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -200,7 +200,7 @@ function waitForApi(port, timeoutMs) {
     const deadline = Date.now() + timeoutMs;
     const check = () => {
       http
-        .get(`http://127.0.0.1:${port}/api/health`, (res) => {
+        .get(`http://127.0.0.1:${port}/api/healthz`, (res) => {
           if (res.statusCode < 500) {
             resolve();
           } else {
@@ -228,10 +228,17 @@ function startApiServer() {
   apiProcess = spawn(process.execPath, [serverEntry], {
     env: {
       ...process.env,
+      // Run the bundled server as plain Node using Electron's own runtime —
+      // WITHOUT this, a packaged build re-launches Electron instead of the API.
+      ELECTRON_RUN_AS_NODE: "1",
       NODE_ENV: "production",
       PORT: String(API_PORT),
       ELECTRON_STATIC: "1",
       ELECTRON_FRONTEND_DIST: frontendDist,
+      // Per-user data dir so config/keys persist across updates; placeholder
+      // DATABASE_URL so the server boots fully DB-less (degraded persistence).
+      ATLAS_DATA_DIR: path.join(app.getPath("userData"), "atlas"),
+      DATABASE_URL: process.env.DATABASE_URL || "postgresql://127.0.0.1/neura",
     },
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,
@@ -263,7 +270,7 @@ function buildTrayMenu() {
 
   return Menu.buildFromTemplate([
     {
-      label: "Open DeckOS Atlas",
+      label: "Open Neura",
       click: () => {
         if (mainWindow) {
           mainWindow.show();
@@ -424,7 +431,7 @@ async function createWindow() {
     minWidth: 900,
     minHeight: 620,
     icon: path.join(__dirname, "build", "icon.png"),
-    title: "DeckOS Atlas",
+    title: "Neura",
     backgroundColor: "#000000",
     show: false,
     webPreferences: {

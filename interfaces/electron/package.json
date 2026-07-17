@@ -1,13 +1,18 @@
 {
-  "name": "deck-os-win",
+  "name": "neura-desktop",
   "version": "1.0.0",
-  "description": "DeckOS Atlas — personal AI operating system (Windows desktop app)",
+  "description": "Neura — your own neural network, with a face. Cross-platform desktop app.",
   "main": "main.js",
   "private": true,
+  "author": "Devberri LLC",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder --win --x64",
-    "build:portable": "electron-builder --win portable --x64"
+    "stage": "node scripts/pack.mjs --stage-only",
+    "pack": "node scripts/pack.mjs",
+    "pack:win": "node scripts/pack.mjs --win",
+    "pack:mac": "node scripts/pack.mjs --mac",
+    "pack:linux": "node scripts/pack.mjs --linux",
+    "pack:dir": "node scripts/pack.mjs --dir"
   },
   "dependencies": {
     "ws": "^8.18.0"
@@ -17,11 +22,13 @@
     "electron-builder": "^24.13.3"
   },
   "build": {
-    "appId": "com.decin.roberts.deckos",
-    "productName": "DeckOS Atlas",
-    "copyright": "Copyright © 2025 Devin C Roberts",
+    "appId": "com.devberri.neura",
+    "productName": "Neura",
+    "copyright": "Copyright © 2026 Devberri LLC",
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "directories": {
-      "output": "dist-win"
+      "output": "dist-out",
+      "buildResources": "build"
     },
     "files": [
       "main.js",
@@ -29,6 +36,10 @@
       "build/**/*",
       "api-dist/**/*",
       "frontend-dist/**/*"
+    ],
+    "extraResources": [
+      { "from": "api-dist", "to": "api-dist" },
+      { "from": "frontend-dist", "to": "frontend-dist" }
     ],
     "win": {
       "target": [
@@ -39,14 +50,34 @@
     },
     "nsis": {
       "oneClick": false,
+      "perMachine": false,
       "allowToChangeInstallationDirectory": true,
       "installerIcon": "build/icon.png",
       "uninstallerIcon": "build/icon.png",
-      "shortcutName": "DeckOS Atlas"
+      "shortcutName": "Neura"
     },
-    "extraResources": [
-      { "from": "api-dist", "to": "api-dist" },
-      { "from": "frontend-dist", "to": "frontend-dist" }
-    ]
+    "mac": {
+      "target": [
+        { "target": "dmg", "arch": ["universal"] },
+        { "target": "zip", "arch": ["universal"] }
+      ],
+      "category": "public.app-category.productivity",
+      "icon": "build/icon.png",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false
+    },
+    "dmg": {
+      "title": "Neura ${version}"
+    },
+    "linux": {
+      "target": [
+        { "target": "AppImage", "arch": ["x64"] },
+        { "target": "deb", "arch": ["x64"] }
+      ],
+      "category": "Utility",
+      "icon": "build/icon.png",
+      "maintainer": "Devberri LLC"
+    },
+    "publish": null
   }
 }

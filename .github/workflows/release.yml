@@ -1,0 +1,80 @@
+name: Release (desktop installers)
+
+# Tag a version (e.g. `git tag v1.0.0 && git push --tags`) → builds signed
+# Neura installers for Windows, macOS, and Linux and attaches them to a GitHub
+# Release. Manual runs (workflow_dispatch) build + upload artifacts without a
+# release. Signing/notarization happen automatically IF the secrets below are
+# set; otherwise the builds are produced unsigned (fine for internal testing).
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            pack: pack:win
+          - os: macos-latest
+            pack: pack:mac
+          - os: ubuntu-latest
+            pack: pack:linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install workspace
+        run: pnpm install
+
+      - name: Install Electron toolchain
+        working-directory: interfaces/electron
+        run: npm install --no-audit --no-fund
+
+      - name: Build + package
+        working-directory: interfaces/electron
+        run: npm run ${{ matrix.pack }}
+        env:
+          # Code signing (set as repo secrets to produce signed builds):
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          # macOS notarization:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: neura-${{ matrix.os }}
+          path: |
+            interfaces/electron/dist-out/*.exe
+            interfaces/electron/dist-out/*.dmg
+            interfaces/electron/dist-out/*.AppImage
+            interfaces/electron/dist-out/*.deb
+            interfaces/electron/dist-out/*.zip
+          if-no-files-found: warn
+
+      - name: Attach to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            interfaces/electron/dist-out/*.exe
+            interfaces/electron/dist-out/*.dmg
+            interfaces/electron/dist-out/*.AppImage
+            interfaces/electron/dist-out/*.deb

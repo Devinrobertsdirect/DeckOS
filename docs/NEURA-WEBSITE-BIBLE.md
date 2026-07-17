@@ -398,7 +398,25 @@ clever friend — never a corporate assistant, never hype-y.
 
 ---
 
-## 15. Assets & technical hooks (for a site that wants to go deeper)
+## 15. Official download links (wire the site's Download button to these)
+
+Installers are published to the public releases repo
+(`github.com/Devinrobertsdirect/neura-releases`) — **no login needed**. The
+`latest/download` URLs are **evergreen**: they always serve the newest release,
+so the site never needs updating when a new version ships.
+
+- **Windows installer (recommended):**
+  `https://github.com/Devinrobertsdirect/neura-releases/releases/latest/download/Neura-setup-x64.exe`
+- **Windows portable (no install, just run):**
+  `https://github.com/Devinrobertsdirect/neura-releases/releases/latest/download/Neura-portable-x64.exe`
+- **All releases / notes:** `https://github.com/Devinrobertsdirect/neura-releases/releases`
+
+Current build: v1.0.0, unsigned test build — pair the button with a note that
+Windows SmartScreen may warn (More info → Run anyway) until code-signing lands.
+macOS/Linux builds come from the same pipeline (`pack:mac` / `pack:linux`) and
+will join the same release page.
+
+## 16. Assets & technical hooks (for a site that wants to go deeper)
 
 - **The live face** is a self-contained animated canvas (two eyes, emotions,
   blink) that *can be embedded* on the site as a hero element — a launch landing

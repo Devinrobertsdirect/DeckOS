@@ -52,9 +52,11 @@
       "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
-      "installerIcon": "build/icon.png",
-      "uninstallerIcon": "build/icon.png",
-      "shortcutName": "Neura"
+      "shortcutName": "Neura",
+      "artifactName": "${productName}-${version}-setup-${arch}.${ext}"
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-portable-${arch}.${ext}"
     },
     "mac": {
       "target": [

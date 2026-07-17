@@ -1,6 +1,8 @@
-# DeckOS Atlas — Desktop App
+# Neura — Desktop App
 
-DeckOS Atlas — a personal AI operating system — running locally on your Windows machine.
+Neura — your own neural network, with a face — running locally on your machine.
+Packaging: `npm run pack:win` / `pack:mac` / `pack:linux` (see `scripts/pack.mjs`);
+icons are generated from the brand by `scripts/make-icon.mjs`.
 
 ## Quick Start (Development / No-Build)
 

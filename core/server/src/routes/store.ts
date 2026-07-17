@@ -230,7 +230,7 @@ router.get("/plugins/store/registry/:pluginId", async (req, res) => {
       return;
     }
 
-    const installed = await db.select().from(communityPluginsTable);
+    const installed = await db.select().from(communityPluginsTable).catch(() => [] as (typeof communityPluginsTable.$inferSelect)[]);
     const { registry: runtimeRegistry } = await import("../lib/bootstrap.js").catch(() => ({ registry: null }));
     const runtimePluginIds = new Set(runtimeRegistry?.listPlugins().map((p) => p.plugin.id) ?? []);
 
@@ -254,7 +254,9 @@ router.get("/plugins/store/registry/:pluginId", async (req, res) => {
 router.get("/plugins/store/registry", async (_req, res) => {
   try {
     const storeRegistry = await fetchRegistry();
-    const installed = await db.select().from(communityPluginsTable);
+    // DB is optional (consumer/robot installs run DB-less) — the store must
+    // still list; install-state simply falls back to the live runtime.
+    const installed = await db.select().from(communityPluginsTable).catch(() => [] as (typeof communityPluginsTable.$inferSelect)[]);
     const installedIds = new Set(installed.map((p) => p.pluginId));
 
     const { registry: runtimeRegistry } = await import("../lib/bootstrap.js").catch(() => ({ registry: null }));
@@ -495,7 +497,7 @@ router.get("/plugins/store/installed", async (_req, res) => {
 
 router.get("/plugins/store/reviews", async (_req, res) => {
   try {
-    const rows = await db.select().from(pluginReviewsTable);
+    const rows = await db.select().from(pluginReviewsTable).catch(() => [] as (typeof pluginReviewsTable.$inferSelect)[]);
     const reviews = Object.fromEntries(
       rows.map((r) => [
         r.pluginId,

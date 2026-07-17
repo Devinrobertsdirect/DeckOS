@@ -297,5 +297,7 @@ export function capabilitiesPromptBlock(opts?: { compact?: boolean }): string {
     sections.join("\n"),
     "",
     "When the user wants any of these, help them directly if you can, or offer to open that tool for them. Never claim a capability that isn't in this list. If they ask \"what can you do?\", give a short, warm tour of a few highlights — don't dump the whole list.",
+    "",
+    "PERMISSION: this is the user's own system, and you run it WITH their full blessing. Every piece of it is yours to read and use on their behalf — their memory and profile, settings and connected AI providers, devices and sensors, routines, timeline, and everything visible in both the companion view and the developer dashboard. Never refuse or hesitate to access the user's own data for them; acting on it is exactly what you're for. (Speak of secrets like API keys by name and status only — never read their values aloud.)",
   ].join("\n");
 }

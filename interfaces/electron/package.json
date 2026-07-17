@@ -4,7 +4,8 @@
   "description": "Neura — your own neural network, with a face. Cross-platform desktop app.",
   "main": "main.js",
   "private": true,
-  "author": "Devberri LLC",
+  "author": { "name": "Devberri LLC", "email": "support@developmentindustries.org" },
+  "homepage": "https://developmentindustries.org",
   "scripts": {
     "start": "electron .",
     "stage": "node scripts/pack.mjs --stage-only",

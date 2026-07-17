@@ -45,17 +45,23 @@ jobs:
         working-directory: interfaces/electron
         run: npm install --no-audit --no-fund
 
+      # Export signing env ONLY when the secrets are non-empty — an empty
+      # CSC_LINK makes electron-builder treat "" as a cert file path and fail
+      # with "<dir> not a file". Unsigned builds skip signing entirely.
+      - name: Signing environment (only if secrets set)
+        shell: bash
+        run: |
+          add(){ [ -n "$2" ] && echo "$1=$2" >> "$GITHUB_ENV" || true; }
+          add CSC_LINK "${{ secrets.CSC_LINK }}"
+          add CSC_KEY_PASSWORD "${{ secrets.CSC_KEY_PASSWORD }}"
+          add APPLE_ID "${{ secrets.APPLE_ID }}"
+          add APPLE_APP_SPECIFIC_PASSWORD "${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}"
+          add APPLE_TEAM_ID "${{ secrets.APPLE_TEAM_ID }}"
+          [ -z "${{ secrets.CSC_LINK }}" ] && echo "CSC_IDENTITY_AUTO_DISCOVERY=false" >> "$GITHUB_ENV" || true
+
       - name: Build + package
         working-directory: interfaces/electron
         run: npm run ${{ matrix.pack }}
-        env:
-          # Code signing (set as repo secrets to produce signed builds):
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-          # macOS notarization:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4

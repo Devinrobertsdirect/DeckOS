@@ -24,6 +24,15 @@ export function stripEmoji(input: string): string {
   if (!input) return input;
   return input
     .replace(EMOJI_RE, "")
+    // Markdown markers leak from the model now and then ("*Friend.*",
+    // "**Thinking**", "- item") and would be read aloud — drop the markers,
+    // keep the words.
+    .replace(/(\*\*|__)(?=\S)([\s\S]*?\S)\1/g, "$2")
+    .replace(/(?<!\w)[*_](?=\S)([^*_\n]*?\S)[*_](?!\w)/g, "$1")
+    .replace(/`{1,3}([^`\n]*)`{1,3}/g, "$1")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/^\s*[-*•]\s+/gm, "")
+    .replace(/(?<!\s)\*+|\*+(?!\s)/g, "")   // stray markers hugging a word; " * " (maths) stays
     .replace(/[ \t]{2,}/g, " ") // collapse gaps left where a glyph used to be
     .replace(/[ \t]+([.,!?;:])/g, "$1") // no space stranded before punctuation
     .replace(/[ \t]+\n/g, "\n")

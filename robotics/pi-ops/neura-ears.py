@@ -131,13 +131,56 @@ def log(msg: str) -> None:
     print(f"[neura-ears] {msg}", file=sys.stderr, flush=True)
 
 
-def spawn_capture() -> subprocess.Popen:
-    # Bluetooth headset (or any PipeWire source): capture with pw-record.
-    # "default" = no --target → follow WirePlumber's default source, so whichever
-    # BT device bt-audio-route.mjs last made default (DOQAUS, JLab, …) is the mic
-    # without editing this unit per device.
+def capture_sources() -> list:
+    """Names of REAL microphones (PipeWire nodes of class Audio/Source) — never a
+    sink's monitor. `pw-record --target <absent>` quietly falls back to the
+    default source, and with no mic attached that default is the output's
+    monitor: Nobi would be listening to his own voice."""
+    try:
+        out = subprocess.run(["pw-cli", "ls", "Node"], capture_output=True, text=True, timeout=5).stdout
+    except (OSError, subprocess.SubprocessError):
+        return []
+    names, cur = [], {}
+    def flush():
+        if cur.get("media.class") == "Audio/Source" and cur.get("node.name"):
+            names.append(cur["node.name"])
+    for raw in out.splitlines():
+        line = raw.strip()
+        if line.startswith("id "):
+            flush(); cur = {}
+            continue
+        m = re.match(r'([\w.\-]+) = "(.*)"$', line)
+        if m:
+            cur[m.group(1)] = m.group(2)
+    flush()
+    return names
+
+
+_last_no_mic_log = 0.0
+_capture_target = ""          # the mic node we are recording (checked periodically)
+
+def spawn_capture():
+    """Start the capture process, or return None when there is no microphone.
+    PipeWire: the pinned source if present, else ANY real mic (a different
+    headset the reconnect loop paired), else nothing — the caller waits."""
+    global _last_no_mic_log, _capture_target
+    _capture_target = ""
     if PW_SOURCE:
-        target = [] if PW_SOURCE.lower() == "default" else ["--target", PW_SOURCE]
+        if PW_SOURCE.lower() == "default":
+            target = []
+        else:
+            mics = capture_sources()
+            if PW_SOURCE in mics:
+                target = ["--target", PW_SOURCE]
+            elif mics:
+                target = ["--target", mics[0]]
+                log(f"pinned mic {PW_SOURCE} absent — using {mics[0]}")
+            else:
+                if time.monotonic() - _last_no_mic_log > 60:
+                    log("no microphone attached (only output monitors) — waiting; never capturing my own voice")
+                    _last_no_mic_log = time.monotonic()
+                return None
+            _capture_target = target[1]
         return subprocess.Popen(
             ["pw-record", *target, "--rate", str(SAMPLE_RATE),
              "--channels", "1", "--format", "s16", "-"],
@@ -269,6 +312,7 @@ def main() -> int:
     armed_until = 0.0
     muted = False                # is Nobi speaking right now?
     last_mute_poll = 0.0
+    last_target_check = 0.0
 
     while _running:
         if proc is None or proc.poll() is not None:
@@ -278,6 +322,9 @@ def main() -> int:
                 if not _running:
                     break
             proc = spawn_capture()
+            if proc is None:             # no mic yet (headset off) — poll for one
+                time.sleep(3)
+                continue
             preroll.clear()
             speaking, utter, speech_run, silence_run = False, bytearray(), 0, 0
             log(f"capturing ({src})")
@@ -288,6 +335,16 @@ def main() -> int:
             continue
 
         now = time.monotonic()
+
+        # If the mic we were recording vanished (headset switched off), stop —
+        # WirePlumber would otherwise re-link the stream to the default source,
+        # which with no mic present is the speaker's monitor (his own voice).
+        if _capture_target and now - last_target_check > 10:
+            last_target_check = now
+            if _capture_target not in capture_sources():
+                log(f"mic {_capture_target} vanished — stopping capture")
+                proc.kill(); proc = None
+                continue
 
         # Throttled: is Nobi speaking? When she stops, re-arm so the user can
         # answer without repeating the wake word for ARM_AFTER_REPLY seconds.

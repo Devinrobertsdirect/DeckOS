@@ -311,9 +311,13 @@ export function PetShell({
     const ctx = buildContext();   // only .facts is used — no chat history goes out
     const director = `You are in the middle of a live stage show and just asked: "${line(ask.say, p)}". ${ask.director} Never offer a tour, a demo, or a list of what you can do — the show is already running.`;
     let reply = "";
+    // A slow brain must not stall a live show: 15s and he falls back to the
+    // scripted line for this beat.
+    const abort = new AbortController();
+    const abortTimer = window.setTimeout(() => abort.abort(), 15000);
     try {
       const res = await fetch("/api/chat", {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" }, signal: abort.signal,
         body: JSON.stringify({
           message: answer, sessionId: `show-${Date.now()}`,
           history: [{ role: "assistant", content: line(ask.say, p) }], facts: ctx.facts,
@@ -323,6 +327,7 @@ export function PetShell({
       const data = (await res.json()) as { response?: string };
       reply = stripEmoji((data.response ?? "").trim());
     } catch { reply = ""; }
+    finally { window.clearTimeout(abortTimer); }
     if (!reply) reply = line(ask.fallback, p);
     setShowcaseScene(stage);
     appendTurn("atlas", reply);

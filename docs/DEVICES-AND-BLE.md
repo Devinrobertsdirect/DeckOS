@@ -8,7 +8,7 @@
 
 ## The hub-brain model
 
-Neura is the **computer–human interaction layer**. It is the one thing that binds
+Nobi is the **computer–human interaction layer**. It is the one thing that binds
 together four otherwise separate worlds:
 
 - **the computer** — files, apps, the OS, the desktop command center
@@ -16,7 +16,7 @@ together four otherwise separate worlds:
 - **the physical robot** — the Pi 5 body from ROBOTICS.md, with a face, wheels, and senses
 - **the Cyber Deck** — the portable console/dashboard the user carries with them
 
-The important promise: **it is one brain, not four integrations.** The Neura you
+The important promise: **it is one brain, not four integrations.** The Nobi you
 talk to on the desktop is *numerically the same agent* — same memory, same
 personality, same gateway — that inhabits the robot's head. A body is just a
 surface the brain projects itself onto. Swapping bodies never swaps minds.
@@ -39,7 +39,7 @@ surface the brain projects itself onto. Swapping bodies never swaps minds.
 
 ## Body tiers
 
-Neura runs across three classes of hardware. Each carries a different amount of the
+Nobi runs across three classes of hardware. Each carries a different amount of the
 brain, and each reaches the *full* brain by a different route.
 
 | Tier | Body | What it runs | Reaches the brain via |

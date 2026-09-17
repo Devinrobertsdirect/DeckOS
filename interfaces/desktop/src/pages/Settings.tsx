@@ -5,12 +5,13 @@ import {
   Volume2, Mic, Globe, HardDrive, ShieldCheck, RefreshCw, Database, Server,
   Info, Terminal, Download, Bell, BellOff, Rocket, SlidersHorizontal, Hand,
   Activity, Brain, Plug, Unplug, Heart, Trash2, ShieldAlert, RotateCw,
-  Smartphone, Copy,
+  Smartphone, Copy, Bluetooth,
 } from "lucide-react";
 import { setUiMode, resetGenesis, setExperienceMode, getExperienceMode } from "@/lib/uiMode";
 import { ACERA_KEY } from "@/hooks/useAceraConnect";
 import { STARK_KEY } from "@/hooks/useStarkConnect";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DiagPanel } from "@/components/DiagPanel";
 
 type FeatureInfo = { available: boolean; provider: string | null; local?: boolean };
 type FeatureMap = {
@@ -52,6 +53,12 @@ type ConfigState = {
 
 type TestResult = { ok: boolean; models?: string[]; error?: string } | null;
 
+type WifiInfo    = { connected: boolean; ssid: string | null; ip: string | null; signal: number | null };
+type NetStatus   = { available: boolean; wifi: WifiInfo };
+type WifiNetwork = { ssid: string; signal: number; security: string; active: boolean };
+type BtDevice    = { mac: string; name: string; paired: boolean; connected: boolean };
+type BtStatus    = { available: boolean; powered: boolean; discovering: boolean; devices: BtDevice[] };
+
 const EL_PRESET_VOICES = [
   { id: "pNInz6obpgDQGcFmaJgB", name: "Adam",   desc: "Deep, authoritative" },
   { id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel", desc: "Calm, professional" },
@@ -78,6 +85,12 @@ function Badge({ ok }: { ok: boolean }) {
   return ok
     ? <span className="flex items-center gap-1 text-[#11d97a] font-mono text-xs"><CheckCircle2 className="w-3 h-3" />CONNECTED</span>
     : <span className="flex items-center gap-1 text-[#f03248] font-mono text-xs"><XCircle className="w-3 h-3" />OFFLINE</span>;
+}
+
+/** nmcli reports open networks with an empty (or "--") SECURITY column. */
+function wifiSecured(n: WifiNetwork): boolean {
+  const sec = n.security.trim();
+  return sec !== "" && sec !== "--";
 }
 
 export default function Settings() {
@@ -132,6 +145,21 @@ export default function Settings() {
   const [ocLaunching, setOcLaunching]   = useState(false);
   const [ocSteps, setOcSteps]           = useState<string[]>([]);
   const [ocError, setOcError]           = useState<string | null>(null);
+
+  const [netStatus, setNetStatus]       = useState<NetStatus | null>(null);
+  const [wifiNets, setWifiNets]         = useState<WifiNetwork[] | null>(null);
+  const [wifiLoading, setWifiLoading]   = useState(false);
+  const [wifiPick, setWifiPick]         = useState<WifiNetwork | null>(null);
+  const [wifiPw, setWifiPw]             = useState("");
+  const [showWifiPw, setShowWifiPw]     = useState(false);
+  const [wifiJoining, setWifiJoining]   = useState(false);
+  const [wifiResult, setWifiResult]     = useState<{ ok: boolean; error?: string } | null>(null);
+
+  const [btStatus, setBtStatus]         = useState<BtStatus | null>(null);
+  const [btScanning, setBtScanning]     = useState(false);
+  const [btBusyMac, setBtBusyMac]       = useState<string | null>(null);
+  const [btError, setBtError]           = useState<string | null>(null);
+  const btScanTimers = useRef<number[]>([]);
 
   const [version, setVersion]               = useState<string | null>(null);
   const [adminConfigured, setAdminConfigured] = useState<boolean | null>(null);
@@ -425,6 +453,161 @@ export default function Settings() {
     } finally {
       setOcLaunching(false);
     }
+  };
+
+  // Device connectivity (robot WiFi/BT) — quiet no-ops on desktop builds where
+  // the server answers { available: false }.
+  const fetchNetStatus = useCallback(async () => {
+    try {
+      const r = await fetch("/api/net/status");
+      if (r.ok) setNetStatus(await r.json() as NetStatus);
+    } catch { /* server unreachable — ignore */ }
+  }, []);
+
+  const fetchBtStatus = useCallback(async () => {
+    try {
+      const r = await fetch("/api/bt/status");
+      if (r.ok) setBtStatus(await r.json() as BtStatus);
+    } catch { /* server unreachable — ignore */ }
+  }, []);
+
+  useEffect(() => {
+    if (tab !== "connection") return;
+    void fetchNetStatus();
+    void fetchBtStatus();
+  }, [tab, fetchNetStatus, fetchBtStatus]);
+
+  // Clear the BT scan timers on unmount — the server-side scan window self-expires.
+  useEffect(() => () => {
+    for (const t of btScanTimers.current) window.clearTimeout(t);
+  }, []);
+
+  const loadWifiNetworks = async () => {
+    setWifiLoading(true);
+    setWifiResult(null);
+    setWifiPick(null);
+    setWifiPw("");
+    try {
+      const r = await fetch("/api/net/wifi/networks");
+      const d = await r.json() as { available: boolean; networks: WifiNetwork[] };
+      setWifiNets(d.networks ?? []);
+    } catch {
+      setWifiNets([]);
+    } finally {
+      setWifiLoading(false);
+    }
+  };
+
+  const joinWifi = async () => {
+    if (!wifiPick || wifiJoining) return;
+    setWifiJoining(true);
+    setWifiResult(null);
+    try {
+      const r = await fetch("/api/net/wifi/connect", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify(wifiPw ? { ssid: wifiPick.ssid, password: wifiPw } : { ssid: wifiPick.ssid }),
+      });
+      const d = await r.json() as { ok: boolean; error?: string };
+      setWifiResult(d);
+      if (d.ok) {
+        setWifiPick(null);
+        setWifiNets(null);
+        setWifiPw("");
+      }
+    } catch (err) {
+      setWifiResult({ ok: false, error: err instanceof Error ? err.message : "Network error" });
+    } finally {
+      setWifiJoining(false);
+      void fetchNetStatus();
+    }
+  };
+
+  const stopBtScan = useCallback((tellServer: boolean) => {
+    for (const t of btScanTimers.current) window.clearTimeout(t);
+    btScanTimers.current = [];
+    setBtScanning(false);
+    if (tellServer) {
+      fetch("/api/bt/scan", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ on: false }),
+      }).catch(() => {});
+    }
+  }, []);
+
+  const startBtScan = () => {
+    if (btScanning) return;
+    setBtScanning(true);
+    setBtError(null);
+    const kick = () => {
+      fetch("/api/bt/scan", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ on: true }),
+      }).catch(() => {});
+    };
+    kick();
+    // The server scan window is ~8s — re-kick at 6s/12s to hold it open for
+    // ~20s total, polling the device list every 2s along the way.
+    const timers: number[] = [];
+    timers.push(window.setTimeout(kick, 6000));
+    timers.push(window.setTimeout(kick, 12000));
+    for (let ms = 2000; ms <= 18000; ms += 2000) {
+      timers.push(window.setTimeout(() => void fetchBtStatus(), ms));
+    }
+    timers.push(window.setTimeout(() => { stopBtScan(true); void fetchBtStatus(); }, 20000));
+    btScanTimers.current = timers;
+  };
+
+  const toggleBtPower = async () => {
+    if (!btStatus) return;
+    const on = !btStatus.powered;
+    if (!on) stopBtScan(true);
+    setBtError(null);
+    try {
+      await fetch("/api/bt/power", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ on }),
+      });
+    } catch { /* server unreachable — ignore */ }
+    void fetchBtStatus();
+  };
+
+  const btPair = async (mac: string) => {
+    if (btBusyMac) return;
+    setBtBusyMac(mac);
+    setBtError(null);
+    try {
+      const r = await fetch("/api/bt/pair", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ mac }),
+      });
+      const d = await r.json() as { ok: boolean; error?: string };
+      if (!d.ok) setBtError(d.error ?? "Pairing failed");
+    } catch (err) {
+      setBtError(err instanceof Error ? err.message : "Network error");
+    } finally {
+      setBtBusyMac(null);
+      void fetchBtStatus();
+    }
+  };
+
+  const btDisconnect = async (mac: string) => {
+    if (btBusyMac) return;
+    setBtBusyMac(mac);
+    setBtError(null);
+    try {
+      await fetch("/api/bt/disconnect", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ mac }),
+      });
+    } catch { /* server unreachable — ignore */ }
+    setBtBusyMac(null);
+    void fetchBtStatus();
   };
 
   function change<K extends keyof ConfigState>(key: K, value: ConfigState[K]) {
@@ -807,6 +990,215 @@ export default function Settings() {
       {/* CONNECTION tab */}
       {tab === "connection" && (
         <div className="grid gap-6 max-w-2xl">
+          {/* Device WiFi card — join a network from the robot's own screen, no terminal */}
+          <Card className="bg-card/40 border-primary/20 rounded-none">
+            <CardHeader className="border-b border-primary/20 p-4">
+              <CardTitle className="font-mono text-xs text-primary flex items-center gap-2">
+                <Wifi className="w-3.5 h-3.5" />
+                NETWORK
+                {netStatus?.available && (
+                  netStatus.wifi.connected
+                    ? <span className="ml-auto flex items-center gap-1 text-[#11d97a]"><CheckCircle2 className="w-3 h-3" />ONLINE</span>
+                    : <span className="ml-auto flex items-center gap-1 text-[#f03248]"><XCircle className="w-3 h-3" />NO WIFI</span>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 space-y-4">
+              {!netStatus && (
+                <div className="flex items-center gap-2 font-mono text-xs text-primary/40">
+                  <Loader2 className="w-3 h-3 animate-spin" />CHECKING…
+                </div>
+              )}
+              {netStatus && !netStatus.available && (
+                <p className="font-mono text-xs text-primary/30">Not available on this device.</p>
+              )}
+              {netStatus?.available && (
+                <>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { label: "SSID",   value: netStatus.wifi.ssid ?? "—" },
+                      { label: "IP",     value: netStatus.wifi.ip ?? "—" },
+                      { label: "SIGNAL", value: netStatus.wifi.signal != null ? `${netStatus.wifi.signal}%` : "—" },
+                    ].map(({ label, value }) => (
+                      <div key={label} className="p-2 border border-primary/10 bg-primary/5 font-mono text-xs text-center">
+                        <div className="text-primary/40 mb-1">{label}</div>
+                        <div className="text-primary truncate">{value}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      onClick={() => void loadWifiNetworks()}
+                      disabled={wifiLoading}
+                      className="flex items-center gap-1.5 px-4 py-2 border border-primary/40 font-mono text-xs text-primary hover:bg-primary/10 transition-all disabled:opacity-50"
+                    >
+                      {wifiLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wifi className="w-3 h-3" />}
+                      {wifiNets === null ? "JOIN WIFI" : "RESCAN"}
+                    </button>
+                    <button
+                      onClick={() => void fetchNetStatus()}
+                      className="flex items-center gap-1.5 px-3 py-2 border border-primary/20 font-mono text-xs text-primary/60 hover:bg-primary/10 transition-all"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      REFRESH
+                    </button>
+                  </div>
+
+                  {wifiNets !== null && (
+                    <div className="border border-primary/10 divide-y divide-primary/10 max-h-52 overflow-y-auto">
+                      {wifiNets.length === 0 && (
+                        <div className="p-3 font-mono text-xs text-primary/40">No networks found — try RESCAN.</div>
+                      )}
+                      {wifiNets.map((n) => (
+                        <button
+                          key={n.ssid}
+                          onClick={() => { setWifiPick(n); setWifiPw(""); setWifiResult(null); }}
+                          className={`w-full flex items-center gap-2 px-3 py-2 font-mono text-xs text-left transition-all ${
+                            wifiPick?.ssid === n.ssid ? "bg-primary/10 text-primary" : "text-primary/60 hover:bg-primary/5"
+                          }`}
+                        >
+                          <span className="flex-1 truncate">{n.ssid}</span>
+                          {n.active && <span className="text-[#11d97a] shrink-0">JOINED</span>}
+                          <span className="text-primary/30 shrink-0">{wifiSecured(n) ? n.security : "OPEN"}</span>
+                          <span className="w-9 text-right text-primary/40 shrink-0">{n.signal}%</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {wifiPick && (
+                    <div className="space-y-2">
+                      <label className="font-mono text-xs text-primary/60 uppercase">Join {wifiPick.ssid}</label>
+                      {wifiSecured(wifiPick) && (
+                        <div className="relative">
+                          <input
+                            type={showWifiPw ? "text" : "password"}
+                            value={wifiPw}
+                            onChange={(e) => setWifiPw(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === "Enter") void joinWifi(); }}
+                            placeholder="WiFi password"
+                            className="w-full bg-background border border-primary/30 px-3 py-2 pr-10 font-mono text-xs text-primary focus:border-primary focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowWifiPw((s) => !s)}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-primary/40 hover:text-primary/70"
+                          >
+                            {showWifiPw ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      )}
+                      <button
+                        onClick={() => void joinWifi()}
+                        disabled={wifiJoining || (wifiSecured(wifiPick) && !wifiPw)}
+                        className="flex items-center gap-1.5 px-4 py-2 border border-primary/40 font-mono text-xs text-primary hover:bg-primary/10 transition-all disabled:opacity-40"
+                      >
+                        {wifiJoining ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
+                        {wifiJoining ? "JOINING…" : "CONNECT"}
+                      </button>
+                    </div>
+                  )}
+
+                  {wifiResult && (
+                    <div className={`p-3 border font-mono text-xs ${wifiResult.ok ? "border-[#11d97a]/30 bg-[#11d97a]/5 text-[#11d97a]" : "border-[#f03248]/30 bg-[#f03248]/5 text-[#f03248]"}`}>
+                      {wifiResult.ok ? "Connected — the robot is online." : (wifiResult.error ?? "Connect failed")}
+                    </div>
+                  )}
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Device Bluetooth card — pair a speaker from the robot's own screen */}
+          <Card className="bg-card/40 border-primary/20 rounded-none">
+            <CardHeader className="border-b border-primary/20 p-4">
+              <CardTitle className="font-mono text-xs text-primary flex items-center gap-2">
+                <Bluetooth className="w-3.5 h-3.5" />
+                BLUETOOTH
+                {btStatus?.available && (
+                  btStatus.powered
+                    ? <span className="ml-auto flex items-center gap-1 text-[#11d97a]"><CheckCircle2 className="w-3 h-3" />ON</span>
+                    : <span className="ml-auto flex items-center gap-1 text-primary/40"><XCircle className="w-3 h-3" />OFF</span>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 space-y-4">
+              {!btStatus && (
+                <div className="flex items-center gap-2 font-mono text-xs text-primary/40">
+                  <Loader2 className="w-3 h-3 animate-spin" />CHECKING…
+                </div>
+              )}
+              {btStatus && !btStatus.available && (
+                <p className="font-mono text-xs text-primary/30">Not available on this device.</p>
+              )}
+              {btStatus?.available && (
+                <>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      onClick={() => void toggleBtPower()}
+                      className="flex items-center gap-1.5 px-4 py-2 border border-primary/40 font-mono text-xs text-primary hover:bg-primary/10 transition-all"
+                    >
+                      {btStatus.powered ? <Unplug className="w-3 h-3" /> : <Plug className="w-3 h-3" />}
+                      {btStatus.powered ? "POWER OFF" : "POWER ON"}
+                    </button>
+                    <button
+                      onClick={startBtScan}
+                      disabled={!btStatus.powered || btScanning}
+                      className="flex items-center gap-1.5 px-4 py-2 border border-primary/40 font-mono text-xs text-primary hover:bg-primary/10 transition-all disabled:opacity-40"
+                    >
+                      {btScanning ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                      {btScanning ? "SCANNING…" : "SCAN"}
+                    </button>
+                  </div>
+
+                  {btStatus.powered && (
+                    btStatus.devices.length === 0 ? (
+                      <div className="p-3 border border-primary/10 font-mono text-xs text-primary/40">
+                        No devices yet — put the speaker in pairing mode, then SCAN.
+                      </div>
+                    ) : (
+                      <div className="border border-primary/10 divide-y divide-primary/10 max-h-52 overflow-y-auto">
+                        {btStatus.devices.map((d) => (
+                          <div key={d.mac} className="flex items-center gap-2 px-3 py-2 font-mono text-xs">
+                            <div className="flex-1 min-w-0">
+                              <div className="text-primary/80 truncate">{d.name}</div>
+                              <div className="text-[10px] text-primary/30">{d.mac}{d.paired && !d.connected ? " · PAIRED" : ""}</div>
+                            </div>
+                            {d.connected && (
+                              <span className="flex items-center gap-1 text-[#11d97a] shrink-0"><CheckCircle2 className="w-3 h-3" />LINKED</span>
+                            )}
+                            {d.connected ? (
+                              <button
+                                onClick={() => void btDisconnect(d.mac)}
+                                disabled={btBusyMac !== null}
+                                className="px-3 py-1.5 border border-primary/30 font-mono text-xs text-primary/70 hover:bg-primary/10 transition-all disabled:opacity-40 shrink-0"
+                              >
+                                {btBusyMac === d.mac ? <Loader2 className="w-3 h-3 animate-spin" /> : "DISCONNECT"}
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => void btPair(d.mac)}
+                                disabled={btBusyMac !== null}
+                                className="px-3 py-1.5 border border-primary/40 font-mono text-xs text-primary hover:bg-primary/10 transition-all disabled:opacity-40 shrink-0"
+                              >
+                                {btBusyMac === d.mac ? <Loader2 className="w-3 h-3 animate-spin" /> : (d.paired ? "CONNECT" : "PAIR")}
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  )}
+
+                  {btError && (
+                    <div className="p-3 border border-[#f03248]/30 bg-[#f03248]/5 font-mono text-xs text-[#f03248]">{btError}</div>
+                  )}
+                </>
+              )}
+            </CardContent>
+          </Card>
+
           <Card className="bg-card/40 border-primary/20 rounded-none">
             <CardHeader className="border-b border-primary/20 p-4">
               <CardTitle className="font-mono text-xs text-primary flex items-center gap-2">
@@ -1247,6 +1639,8 @@ export default function Settings() {
       {/* SYSTEM HEALTH tab */}
       {tab === "system" && (
         <div className="grid gap-6 max-w-2xl">
+          {/* Live robot vitals: uptime, RAM, disk, CPU temp, wifi, HAL modules */}
+          <DiagPanel />
           <Card className="bg-card/40 border-primary/20 rounded-none">
             <CardHeader className="border-b border-primary/20 p-4">
               <CardTitle className="font-mono text-xs text-primary flex items-center gap-2 justify-between">
@@ -2340,19 +2734,19 @@ export default function Settings() {
       {tab === "mobile" && (
         <div className="space-y-6">
           <p className="font-mono text-xs text-primary/40 leading-relaxed">
-            Enter this code in the DeckOS Mobile app to link it to this instance. Once paired, the mobile app will have a stable identity and can access all AI, voice, and command features.
+            In the Nobi mobile app, tap "Have a desktop nearby? Use a connection code" and enter this code to link your phone to this computer over your local network. Or just ask Nobi — "what's my connection code?" — and it'll tell you.
           </p>
 
           {/* Pairing Code */}
           <div className="border border-primary/20 bg-primary/5 p-6 flex flex-col items-center gap-4">
             {pairingCode ? (
               <>
-                <p className="font-mono text-[10px] text-primary/30 uppercase tracking-widest">Instance Pairing Code</p>
+                <p className="font-mono text-[10px] text-primary/30 uppercase tracking-widest">Connection Code</p>
                 <div className="font-mono text-5xl tracking-[0.3em] text-primary font-bold select-all">
                   {pairingCode}
                 </div>
                 <p className="font-mono text-[10px] text-primary/25">
-                  Type this code in Settings → Link to Desktop on the mobile app
+                  In the mobile app: "Use a connection code" → enter this
                 </p>
                 <button
                   onClick={async () => {

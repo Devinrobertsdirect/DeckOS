@@ -3,16 +3,23 @@ import { ArrowUp, Code2, Loader2, Mic, MicOff, Settings, MessageSquare, X, Brain
 import { FacesGallery } from "@/collection/FacesGallery";
 import { CapabilitiesPanel } from "@/pet/CapabilitiesPanel";
 import { BuddySettings } from "@/pet/BuddySettings";
+import { FaceCaption } from "@/pet/FaceCaption";
+import { YouTubeOverlay, type VideoHandle } from "@/components/YouTubeOverlay";
+import { ContentOverlay } from "@/components/ContentOverlay";
+import SurvivorOverlay from "@/components/SurvivorOverlay";
 import { AtlasFace, type FaceState } from "@/components/faces/AtlasFace";
-import { useAtlasVoice, nudgeVoiceRate } from "@/genesis/useAtlasVoice";
+import { useAtlasVoice, nudgeVoiceRate, setVoiceEngine } from "@/genesis/useAtlasVoice";
 import { useLatestEvent } from "@/contexts/WebSocketContext";
 import { useAtlasListening } from "@/genesis/useAtlasListening";
+import { useWake } from "@/hooks/useWake";
 import { getInputMode, setInputMode, acquireMic } from "@/genesis/micAccess";
 import { getUserName, getBotName, setExperienceMode } from "@/lib/uiMode";
 import { applyClientAction, type UiAction } from "@/pet/agentActions";
 import { mirrorFace } from "@/lib/hardwareFace";
 import { segmentReply, emojiGlyph, type EmotionSegment } from "@/genesis/emotionDirector";
-import { personaPrompt } from "@/genesis/personality";
+import { personaPrompt, getPersona } from "@/genesis/personality";
+import ShowcaseOverlay, { type ShowcaseScene } from "@/pet/ShowcaseOverlay";
+import { buildShowcaseScript, introDirectorNote } from "@/pet/showcaseScript";
 import { stripEmoji } from "@/lib/stripText";
 import { dockLines } from "@/genesis/dockGreetings";
 import {
@@ -30,6 +37,17 @@ import {
  */
 
 const SERVER_DOWN_MSG = "I can't reach my brain right now — is the server running?";
+
+/** The face engine paints eyes with `rgb(${triplet})` — accept "#rrggbb" or "r,g,b" and normalize. */
+function toEyeRgb(color: string): string | null {
+  const c = color.trim();
+  const hex = c.match(/^#?([0-9a-f]{6})$/i);
+  if (hex) {
+    const n = parseInt(hex[1]!, 16);
+    return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
+  }
+  return /^\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}$/.test(c) ? c : null;
+}
 
 function activityFor(state: FaceState): number {
   switch (state) {
@@ -51,7 +69,7 @@ export function PetShell({
   robotMode?: boolean;
 }) {
   const bot = getBotName();
-  const { speak } = useAtlasVoice();
+  const { speak, speaking, stop } = useAtlasVoice();
   const mem = useAtlasMemory();
 
   const [faceState, setFaceState] = useState<FaceState>("idle");
@@ -62,14 +80,51 @@ export function PetShell({
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [liveHeard, setLiveHeard] = useState("");
-  const [micOn, setMicOn] = useState(() => getInputMode() === "voice");
+  // Computer mode: honour the chosen input mode. Robot mode does NOT use the
+  // browser's Web Speech (it has no backend on the Pi and would flicker the face
+  // with a false "Listening…") — the robot's real ears are the server-side Vosk
+  // STT, which streams transcripts in over the WS. So keep the browser mic OFF
+  // on the robot; it's genuinely listening, just not through this path.
+  const [micOn, setMicOn] = useState(() => !robotMode && getInputMode() === "voice");
   const [panelOpen, setPanelOpen] = useState(false);
   const [panelTab, setPanelTab] = useState<"chat" | "memory">("chat");
+  // Robot full-face fills the whole display — track the smaller viewport edge so
+  // the bare eyes scale to the round screen (recomputed on resize).
+  const [faceFill, setFaceFill] = useState(() =>
+    typeof window !== "undefined" ? Math.min(window.innerWidth, window.innerHeight) : 480);
+  useEffect(() => {
+    if (!robotMode) return;
+    const onResize = () => setFaceFill(Math.min(window.innerWidth, window.innerHeight));
+    onResize();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [robotMode]);
+
+  // On the robot, Chromium's speechSynthesis has no Linux backend — the browser
+  // voice is silent. Force the server (ElevenLabs) engine so replies actually
+  // speak out of the Bluetooth headset. /api/vision/tts falls back to local TTS
+  // and then the browser voice on its own, so this is safe even with no key.
+  useEffect(() => {
+    if (robotMode) setVoiceEngine("server");
+  }, [robotMode]);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [skillsOpen, setSkillsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [newFact, setNewFact] = useState("");
   const [brain, setBrain] = useState<{ label: string; model: string; online: boolean } | null>(null);
+  // Voice-summoned YouTube layer over the face ("robot play …" / "… close video").
+  const [videoQuery, setVideoQuery] = useState<string | null>(null);
+  const [overlay, setOverlay] = useState<{ kind: "image" | "tutorial"; src: string; caption?: string } | null>(null);
+  const videoRef = useRef<VideoHandle | null>(null);
+  // Survivor billboard ("have you seen survivor" / "the tribe has spoken") —
+  // visual-only: no speech, the overlay mounts immediately and the eyes shuffle
+  // fire colors right after. The banner rides in a ref for the deferred mount.
+  const [survivorAnim, setSurvivorAnim] = useState<"torches" | "snuff" | null>(null);
+  const survivorBannerRef = useRef<string | null>(null);
+  const fireCelebRef = useRef<number | null>(null);
+  useEffect(() => () => {
+    if (fireCelebRef.current !== null) cancelAnimationFrame(fireCelebRef.current);
+  }, []);
 
   // Mirror every expression change onto a physical face panel, if one is
   // attached (no-op cost otherwise — the server face link runs in sim mode).
@@ -120,6 +175,127 @@ export function PetShell({
     }
   }, []);
 
+  // ── Survivor celebration ────────────────────────────────────────────────────
+  // Right after the billboard: he SMILES for 3 seconds, with a fast fire-color
+  // shuffle on the eyes (yellow→orange→red, eased blends) for the first ~1.7s
+  // of it. Color steps are throttled — smooth on a glowing eye, and it keeps
+  // the mirrorFace effect from spamming the hardware face panel.
+  const runFireCelebration = useCallback(() => {
+    if (fireCelebRef.current !== null) cancelAnimationFrame(fireCelebRef.current);
+    setFaceState("happy");
+    const FIRE: [number, number, number][] = [[255, 204, 32], [255, 138, 0], [240, 58, 34]];
+    const LOOP = 0.85, LOOPS = 2, SMILE_S = 3.0;
+    const start = performance.now();
+    let lastPush = 0;
+    let colorDone = false;
+    const tick = (now: number) => {
+      const t = (now - start) / 1000;
+      if (t >= SMILE_S) {
+        setEyeColor(null);
+        setFaceState("idle");
+        fireCelebRef.current = null;
+        return;
+      }
+      if (t >= LOOP * LOOPS) {
+        if (!colorDone) { colorDone = true; setEyeColor(null); } // smile rides out in his own color
+      } else if (now - lastPush >= 60) {
+        lastPush = now;
+        const ph = ((t % LOOP) / LOOP) * FIRE.length;
+        const i = Math.floor(ph) % FIRE.length;
+        const j = (i + 1) % FIRE.length;
+        const f = ph - Math.floor(ph);
+        const e = f * f * (3 - 2 * f);
+        const a = FIRE[i]!, b = FIRE[j]!;
+        setEyeColor(`${Math.round(a[0] + (b[0] - a[0]) * e)},${Math.round(a[1] + (b[1] - a[1]) * e)},${Math.round(a[2] + (b[2] - a[2]) * e)}`);
+      }
+      fireCelebRef.current = requestAnimationFrame(tick);
+    };
+    fireCelebRef.current = requestAnimationFrame(tick);
+  }, []);
+
+  // ── "Quick demo" showcase — ~90s of Three.js scenes + narration + faces ─────
+  // Triggered by the showcase skill ("hey nobi, give me a quick demo"). Holds
+  // `busy` for the whole run so the mic sidecar stays muted (it would otherwise
+  // transcribe the narration) and normal turns are paused. Narration goes through
+  // the same voice pipeline as replies; `direct` beats hold a chosen expression.
+  // Tap the screen to skip; a hard 2-minute cap guarantees it always ends.
+  const [showcaseScene, setShowcaseScene] = useState<ShowcaseScene | null>(null);
+  const showcaseRef = useRef(false);
+  // The "introduce yourself" director: a 4-turn guided conversation run by the
+  // real brain. Step + what the user told us ride along in each turn's persona.
+  const introDemoRef = useRef<{ step: number; answers: string[]; startedAt: number } | null>(null);
+  const demoMood = useCallback((state: string, color?: string) => {
+    setFaceState(state as FaceState);
+    setEyeColor(color ? toEyeRgb(color) : null);
+  }, []);
+  const demoSleep = useCallback(async (ms: number) => {
+    const end = performance.now() + ms;
+    while (performance.now() < end && !cancelRef.current) await new Promise((r) => setTimeout(r, 80));
+  }, []);
+  // The moment a showcase ends; voice transcripts that land in the next couple
+  // of seconds are the tail of his own narration, not the user — drop them.
+  const showcaseEndedAtRef = useRef(0);
+  const setEarsMuted = (on: boolean) =>
+    fetch("/api/voice/mute", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ on }) }).catch(() => { /* no sidecar here */ });
+  const runShowcase = useCallback(async () => {
+    if (showcaseRef.current) return;
+    showcaseRef.current = true;
+    cancelRef.current = false;
+    queueRef.current = [];
+    setBusy(true);
+    setCaption("");
+    setInput("");
+    // Explicit, AWAITED mute before the first word: the busy/speaking effect also
+    // mutes, but its fire-and-forget POSTs can land out of order around the
+    // deferred hand-off, and an unmuted mic would hear the narration itself.
+    await setEarsMuted(true);
+    const script = buildShowcaseScript(getBotName(), getPersona().id === "rocky");
+    const started = performance.now();
+    setShowcaseScene(script[0]!.scene);
+    const sayDirect = async (text: string) => { setCaption(stripEmoji(text)); await speak(text); };
+    const sayQueued = async (text: string) => {
+      setCaption(stripEmoji(text));
+      for (const seg of segmentReply(text)) queueRef.current.push(seg);
+      void drainQueue();
+      await waitForQueue();
+    };
+    try {
+      for (const beat of script) {
+        if (cancelRef.current || performance.now() - started > 120_000) break;
+        setShowcaseScene(beat.scene);
+        const beatStart = performance.now();
+        if (beat.mood) demoMood(beat.mood, beat.color);
+        if (beat.say) { if (beat.direct) await sayDirect(beat.say); else await sayQueued(beat.say); }
+        for (const step of beat.steps ?? []) {
+          if (cancelRef.current) break;
+          demoMood(step.mood, step.color);
+          if (step.say) await sayDirect(step.say);
+          await demoSleep(step.holdMs);
+        }
+        const remaining = beat.holdMs - (performance.now() - beatStart);
+        if (remaining > 0) await demoSleep(remaining);
+      }
+    } finally {
+      setShowcaseScene(null);
+      queueRef.current = [];
+      clearMood();
+      setCaption("");
+      setFaceState("happy");
+      window.setTimeout(() => setFaceState((s) => (s === "happy" ? "idle" : s)), 2500);
+      // Let the speaker's tail die out before the ears re-open.
+      await demoSleep(1500);
+      showcaseEndedAtRef.current = Date.now();
+      setBusy(false);
+      showcaseRef.current = false;
+      void setEarsMuted(false);
+    }
+  }, [speak, drainQueue, waitForQueue, demoMood, demoSleep]);
+  const skipShowcase = useCallback(() => {
+    if (!showcaseRef.current) return;
+    cancelRef.current = true;
+    stop();
+  }, [stop]);
+
   // ── Talk to the brain (streaming) ───────────────────────────────────────────
   const handleSend = useCallback(
     async (raw: string) => {
@@ -146,6 +322,14 @@ export function PetShell({
       // ── Agentic pre-flight: is this a DeckOS ACTION rather than chat? ────────
       // (drive/turn/stop, remember X, open a tool, status). Deterministic + fast,
       // so plain conversation isn't slowed. Falls through to chat on no match.
+      // While the intro director is mid-conversation, the user's answers go
+      // straight to the brain — "yes, remember that" is a reply to Nobi, not a
+      // command for the deterministic skills. "stop" / "never mind" still exits.
+      if (introDemoRef.current && introDemoRef.current.step > 0 && /\b(stop|cancel|never ?mind|quit|enough)\b/i.test(message)) {
+        introDemoRef.current = null;
+      }
+      const skipAgent = !!introDemoRef.current && introDemoRef.current.step > 0;
+      if (!skipAgent) {
       try {
         const ar = await fetch("/api/agent", {
           method: "POST",
@@ -156,6 +340,11 @@ export function PetShell({
           const decision = (await ar.json()) as { mode: "action" | "chat"; speak?: string; ui?: UiAction };
           if (decision.mode === "action") {
             const ui: UiAction = decision.ui ?? { type: "none" };
+            if (ui.type === "introDemo") {
+              // Arm the 4-turn "introduce yourself" director and fall through to
+              // the chat path below: the brain runs the conversation, we steer it.
+              introDemoRef.current = { step: 0, answers: [], startedAt: Date.now() };
+            } else {
             // "say that again" re-speaks the previous reply.
             let sayText = decision.speak ?? "";
             if (ui.type === "replayLast") {
@@ -165,10 +354,28 @@ export function PetShell({
             // Run the client effect now; get back any deferred (navigate / mode /
             // mood) to run AFTER Atlas finishes speaking.
             const deferred = applyClientAction(ui, {
-              showMood: (state, ms) => {
+              showMood: (state, ms, color) => {
                 setFaceState(state as FaceState);
-                window.setTimeout(() => setFaceState("idle"), ms);
+                if (color) setEyeColor(toEyeRgb(color));
+                window.setTimeout(() => {
+                  setFaceState("idle");
+                  if (color) setEyeColor(null);
+                }, ms);
               },
+              openVideo: (query) => setVideoQuery(query),
+              controlVideo: (action) => {
+                if (action === "close") setVideoQuery(null);
+                else if (action === "pause") videoRef.current?.pause();
+                else videoRef.current?.resume();
+              },
+              playSurvivor: (variant, banner) => {
+                survivorBannerRef.current = banner ?? null;
+                setSurvivorAnim(variant);
+              },
+              showImage: (url, prompt) => setOverlay({ kind: "image", src: url, caption: prompt }),
+              openTutorial: () => setOverlay({ kind: "tutorial", src: "/tutorial.html" }),
+              closeOverlay: () => setOverlay(null),
+              playShowcase: () => { void runShowcase(); },
             });
             if (sayText.trim()) {
               ok = true;
@@ -185,15 +392,23 @@ export function PetShell({
             setBusy(false);
             if (deferred) deferred();
             return;
+            }
           }
         }
       } catch { /* agent unavailable — just talk */ }
+      }
+
+      // The intro director expires quietly if the conversation stalls.
+      if (introDemoRef.current && Date.now() - introDemoRef.current.startedAt > 4 * 60_000) introDemoRef.current = null;
+      const personaSent = introDemoRef.current
+        ? persona + introDirectorNote(introDemoRef.current.step, getUserName().trim(), introDemoRef.current.answers)
+        : persona;
 
       try {
         const res = await fetch("/api/chat/stream", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message, history: ctx.history, facts: ctx.facts, persona }),
+          body: JSON.stringify({ message, history: ctx.history, facts: ctx.facts, persona: personaSent }),
         });
         if (!res.ok || !res.body) throw new Error(`stream ${res.status}`);
 
@@ -249,7 +464,7 @@ export function PetShell({
           const res = await fetch("/api/chat", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ message, history: ctx.history, facts: ctx.facts, persona }),
+            body: JSON.stringify({ message, history: ctx.history, facts: ctx.facts, persona: personaSent }),
           });
           const data = (await res.json()) as { response?: string };
           full = (data.response ?? "").trim() || SERVER_DOWN_MSG;
@@ -267,6 +482,22 @@ export function PetShell({
       await waitForQueue();
       // Persist the clean words (no emoji) so recalled history stays speakable.
       appendTurn("atlas", stripEmoji(full));
+      // Intro director bookkeeping: the user's replies (turns 2-4) are what he
+      // learned; after the final turn they're kept for real in his memory.
+      const intro = introDemoRef.current;
+      if (intro) {
+        if (intro.step > 0) intro.answers.push(message);
+        intro.step += 1;
+        if (intro.step >= 4) {
+          // Keep what they told him about themselves — not "yes please" / "sure".
+          const affirmation = /^\s*(yes|yeah|yep|yup|sure|ok(ay)?|please|no|nope|nah|thanks?|thank you)\b[\s\w,!.]{0,24}$/i;
+          for (const a of intro.answers) {
+            const t = a.trim();
+            if (t.length > 3 && t.split(/\s+/).length >= 4 && !affirmation.test(t)) addFact(t, "user");
+          }
+          introDemoRef.current = null;
+        }
+      }
       setFaceState("idle");
       clearMood();
       setBusy(false);
@@ -295,6 +526,29 @@ export function PetShell({
     else { setCaption("I couldn't turn on the microphone — you can still type to me."); }
   }, [micOn]);
 
+  // ── Wake-from-sleep (any key / tap / voice) ─────────────────────────────────
+  // Dormant = sleeping or sitting idle with no panel up. Any key or tap opens
+  // the eyes; Enter/Space — or detected speech — also drops straight into the
+  // existing listen/talk flow, so the robot works hands-free or keyboard-only.
+  // (However sleep was entered — timer, hardware, script — this is the way out.)
+  const wake = useCallback(() => {
+    setFaceState((s) => (s === "sleeping" ? "idle" : s));
+  }, []);
+  const wakeAndListen = useCallback(() => {
+    wake();
+    // Mic already on → the recognizer is running; waking alone resumes the loop.
+    if (micSupported && !micOn) void toggleMic();
+  }, [wake, micSupported, micOn, toggleMic]);
+  const { notifySpeech } = useWake({
+    asleep: !busy && !panelOpen && !galleryOpen && !skillsOpen && !settingsOpen
+      && (faceState === "sleeping" || faceState === "idle"),
+    onWake: wake,
+    onWakeAndListen: wakeAndListen,
+  });
+  // Voice wake: speech reaching the interim caption while dormant counts as a
+  // wake — reuses the existing recognizer, no second audio pipeline.
+  useEffect(() => { if (liveHeard) notifySpeech(); }, [liveHeard, notifySpeech]);
+
   // ── Physical face input (touch / knob / press from the hardware panel) ───────
   // Same path whether it's a real panel tap or the on-screen face — the brain
   // broadcasts "atlas.faceInput" over WS. Tap wakes, press interrupts, knob tunes.
@@ -319,6 +573,46 @@ export function PetShell({
       }
     }
   }, [faceInputEv, toggleMic]);
+
+  // ── Local-STT utterances (Pi Vosk mic sidecar → brain → WS "voice.heard") ────
+  // The robot has no working browser STT, so a Pi sidecar captures the USB mic,
+  // runs Vosk, and POSTs finals to /api/voice/heard; the brain broadcasts them as
+  // "voice.heard" (text under payload). Feed the SAME entry a typed message uses so
+  // a spoken line flows through the existing chat → caption → TTS path with zero
+  // new response logic — exactly how onUtterance and faceInput above reuse handleSend.
+  // Dedup on timestamp (like faceInput) so a re-render never re-fires; if one lands
+  // mid-turn, handleSend's busyRef guard just drops it (fine — the speaker repeats).
+  const voiceHeardEv = useLatestEvent("voice.heard");
+  const handledVoiceAt = useRef<string>("");
+  useEffect(() => {
+    if (!voiceHeardEv || voiceHeardEv.timestamp === handledVoiceAt.current) return;
+    handledVoiceAt.current = voiceHeardEv.timestamp;
+    const text = ((voiceHeardEv.payload ?? {}) as { text?: string }).text ?? "";
+    // A transcript arriving right after the showcase is its own last line echoing
+    // through the mic — never the user.
+    if (Date.now() - showcaseEndedAtRef.current < 3000) return;
+    if (text.trim()) void handleSend(text);
+  }, [voiceHeardEv, handleSend]);
+
+  // ── Self-hearing mute bracket — gag the mic sidecar while Nobi talks ─────────
+  // The same USB mic would otherwise transcribe Nobi's own TTS and loop forever.
+  // Tell the brain to drop incoming voice.heard for the whole turn: POST
+  // /api/voice/mute {on:true} at turn start, {on:false} once the last sentence is
+  // spoken. `busy` spans the entire turn (thinking beat + every queued sentence),
+  // so the flag never flickers open in the gaps *between* sentences the way a bare
+  // `speaking` bracket would; `speaking` keeps it closed until the final utterance
+  // actually ends (belt-and-suspenders for any speak() outside a busy turn). This
+  // mirrors the existing `paused: busy` mic gate, but for the separate Pi pipeline.
+  // Fire-and-forget — there's no sidecar in computer mode, so a failed fetch is
+  // expected and ignored; the WS event + mute are harmless there, only live on-bot.
+  const voiceMuted = busy || speaking;
+  useEffect(() => {
+    void fetch("/api/voice/mute", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ on: voiceMuted }),
+    }).catch(() => { /* no mic sidecar here — ignore */ });
+  }, [voiceMuted]);
 
   // ── Live brain detection ────────────────────────────────────────────────────
   useEffect(() => {
@@ -410,6 +704,22 @@ export function PetShell({
 
   useEffect(() => () => { cancelRef.current = true; }, []);
 
+  // ── Ctrl/⌘+S → Settings ─────────────────────────────────────────────────────
+  // The face-locked robot hides the gear, so a keyboard user needs a door into
+  // settings + keys (WiFi, Bluetooth speaker, AI keys). Global in every mode; we
+  // swallow the browser "Save page" default and toggle the same panel the gear
+  // opens (Esc still closes it — BuddySettings owns its own Escape handler). It
+  // keys on Ctrl/⌘ only, so plain typing and the input's Enter-to-send are safe.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.repeat || !(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "s") return;
+      e.preventDefault();
+      setSettingsOpen((open) => !open);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   const activity = activityFor(faceState);
   const canSend = input.trim().length > 0 && !busy;
   const hint = listening
@@ -417,11 +727,31 @@ export function PetShell({
     : `Ask ${bot} anything — I'm here whenever you're ready.`;
 
   return (
-    <div className="relative flex min-h-screen w-full flex-col items-center justify-center overflow-hidden bg-background px-6 py-10 text-foreground">
+    <div className={"relative flex w-full flex-col items-center justify-center overflow-hidden bg-background px-6 text-foreground " + (robotMode ? "h-screen py-4" : "min-h-screen py-10")}>
+      {videoQuery && (
+        <YouTubeOverlay ref={videoRef} query={videoQuery} onClose={() => setVideoQuery(null)} />
+      )}
+      {overlay && (
+        <ContentOverlay kind={overlay.kind} src={overlay.src} caption={overlay.caption} onClose={() => setOverlay(null)} />
+      )}
+      {showcaseScene && (
+        <ShowcaseOverlay scene={showcaseScene} label={bot.toUpperCase()} onSkip={skipShowcase} />
+      )}
+      {survivorAnim && (
+        <SurvivorOverlay variant={survivorAnim}
+          banner={survivorBannerRef.current ?? "JEFF, SEND ME TO FIJI!"}
+          onDone={() => {
+            setSurvivorAnim(null);
+            survivorBannerRef.current = null;
+            runFireCelebration();
+          }} />
+      )}
       <div aria-hidden className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-[58%]"
         style={{ width: 520, height: 520, background: "radial-gradient(circle, rgba(var(--primary-rgb),0.16) 0%, transparent 62%)", filter: "blur(8px)" }} />
 
-      {/* live brain indicator + memory summary (top-left) */}
+      {/* live brain indicator (top-left) — computer mode only; on the robot the
+          screen is nothing but the face (brain status lives in the Ctrl+S vitals). */}
+      {!robotMode && (
       <div className="absolute left-3 top-3 z-10 flex flex-col items-start gap-1">
         <div className="flex items-center gap-1.5 rounded-full border border-primary/15 bg-card/60 px-2.5 py-1 font-mono text-[10px] text-muted-foreground backdrop-blur-sm"
              title={brain ? `Active brain: ${brain.label} (${brain.model})` : "Detecting brain…"}>
@@ -430,6 +760,7 @@ export function PetShell({
           <span className="hidden text-muted-foreground/60 sm:inline">{brain?.model}</span>
         </div>
       </div>
+      )}
 
       {/* corner controls — hidden in robot mode (face is the only screen) */}
       {!robotMode && (
@@ -445,22 +776,38 @@ export function PetShell({
         </div>
       )}
 
-      {/* the pet */}
+      {robotMode ? (
+        /* ROBOT: the whole round screen IS the face — big bare eyes floating on
+           the display, the reply riding just beneath them. No disc, no chat
+           chrome (there's no keyboard/mouse; talk by voice, set up from a
+           phone, or Ctrl+S in a pinch). Long-press the face escapes to computer. */
+        <div className="absolute inset-0 z-[1]"
+          onPointerDown={startHold} onPointerUp={endHold} onPointerLeave={endHold}>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <AtlasFace mode="auto" state={faceState} size={faceFill} bare activity={activity}
+              eyeColorOverride={eyeColor} discTint={discTint} emoji={emoji} />
+          </div>
+          <div className="pointer-events-none absolute inset-x-0 top-[63%] flex justify-center px-10">
+            <FaceCaption text={caption} hint={hint} busy={busy} />
+          </div>
+        </div>
+      ) : (
       <div className="relative z-[1] flex w-full max-w-md flex-col items-center gap-7">
         <div
           onPointerDown={startHold}
           onPointerUp={endHold}
           onPointerLeave={endHold}
-          className={robotMode ? "cursor-pointer" : undefined}
         >
           <AtlasFace mode="auto" state={faceState} size={280} activity={activity}
             eyeColorOverride={eyeColor} discTint={discTint} emoji={emoji} />
         </div>
 
-        <p aria-live="polite" className="min-h-[3.25rem] w-full text-center text-xl font-medium leading-snug text-foreground sm:text-2xl">
-          {caption || <span className="text-base font-normal text-muted-foreground sm:text-lg">{hint}</span>}
-        </p>
+        {/* Live on-screen subtitle of Nobi's reply (same `caption` state) —
+            legible over the face and inside the round bezel; see FaceCaption. */}
+        <FaceCaption text={caption} hint={hint} busy={busy} />
 
+        {/* Computer mode gets the full chat + footer chrome. */}
+        {(
         <form
           className="flex w-full items-center gap-2 rounded-full border border-primary/25 bg-card/70 p-2 pl-5 shadow-[0_0_24px_rgba(var(--primary-rgb),0.10)] backdrop-blur-sm focus-within:border-primary/60"
           onSubmit={(e) => { e.preventDefault(); void handleSend(input); }}
@@ -485,8 +832,10 @@ export function PetShell({
             {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <ArrowUp className="h-5 w-5" />}
           </button>
         </form>
+        )}
 
-        {/* small footer controls: history/memory + the collection */}
+        {/* small footer controls: history/memory + the collection (computer mode) */}
+        {!robotMode && (
         <div className="flex items-center gap-4">
           <button type="button" onClick={() => setPanelOpen(true)}
             className="flex items-center gap-1.5 rounded-full px-2 py-1 text-[11px] text-muted-foreground/50 transition-colors hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -507,7 +856,9 @@ export function PetShell({
             what I can do
           </button>
         </div>
+        )}
       </div>
+      )}
 
       {galleryOpen && <FacesGallery onClose={() => setGalleryOpen(false)} />}
 
@@ -572,7 +923,7 @@ export function PetShell({
                 </div>
                 <form className="flex gap-2 border-t border-primary/15 p-3"
                   onSubmit={(e) => { e.preventDefault(); if (newFact.trim()) { addFact(newFact.trim(), "user"); setNewFact(""); } }}>
-                  <input value={newFact} onChange={(e) => setNewFact(e.target.value)} placeholder="Tell Neura to remember something…"
+                  <input value={newFact} onChange={(e) => setNewFact(e.target.value)} placeholder="Tell Nobi to remember something…"
                     className="min-w-0 flex-1 rounded-full border border-primary/20 bg-background/60 px-3 py-1.5 text-sm focus:border-primary/50 focus:outline-none" />
                   <button type="submit" className="rounded-full bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-40" disabled={!newFact.trim()}>Add</button>
                 </form>

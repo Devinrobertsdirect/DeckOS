@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod/v4";
 import { getConfig, setConfig, deleteConfig, getAllConfig } from "../lib/app-config.js";
-import { invalidateConfigCache } from "../lib/app-config.js";
+import { invalidateConfigCache, configDiagnostics } from "../lib/app-config.js";
 import {
   detectOllama,
   detectOpenWebUI,
@@ -64,8 +64,8 @@ router.get("/features", async (_req, res) => {
       local: ttsLocal,
     },
     stt: {
-      available: hasOpenAi,
-      provider: hasOpenAi ? "openai-whisper" : null,
+      available: hasElevenLabs || hasOpenAi,
+      provider: hasElevenLabs ? "elevenlabs-scribe" : hasOpenAi ? "openai-whisper" : null,
       local: false,
     },
     vision: {
@@ -109,6 +109,11 @@ router.get("/config", async (_req, res) => {
 
 // ── PUT /api/config ─────────────────────────────────────────────────────────
 const UpdateSchema = z.record(z.string(), z.string());
+
+// GET /api/config/diag — where are settings stored + is the last write OK?
+router.get("/config/diag", (_req, res) => {
+  res.json(configDiagnostics());
+});
 
 router.put("/config", async (req, res) => {
   const parsed = UpdateSchema.safeParse(req.body);

@@ -161,6 +161,28 @@
 .font-mono { font-family: var(--font-mono); }
 
 /* ───────────────────────────────────────────
+   KEYBOARD FOCUS — the robot has NO mouse; the whole UI
+   must be drivable by Tab / arrows / Enter on the round
+   screen. A bright, theme-coloured ring shows what's
+   selected. Chromium renders rounded outlines, so round
+   swatches get a round ring automatically.
+─────────────────────────────────────────── */
+:focus-visible {
+  outline: 3px solid rgba(var(--primary-rgb), 1);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+/* Mouse clicks shouldn't leave a lingering ring */
+:focus:not(:focus-visible) { outline: none; }
+/* A soft halo so the ring is unmistakable on the dark panel */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+[tabindex]:focus-visible {
+  box-shadow: 0 0 14px 2px rgba(var(--primary-rgb), 0.55);
+}
+
+/* ───────────────────────────────────────────
    SCANLINE
 ─────────────────────────────────────────── */
 .scanline {
@@ -599,4 +621,103 @@ html[data-visual-mode="cinematic"] .cinematic-ambient {
 @keyframes blink {
   0%, 100% { opacity: 1; }
   50% { opacity: 0; }
+}
+
+/* ───────────────────────────────────────────
+   ROUND SCREEN MODE — 480×480 circular display
+   The robot head: Chromium kiosk on the Pi behind a round
+   bezel, so the corners physically don't exist. Enabled by
+   ?screen=round (persisted as neura_screen) — see
+   lib/screenMode.ts. Everything here hangs off
+   html[data-screen="round"] and is a no-op elsewhere.
+─────────────────────────────────────────── */
+
+/* No pointer, ever — a mouse arrow on the robot's face breaks the illusion.
+   !important so it also beats inline cursor styles (GenesisIntro's
+   tap-to-wake pointer). */
+html[data-screen="round"],
+html[data-screen="round"] body,
+html[data-screen="round"] *,
+html[data-screen="round"] *:hover {
+  cursor: none !important;
+}
+
+/* Slightly smaller base type — every rem-sized layout breathes ~6% tighter,
+   which is most of what a 480px face needs. */
+html[data-screen="round"] {
+  font-size: 15px;
+}
+
+/* Tighten the biggest paddings/gaps so tall stacks (START button + SYSTEM
+   SETTINGS, step dots + CTAs + "Press Enter" hints) fit the circle without
+   redesigning any screen. Scoped to #root and round mode only. */
+html[data-screen="round"] #root :where(.p-8)   { padding: 1.25rem; }
+html[data-screen="round"] #root :where(.p-6)   { padding: 1rem; }
+html[data-screen="round"] #root :where(.px-6)  { padding-left: 0.875rem; padding-right: 0.875rem; }
+html[data-screen="round"] #root :where(.py-8)  { padding-top: 1rem; padding-bottom: 1rem; }
+html[data-screen="round"] #root :where(.py-10) { padding-top: 1rem; padding-bottom: 1rem; }
+html[data-screen="round"] #root :where(.gap-12) { gap: 1.5rem; }
+html[data-screen="round"] #root :where(.gap-8)  { gap: 1.25rem; }
+html[data-screen="round"] #root :where(.gap-7)  { gap: 1.25rem; }
+html[data-screen="round"] #root :where(.gap-6)  { gap: 1rem; }
+
+/* Pull CONTENT into the inscribed circle. The true safe square inside a
+   480px circle is ~340px (70px in from every edge); 58px is the pragmatic
+   compromise — real content rarely fills its square corners. The padding
+   goes on the screen-level LAYOUT containers only: their backgrounds still
+   paint the padding box, and absolutely/fixed-positioned decoration
+   (.scanline, .particle-overlay, .cinematic-*, fireflies, canvas overlays)
+   positions against the padding box or viewport — so full-bleed layers STAY
+   full-bleed while in-flow content moves onto the glass.
+   Targets: .h-screen (StartScreen root), .min-h-screen (PetShell / Layout
+   roots), .fixed.inset-0.z-50 (GenesisSetup + Onboarding phase roots) and
+   .fixed.inset-0.overflow-y-auto (fullscreen scroll panels — gallery, buddy
+   settings…).
+   NOTE: keep this rule BELOW the padding tighteners above — Onboarding
+   phase roots carry p-6, and this shorthand must win on those elements. */
+html[data-screen="round"] #root :where(
+  .h-screen,
+  .min-h-screen,
+  .fixed.inset-0.z-50,
+  .fixed.inset-0.overflow-y-auto
+):not(:where(.scanline, .particle-overlay, [class*="cinematic-"], canvas)) {
+  padding: 58px;
+}
+
+/* HUD corner ticks live in the physically invisible corners — off. */
+html[data-screen="round"] .hud-corner { display: none !important; }
+
+/* PetShell's corner chips (brain-status pill top-left, settings/dev buttons
+   top-right) sit at the very corners — under the bezel. Walk them in along
+   the circle so they stay visible AND tappable. */
+html[data-screen="round"] #root :where(.absolute.left-3.top-3.z-10)  { left: 84px; top: 72px; }
+html[data-screen="round"] #root :where(.absolute.right-3.top-3.z-10) { right: 84px; top: 72px; }
+
+/* PetShell's face canvas is inline-sized to 280px, which pushes the input row
+   and quick links off the bottom of the circle. Cap it (canvas scales its
+   drawing with CSS size). Scoped to the .max-w-md pet column so the Genesis
+   wizard's small header face is untouched; !important beats the inline size. */
+html[data-screen="round"] #root :where(.max-w-md) canvas[role="img"] {
+  width: 170px !important;
+  height: 170px !important;
+}
+
+/* StartScreen's footer credit hugs the very bottom edge — lift it onto the
+   glass (it's wider than the visible chord at bottom-5). */
+html[data-screen="round"] #root :where(.absolute.bottom-5.inset-x-0) { bottom: 3rem; }
+
+/* GenesisSetup's footer nav is justify-between, which pushes "Press Enter to
+   continue" / Back and Next into the bottom corners of the safe square —
+   tuck both ends toward the middle. */
+html[data-screen="round"] #root :where(footer.justify-between) {
+  padding-left: 2.5rem;
+  padding-right: 2.5rem;
+}
+
+/* GenesisIntro's "Skip intro" pill is inline-styled into the bottom-right
+   corner (bottom/right 5%) — !important is the only way in from CSS. Park it
+   just inside the circle instead. */
+html[data-screen="round"] button[style*="right: 5%"] {
+  right: 20% !important;
+  bottom: 13% !important;
 }

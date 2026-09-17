@@ -1,0 +1,384 @@
+#!/usr/bin/env python3
+# ─────────────────────────────────────────────────────────────────────────────
+# neura-ears.py — Nobi's local ears: on-device VAD, cloud-accurate transcription.
+# Chromium's Web Speech has no Linux backend, so the face never hears anything;
+# this closes that gap. It captures the mic, does lightweight on-device
+# voice-activity detection (VAD), and sends only *real speech clips* to the brain,
+# which transcribes them with ElevenLabs Scribe — far more accurate than the local
+# Vosk model, which mangled whole sentences and never once heard its own name.
+#
+#   pw-record / arecord (raw S16LE 16k mono)
+#        │  energy VAD (this file) — buffers a whole spoken phrase
+#        ▼
+#   POST /api/voice/transcribe {audio: wav-base64}  ──▶ ElevenLabs Scribe ──▶ text
+#        │  wake gate + armed window (this file)
+#        ▼
+#   POST /api/voice/heard {text}  ──▶ WS "voice.heard" ──▶ the face → Claude → TTS
+#
+# WHY CLOUD STT: Devin's steer — "we should be using claude and eleven labs where
+# possible." Scribe hears "Nobi" and full sentences the tiny Vosk model couldn't.
+# CREDIT-SAFE, two gates: (1) VAD means only actual speech clips are ever uploaded
+# (silence/room-tone never spends a Scribe credit); (2) the wake gate means Claude
+# only fires when Nobi is addressed or already in an armed back-and-forth. While
+# Nobi is talking (/api/voice/state muted=true) captures are dropped before upload
+# so she never transcribes — or answers — her own voice.
+#
+# OFFLINE FALLBACK: if the brain has no ElevenLabs key (or the call fails), we lazily
+# load the local Vosk model and transcribe on-device instead, so the robot still
+# hears something with no network. Vosk is never loaded while Scribe is working, so
+# it costs no CPU in the normal (online) case.
+#
+# Env:
+#   NEURA_PW_SOURCE     PipeWire source: "bluez_input.<MAC>" or "default" (follow
+#                       WirePlumber's default source)                  (default: unset)
+#   NEURA_MIC_DEV       ALSA capture device if no PW source          (default: plughw:3,0)
+#   NEURA_VAD_START_RMS absolute RMS floor that counts as speech      (default: 600)
+#   NEURA_VAD_MULT      speech = RMS above (this × adaptive noise floor) (default: 3.0)
+#   NEURA_SILENCE_MS    quiet gap that ends a phrase                  (default: 900)
+#   NEURA_START_MS      speech this long trips the recorder           (default: 120)
+#   NEURA_PREROLL_MS    audio kept from just before speech started    (default: 300)
+#   NEURA_MIN_UTTER_MS  ignore blips shorter than this                (default: 350)
+#   NEURA_MAX_PHRASE_S  hard cap on one phrase                        (default: 15)
+#   NEURA_WAKE_WORDS    comma list of activation words               (default: nobi + variants)
+#   NEURA_REQUIRE_WAKE  "0" = respond to everything                   (default: "1")
+#   NEURA_ARM_SECONDS   keep-listening window after a wake            (default: 12)
+#   NEURA_STT_FALLBACK  "0" = never fall back to local Vosk           (default: "1")
+#   NEURA_VOSK_MODEL    flattened Vosk model dir (fallback only)      (default: ~/.atlas/vosk-model)
+#
+# Resilient (it runs on a robot that gets power-yanked): the capture process
+# respawns if it dies; HTTP failures are swallowed; SIGTERM shuts down cleanly.
+# Python 3.13 dropped `audioop`, so RMS is computed by hand over the sample array.
+# ─────────────────────────────────────────────────────────────────────────────
+import array
+import base64
+import io
+import json
+import os
+import re
+import signal
+import subprocess
+import sys
+import time
+import wave
+from collections import deque
+
+import requests
+
+# ── Capture source ───────────────────────────────────────────────────────────
+MIC_DEV = os.environ.get("NEURA_MIC_DEV", "plughw:3,0")
+PW_SOURCE = os.environ.get("NEURA_PW_SOURCE", "").strip()
+SAMPLE_RATE = 16000
+FRAME_MS = 20
+FRAME_SAMPLES = SAMPLE_RATE * FRAME_MS // 1000       # 320 samples
+FRAME_BYTES = FRAME_SAMPLES * 2                      # 640 bytes (s16 mono)
+
+# ── Brain endpoints ──────────────────────────────────────────────────────────
+BASE = os.environ.get("NEURA_BRAIN", "http://127.0.0.1:8080")
+TRANSCRIBE_URL = BASE + "/api/voice/transcribe"
+HEARD_URL = BASE + "/api/voice/heard"
+STATE_URL = BASE + "/api/voice/state"
+
+# ── VAD tuning ───────────────────────────────────────────────────────────────
+START_RMS = float(os.environ.get("NEURA_VAD_START_RMS", "600"))
+VAD_MULT = float(os.environ.get("NEURA_VAD_MULT", "3.0"))
+SILENCE_MS = int(os.environ.get("NEURA_SILENCE_MS", "1000"))
+START_MS = int(os.environ.get("NEURA_START_MS", "120"))
+PREROLL_MS = int(os.environ.get("NEURA_PREROLL_MS", "300"))
+MIN_UTTER_MS = int(os.environ.get("NEURA_MIN_UTTER_MS", "350"))
+MAX_PHRASE_S = float(os.environ.get("NEURA_MAX_PHRASE_S", "15"))
+
+START_FRAMES = max(1, START_MS // FRAME_MS)
+SILENCE_FRAMES = max(1, SILENCE_MS // FRAME_MS)
+PREROLL_FRAMES = max(1, PREROLL_MS // FRAME_MS)
+
+# ── Wake gate ────────────────────────────────────────────────────────────────
+REQUIRE_WAKE = os.environ.get("NEURA_REQUIRE_WAKE", "1") != "0"
+ARM_SECONDS = float(os.environ.get("NEURA_ARM_SECONDS", "12"))
+# The moment Nobi FINISHES speaking, keep listening this long for a reply so the
+# user can answer without saying her name again (Devin's steer: 7s after speech).
+ARM_AFTER_REPLY = float(os.environ.get("NEURA_ARM_AFTER_S", "7"))
+MUTE_POLL_MS = int(os.environ.get("NEURA_MUTE_POLL_MS", "200"))
+# Scribe hears "Nobi" cleanly, but keep the forgiving mishear variants it tends
+# to produce for an unfamiliar proper noun ("Nobby", "Noby", "no bee") + "robot".
+_DEFAULT_WAKE = (
+    "nobi,nobby,noby,nobie,nobe,knobby,no bee,no be,"
+    "hey nobi,hey nobby,hey noby,ok nobi,okay nobi,"
+    "robot,hey robot,ok robot"
+)
+WAKE_WORDS = [w.strip().lower() for w in
+              os.environ.get("NEURA_WAKE_WORDS", _DEFAULT_WAKE).split(",") if w.strip()]
+WAKE_WORDS.sort(key=len, reverse=True)   # longest first so "hey nobi" beats "nobi"
+_WAKE_RE = [re.compile(r"\b" + re.escape(w) + r"\b") for w in WAKE_WORDS]
+
+# ── Offline fallback (lazy Vosk) ─────────────────────────────────────────────
+FALLBACK = os.environ.get("NEURA_STT_FALLBACK", "1") != "0"
+MODEL_DIR = os.path.expanduser(os.environ.get("NEURA_VOSK_MODEL", "~/.atlas/vosk-model"))
+_vosk_model = None   # loaded on first offline transcription only
+
+_running = True
+
+
+def _stop(_signum, _frame):
+    global _running
+    _running = False
+
+
+signal.signal(signal.SIGTERM, _stop)
+signal.signal(signal.SIGINT, _stop)
+
+
+def log(msg: str) -> None:
+    print(f"[neura-ears] {msg}", file=sys.stderr, flush=True)
+
+
+def spawn_capture() -> subprocess.Popen:
+    # Bluetooth headset (or any PipeWire source): capture with pw-record.
+    # "default" = no --target → follow WirePlumber's default source, so whichever
+    # BT device bt-audio-route.mjs last made default (DOQAUS, JLab, …) is the mic
+    # without editing this unit per device.
+    if PW_SOURCE:
+        target = [] if PW_SOURCE.lower() == "default" else ["--target", PW_SOURCE]
+        return subprocess.Popen(
+            ["pw-record", *target, "--rate", str(SAMPLE_RATE),
+             "--channels", "1", "--format", "s16", "-"],
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+        )
+    # USB / ALSA mic: capture with arecord.
+    return subprocess.Popen(
+        ["arecord", "-D", MIC_DEV, "-f", "S16_LE", "-r", str(SAMPLE_RATE),
+         "-c", "1", "-t", "raw"],
+        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+    )
+
+
+def read_exact(stream, n: int):
+    """Read exactly n bytes from a pipe, or None if the stream ended."""
+    buf = bytearray()
+    while len(buf) < n:
+        chunk = stream.read(n - len(buf))
+        if not chunk:
+            return None
+        buf.extend(chunk)
+    return bytes(buf)
+
+
+def frame_rms(buf: bytes) -> float:
+    """Root-mean-square level of one 16-bit-mono frame (audioop is gone in 3.13)."""
+    samples = array.array("h")
+    samples.frombytes(buf)
+    if not samples:
+        return 0.0
+    total = 0
+    for v in samples:
+        total += v * v
+    return (total / len(samples)) ** 0.5
+
+
+def pcm_to_wav(pcm: bytes) -> bytes:
+    out = io.BytesIO()
+    with wave.open(out, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(SAMPLE_RATE)
+        w.writeframes(pcm)
+    return out.getvalue()
+
+
+def is_muted() -> bool:
+    """True while Nobi is speaking — don't upload (or transcribe) her own voice."""
+    try:
+        return bool(requests.get(STATE_URL, timeout=2).json().get("muted"))
+    except requests.RequestException:
+        return False
+
+
+def transcribe_remote(pcm: bytes):
+    """(text, error). error='no-key' → brain has no cloud STT, use local fallback."""
+    wav_b64 = base64.b64encode(pcm_to_wav(pcm)).decode("ascii")
+    try:
+        r = requests.post(TRANSCRIBE_URL, json={"audio": wav_b64, "format": "wav"}, timeout=25)
+    except requests.RequestException as e:
+        return None, f"post-failed: {e}"
+    if r.status_code == 503:
+        return None, "no-key"
+    if not r.ok:
+        return None, f"http-{r.status_code}"
+    try:
+        return (r.json().get("transcript") or "").strip(), None
+    except ValueError:
+        return None, "bad-json"
+
+
+def transcribe_local(pcm: bytes) -> str:
+    """Offline fallback: transcribe on-device with Vosk. Loaded lazily, once."""
+    global _vosk_model
+    if not FALLBACK or not os.path.isdir(MODEL_DIR):
+        return ""
+    try:
+        from vosk import Model, KaldiRecognizer, SetLogLevel
+    except Exception as e:
+        log(f"vosk unavailable for fallback: {e}")
+        return ""
+    if _vosk_model is None:
+        SetLogLevel(-1)
+        log(f"loading local Vosk fallback model {MODEL_DIR} …")
+        _vosk_model = Model(MODEL_DIR)
+    rec = KaldiRecognizer(_vosk_model, SAMPLE_RATE)
+    rec.AcceptWaveform(pcm)
+    try:
+        return (json.loads(rec.FinalResult()).get("text") or "").strip()
+    except ValueError:
+        return ""
+
+
+def match_wake(text: str):
+    """(matched, remainder). Strips up to & including the wake word so
+    'neura what's the time' → (True, "what's the time'); bare 'neura' → (True, "")."""
+    low = text.lower()
+    best = None
+    for rx in _WAKE_RE:
+        m = rx.search(low)
+        if m and (best is None or m.start() < best.start()):
+            best = m
+    if best is None:
+        return False, text.strip()
+    return True, text[best.end():].strip(" ,.!?-")
+
+
+def forward(text: str) -> None:
+    try:
+        requests.post(HEARD_URL, json={"text": text}, timeout=3)
+    except requests.RequestException:
+        pass
+
+
+def main() -> int:
+    src = ("pw:" + PW_SOURCE) if PW_SOURCE else ("alsa:" + MIC_DEV)
+    log(f"up — mic={src} STT=elevenlabs-scribe (fallback={'vosk' if FALLBACK else 'off'}) "
+        f"vad(start_rms={START_RMS:.0f} ×{VAD_MULT} silence={SILENCE_MS}ms) "
+        f"wake={WAKE_WORDS if REQUIRE_WAKE else 'OPEN'} arm={ARM_SECONDS:.0f}s")
+
+    proc = None
+    preroll = deque(maxlen=PREROLL_FRAMES)
+    speaking = False
+    utter = bytearray()
+    speech_run = 0
+    silence_run = 0
+    utter_start = 0.0
+    floor = START_RMS            # adaptive ambient-noise floor
+    armed_until = 0.0
+    muted = False                # is Nobi speaking right now?
+    last_mute_poll = 0.0
+
+    while _running:
+        if proc is None or proc.poll() is not None:
+            if proc is not None:
+                log("capture exited — respawning in 2s")
+                time.sleep(2)
+                if not _running:
+                    break
+            proc = spawn_capture()
+            preroll.clear()
+            speaking, utter, speech_run, silence_run = False, bytearray(), 0, 0
+            log(f"capturing ({src})")
+
+        data = read_exact(proc.stdout, FRAME_BYTES)
+        if data is None:
+            proc = None
+            continue
+
+        now = time.monotonic()
+
+        # Throttled: is Nobi speaking? When she stops, re-arm so the user can
+        # answer without repeating the wake word for ARM_AFTER_REPLY seconds.
+        if (now - last_mute_poll) * 1000.0 >= MUTE_POLL_MS:
+            last_mute_poll = now
+            m = is_muted()
+            if muted and not m:          # falling edge — Nobi just finished
+                armed_until = now + ARM_AFTER_REPLY
+                log(f"reply finished — listening {ARM_AFTER_REPLY:.0f}s for a response")
+            muted = m
+
+        if muted:
+            # Hold VAD idle so we never capture (or transcribe) Nobi's own voice.
+            speaking, utter, speech_run, silence_run = False, bytearray(), 0, 0
+            preroll.clear()
+            continue
+
+        rms = frame_rms(data)
+        threshold = max(START_RMS, floor * VAD_MULT)
+        is_speech = rms >= threshold
+
+        if not speaking:
+            preroll.append(data)
+            if is_speech:
+                speech_run += 1
+                if speech_run >= START_FRAMES:
+                    speaking = True
+                    utter = bytearray(b"".join(preroll))   # keep the pre-roll
+                    preroll.clear()
+                    silence_run = 0
+                    utter_start = now
+            else:
+                speech_run = 0
+                # Track ambient level only while quiet, so the floor follows the room.
+                floor = 0.92 * floor + 0.08 * rms
+            continue
+
+        # ── speaking: accumulate until a long-enough pause (or the hard cap) ──
+        utter.extend(data)
+        silence_run = 0 if is_speech else silence_run + 1
+        ended = silence_run >= SILENCE_FRAMES or (now - utter_start) >= MAX_PHRASE_S
+        if not ended:
+            continue
+
+        pcm = bytes(utter)
+        speaking, utter, speech_run, silence_run = False, bytearray(), 0, 0
+        dur_ms = len(pcm) / 2 / SAMPLE_RATE * 1000.0
+        if dur_ms < MIN_UTTER_MS:
+            continue   # a cough / click — not worth an upload
+
+        # (We never capture while muted, so this buffer is always the user's voice.)
+        text, err = transcribe_remote(pcm)
+        if err:
+            local = transcribe_local(pcm)
+            if local:
+                log(f"(scribe {err}) local→ {local!r}")
+                text = local
+            else:
+                log(f"(scribe {err}; no local transcript) dropped {dur_ms:.0f}ms clip")
+                continue
+        if not text:
+            continue
+
+        armed = now < armed_until
+        matched, remainder = match_wake(text)
+        if REQUIRE_WAKE and not matched and not armed:
+            log(f"(ignored, no wake): {text!r}")
+            continue
+
+        if matched:
+            armed_until = now + ARM_SECONDS
+            to_send = remainder or ""
+            if not to_send:
+                log("armed (heard my name) — listening…")
+                continue
+        else:
+            to_send = text
+            armed_until = now + ARM_SECONDS   # keep the conversation alive
+
+        log(f"heard: {to_send!r}")
+        forward(to_send)
+
+    if proc is not None:
+        proc.terminate()
+        try:
+            proc.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+    log("stopped")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

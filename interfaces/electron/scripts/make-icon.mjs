@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /*
- * make-icon.mjs — generate the Neura app icon from the brand, in pure Node.
+ * make-icon.mjs — generate the Nobi app icon from the brand, in pure Node.
  *
  * Draws the face exactly per the design language — smoked-navy disc (#1E2A38
  * family), two ice-blue (#C9DCF0) stadium eyes with a soft glow, subtle rim —
@@ -20,6 +20,7 @@ import zlib from "node:zlib";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ELECTRON = resolve(HERE, "..");
 const DESKTOP_PUB = resolve(ELECTRON, "..", "desktop", "public");
+const MOBILE_PUB = resolve(ELECTRON, "..", "mobile", "public");
 
 // ── minimal PNG encoder (RGBA8) ──────────────────────────────────────────────
 const CRC_TABLE = (() => {
@@ -123,14 +124,68 @@ function renderFace(size) {
   return buf;
 }
 
+/**
+ * Full-bleed variant for maskable / Apple-touch icons: the navy fills the whole
+ * square (no transparent corners for the OS to crop), with the eyes kept well
+ * inside the center-80% safe zone so adaptive/rounded masks never clip them.
+ */
+function renderMaskable(size) {
+  const c = size / 2;
+  const eyeDx = size * 0.145;         // eyes inside the safe zone
+  const eyeHW = size * 0.052;
+  const eyeHH = size * 0.118;
+  const eyeY = c - size * 0.01;
+  const glowLen = size * 0.075;
+
+  const buf = Buffer.alloc(size * size * 4);
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const px = x + 0.5, py = y + 0.5;
+      // full-bleed vertical navy gradient (#24344A → #151E2A) + soft radial vignette
+      const ty = clamp(py / size, 0, 1);
+      let r = lerp(0x24, 0x15, ty), g = lerp(0x34, 0x1e, ty), b = lerp(0x4a, 0x2a, ty);
+      const dc = Math.hypot(px - c, py - c) / (size * 0.5);
+      const vin = 1 - 0.16 * clamp((dc - 0.5) / 0.5, 0, 1);
+      r *= vin; g *= vin; b *= vin;
+
+      const sd = Math.min(
+        stadiumSd(px, py, c - eyeDx, eyeY, eyeHW, eyeHH),
+        stadiumSd(px, py, c + eyeDx, eyeY, eyeHW, eyeHH),
+      );
+      const glow = sd > 0 ? Math.exp(-sd / glowLen) * 0.30 : 0;
+      if (glow > 0.003) { r = lerp(r, 0xc9, glow); g = lerp(g, 0xdc, glow); b = lerp(b, 0xf0, glow); }
+      const eye = clamp(0.5 - sd, 0, 1);
+      if (eye > 0) { r = lerp(r, 0xc9, eye); g = lerp(g, 0xdc, eye); b = lerp(b, 0xf0, eye); }
+
+      const i = (y * size + x) * 4;
+      buf[i] = Math.round(r); buf[i + 1] = Math.round(g); buf[i + 2] = Math.round(b);
+      buf[i + 3] = 255;
+    }
+  }
+  return buf;
+}
+
 // ── emit ─────────────────────────────────────────────────────────────────────
 function writePng(path, size) {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, encodePng(renderFace(size), size, size));
   console.log(`  ✓ ${path} (${size}×${size})`);
 }
+function writeMaskablePng(path, size) {
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, encodePng(renderMaskable(size), size, size));
+  console.log(`  ✓ ${path} (${size}×${size}, full-bleed)`);
+}
+
+// desktop / electron
 writePng(join(ELECTRON, "build", "icon.png"), 1024);
 writePng(join(DESKTOP_PUB, "logo.png"), 512);
+
+// mobile PWA — transparent-disc icons + full-bleed maskable/apple-touch
+writePng(join(MOBILE_PUB, "icon-192.png"), 192);
+writePng(join(MOBILE_PUB, "icon-512.png"), 512);
+writeMaskablePng(join(MOBILE_PUB, "icon-maskable-512.png"), 512);
+writeMaskablePng(join(MOBILE_PUB, "apple-touch-icon.png"), 180);
 
 const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
   <defs><linearGradient id="d" x1="0" y1="0" x2="0" y2="1">
@@ -142,4 +197,6 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
 </svg>\n`;
 writeFileSync(join(DESKTOP_PUB, "favicon.svg"), svg);
 console.log(`  ✓ ${join(DESKTOP_PUB, "favicon.svg")} (vector)`);
-console.log("Neura icons generated.");
+writeFileSync(join(MOBILE_PUB, "favicon.svg"), svg);
+console.log(`  ✓ ${join(MOBILE_PUB, "favicon.svg")} (vector — replaces old orange square)`);
+console.log("Nobi icons generated.");

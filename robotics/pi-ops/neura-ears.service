@@ -1,0 +1,33 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# neura-ears.service — Nobi's local ears (Vosk STT sidecar).
+# Captures the USB mic, transcribes on-device, and POSTs final utterances to the
+# brain's loopback /api/voice/heard. Runs as the desktop user (devindungeon), who
+# is in the `audio` group, so arecord can open plughw directly. Starts after the
+# brain so the intake endpoint is live.
+#
+# Install:
+#   bash ~/pi-ops/install-ears.sh
+#   sudo cp ~/pi-ops/neura-ears.service /etc/systemd/system/
+#   sudo systemctl enable --now neura-ears
+# Watch it:  journalctl -u neura-ears -f
+#
+# NOTE: systemd does NOT expand ~, so paths below are spelled out in full.
+# ─────────────────────────────────────────────────────────────────────────────
+[Unit]
+Description=Nobi local ears (Vosk STT sidecar)
+After=neura-brain.service
+Wants=neura-brain.service
+
+[Service]
+User=devindungeon
+Environment=NEURA_VOSK_MODEL=/home/devindungeon/.atlas/vosk-model
+# Require a wake word (utterances must contain it; it's stripped before forwarding):
+# Environment=NEURA_WAKE_WORD=nobi
+# Pin a different mic if ALSA re-enumerates the USB card:
+# Environment=NEURA_MIC_DEV=plughw:3,0
+ExecStart=/home/devindungeon/.atlas/ears-venv/bin/python /home/devindungeon/pi-ops/neura-ears.py
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

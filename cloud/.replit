@@ -1,0 +1,21 @@
+# Nobi Cloud — Replit config.
+# Deploy this folder as its own Repl (recommended). The esbuild bundle is
+# self-contained, so the deployment only needs `node dist/index.mjs` at runtime.
+modules = ["nodejs-20"]
+run = "npm run build && npm run start"
+hidden = ["dist", ".neura-cloud", "node_modules"]
+
+[nix]
+channel = "stable-24_05"
+
+# Use a RESERVED VM deployment (not Autoscale). Nobi Cloud is stateful: it holds
+# open WebSocket relay connections and persists db.json to disk — both need ONE
+# always-on instance with a persistent filesystem. Choose "Reserved VM" in the
+# Replit Deployments UI, then these commands run:
+[deployment]
+build = ["sh", "-c", "npm install --include=dev && npm run build"]
+run = ["sh", "-c", "node dist/index.mjs"]
+
+[[ports]]
+localPort = 8790
+externalPort = 80

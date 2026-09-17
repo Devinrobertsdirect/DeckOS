@@ -20,8 +20,8 @@ import { setPersona } from "@/genesis/personality";
 // ─────────────────────────────────────────────────────────────────────────────
 const COLOR_ORDER: ColorScheme[] = ["steel", "ice", "blue", "green", "yellow", "red"];
 const COLOR_META: Record<ColorScheme, { label: string; hex: string; desc: string }> = {
-  steel:  { label: "NEURA STEEL", hex: "#4A7FB5", desc: "the Neura signature" },
-  ice:    { label: "NEURA ICE",   hex: "#C9DCF0", desc: "calm precision" },
+  steel:  { label: "NOBI STEEL", hex: "#4A7FB5", desc: "the Nobi signature" },
+  ice:    { label: "NOBI ICE",   hex: "#C9DCF0", desc: "calm precision" },
   blue:   { label: "COBALT",      hex: "#3f84f3", desc: "deep focus" },
   green:  { label: "EMERALD",     hex: "#11d97a", desc: "growth & clarity" },
   yellow: { label: "AMBER",       hex: "#ffc820", desc: "energy & focus" },

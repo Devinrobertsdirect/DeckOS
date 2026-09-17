@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { AIFace } from "@/components/AIFace";
+import { neuraSnark } from "@/lib/uiMode";
 
 // ─────────────────────────────────────────────
 // Types
@@ -20,7 +21,7 @@ export interface UserConfig {
   ollamaUrl:   string;
 }
 
-type Phase = "color" | "boot" | "ai_name" | "api_keys" | "voice_mode" | "user_name"
+type Phase = "color" | "boot" | "ai_name" | "api_keys" | "voice_mode" | "voice_pick" | "user_name"
            | "photo" | "questions" | "visual_mode" | "mobile_setup" | "activation";
 
 // ─────────────────────────────────────────────
@@ -44,8 +45,8 @@ export function isInitialized(): boolean {
 // Color system
 // ─────────────────────────────────────────────
 const COLOR_LABEL: Record<ColorScheme, string> = {
-  steel:  "NEURA STEEL",
-  ice:    "NEURA ICE",
+  steel:  "NOBI STEEL",
+  ice:    "NOBI ICE",
   blue:   "COBALT",
   green:  "EMERALD",
   yellow: "AMBER",
@@ -60,7 +61,7 @@ const COLOR_HEX: Record<ColorScheme, string> = {
   red:    "#f03248",
 };
 const COLOR_DESC: Record<ColorScheme, string> = {
-  steel:  "the Neura signature",
+  steel:  "the Nobi signature",
   ice:    "calm precision",
   blue:   "deep focus",
   green:  "growth & clarity",
@@ -72,6 +73,7 @@ export function applyColor(c: ColorScheme) {
   document.documentElement.setAttribute("data-color", c);
   localStorage.setItem("deckos_color", c);
   localStorage.removeItem("deckos_color_hex");
+  syncEyeColor(COLOR_HEX[c]);
   const root = document.documentElement;
   for (const prop of ["--primary", "--primary-rgb", "--foreground", "--border",
     "--card-foreground", "--card-border", "--popover-foreground", "--popover-border",
@@ -127,6 +129,36 @@ export function applyHexColor(hex: string): void {
   root.style.setProperty("--input",              `${H} 60% 28%`);
   localStorage.setItem("deckos_color_hex", hex);
   localStorage.removeItem("deckos_color");
+  syncEyeColor(hex);
+}
+
+/**
+ * One source of truth for the accent/eye color across EVERY surface: writes the
+ * universal `neura_eye` key that the animated face, the mobile app, and the
+ * marketing site all read — so a color chosen in dev/onboarding shows up on the
+ * eyes everywhere — and best-effort syncs it to the account profile (when signed
+ * in to Nobi Cloud) so it follows you across devices. Fires a `neura-eye`
+ * event so live components can recolor without a reload.
+ */
+export function syncEyeColor(hex: string): void {
+  if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return;
+  localStorage.setItem("neura_eye", hex);
+  try {
+    window.dispatchEvent(new CustomEvent("neura-eye", { detail: hex }));
+  } catch { /* SSR / non-browser */ }
+  // A dry quip when you recolor it — but only post-setup (onboarding shows its
+  // own recolor aside), and the server cooldown keeps it from repeating.
+  if (isInitialized()) void neuraSnark("recolor");
+  // Best-effort account sync (no-op if not signed into Nobi Cloud).
+  const token = localStorage.getItem("neura_token");
+  const cloud = localStorage.getItem("neura_cloud_url") || window.location.origin;
+  if (token) {
+    void fetch(`${cloud.replace(/\/+$/, "")}/v1/profile`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ patch: { eyeColor: hex } }),
+    }).catch(() => { /* offline / local-only — fine */ });
+  }
 }
 
 // ─────────────────────────────────────────────
@@ -484,6 +516,7 @@ function ColorPickPhase({ onNext }: { onNext: (c: ColorScheme) => void }) {
             Confirm — Begin Setup →
           </ObButton>
           <div className="font-mono text-xs text-primary/20">You can change this at any time</div>
+          <SnarkAside trigger="recolor" />
         </div>
       </div>
     </div>
@@ -565,7 +598,7 @@ function BootPhase({ aiName, onNext }: { aiName: string; onNext: () => void }) {
 // Phase 2: AI Name
 // ─────────────────────────────────────────────
 function AiNamePhase({ voiceMode, onNext }: { voiceMode: boolean; onNext: (name: string) => void }) {
-  const [name, setName] = useState("JARVIS");
+  const [name, setName] = useState("Nobi");
   const prompt = "I am your AI command layer. I manage memory, goals, and context across every device you use.\n\nBefore we go any further — what shall you call me?";
   const { out, done } = useTypewriter(prompt, 22, 200);
   const { speak, speaking } = useTts();
@@ -600,7 +633,7 @@ function AiNamePhase({ voiceMode, onNext }: { voiceMode: boolean; onNext: (name:
               <ObInput
                 value={name}
                 onChange={(v) => setName(v.toUpperCase())}
-                placeholder="JARVIS"
+                placeholder="Nobi"
                 autoFocus
                 onEnter={() => name.trim() && onNext(name.trim())}
               />
@@ -608,6 +641,7 @@ function AiNamePhase({ voiceMode, onNext }: { voiceMode: boolean; onNext: (name:
             <ObButton onClick={() => name.trim() && onNext(name.trim())} disabled={!name.trim()}>
               Set Designation →
             </ObButton>
+            <SnarkAside trigger="rename" className="mt-4" />
           </div>
         )}
       </div>
@@ -1695,8 +1729,8 @@ function ActivationPhase({
     setAct(true);
     const cfg: UserConfig = {
       color:        config.color       ?? "blue",
-      aiName:       config.aiName      ?? "JARVIS",
-      systemName:   config.aiName      ?? "JARVIS",
+      aiName:       config.aiName      ?? "Nobi",
+      systemName:   config.aiName      ?? "Nobi",
       voiceMode:    config.voiceMode   ?? false,
       userName:     config.userName    ?? "Commander",
       photoDataUrl: config.photoDataUrl ?? null,
@@ -1767,6 +1801,7 @@ function ActivationPhase({
             >
               {activating ? "INITIALIZING..." : "INITIALIZE COMMAND CENTER"}
             </button>
+            <SnarkAside trigger="meta_snark" className="mt-2" />
           </div>
         )}
       </div>
@@ -1789,6 +1824,183 @@ interface AccumulatedConfig {
 }
 
 // ─────────────────────────────────────────────
+// A dry Stark-snark aside (pulls from the 125-line matrix, force-shown so it
+// always lands during the demo — no cooldown).
+// ─────────────────────────────────────────────
+function SnarkAside({ trigger, className = "" }: { trigger: string; className?: string }) {
+  const [line, setLine] = useState("");
+  useEffect(() => {
+    let alive = true;
+    fetch(`${import.meta.env.BASE_URL}api/snark?trigger=${encodeURIComponent(trigger)}&force=1`)
+      .then((r) => r.json())
+      .then((d: { line?: string }) => { if (alive && d.line) setLine(d.line); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [trigger]);
+  if (!line) return null;
+  return (
+    <p className={`font-mono text-[11px] italic text-primary/40 leading-relaxed max-w-md text-center animate-[ob-fade-in_0.6s_ease_both] ${className}`}>
+      &ldquo;{line}&rdquo;
+    </p>
+  );
+}
+
+// ─────────────────────────────────────────────
+// "Ask Nobi" — a floating prompt available across onboarding. Talks to the
+// local brain so any question during setup is answerable by the AI itself.
+// ─────────────────────────────────────────────
+function AskNeura() {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const [a, setA] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function ask() {
+    const text = q.trim();
+    if (!text || busy) return;
+    setBusy(true);
+    setA("");
+    try {
+      const r = await fetch(`${import.meta.env.BASE_URL}api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text, channel: "web", sessionId: "onboarding" }),
+      });
+      const d = (await r.json()) as { response?: string };
+      setA(d.response || "…");
+    } catch {
+      setA("My brain isn't connected yet — add an API key on the keys step and ask me anything.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="fixed bottom-5 right-5 z-[210] font-mono">
+      {open ? (
+        <div className="w-80 max-w-[90vw] border border-primary/30 bg-background/95 backdrop-blur p-4 shadow-[0_0_30px_rgba(var(--primary-rgb),0.15)] animate-[ob-fade-in_0.3s_ease_both]">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[10px] uppercase tracking-widest text-primary/50">Ask Nobi</span>
+            <button onClick={() => setOpen(false)} className="text-primary/40 hover:text-primary text-xs">✕</button>
+          </div>
+          {a && (
+            <p className="text-[11px] text-primary/70 leading-relaxed mb-3 max-h-40 overflow-y-auto whitespace-pre-wrap">{a}</p>
+          )}
+          <div className="flex gap-2">
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") void ask(); }}
+              placeholder="Ask me anything…"
+              autoFocus
+              className="flex-1 bg-transparent border border-primary/20 focus:border-primary/50 px-3 py-2 text-xs text-primary placeholder-primary/20 outline-none"
+            />
+            <button
+              onClick={() => void ask()}
+              disabled={busy}
+              className="px-3 py-2 text-xs border border-primary/30 text-primary/70 hover:bg-primary/10 disabled:opacity-40"
+            >
+              {busy ? "…" : "→"}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={() => setOpen(true)}
+          className="border border-primary/30 bg-background/90 backdrop-blur px-4 py-2 text-[11px] uppercase tracking-widest text-primary/60 hover:text-primary hover:border-primary/60 transition-colors shadow-[0_0_20px_rgba(var(--primary-rgb),0.12)]"
+        >
+          Ask Nobi
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// Phase 4b: Voice picker — choose from YOUR ElevenLabs voices (with preview)
+// ─────────────────────────────────────────────
+type ElVoice = { id: string; name: string; descriptor: string; previewUrl: string };
+function VoicePickPhase({ aiName, onNext }: { aiName: string; onNext: (voiceId: string | null) => void }) {
+  const [voices, setVoices] = useState<ElVoice[]>([]);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetch(`${import.meta.env.BASE_URL}api/elevenlabs/voices`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("no-key"))))
+      .then((d: { voices?: ElVoice[] }) => { if (alive) setVoices(d.voices ?? []); })
+      .catch(() => { if (alive) setErr("Add your ElevenLabs API key to choose a custom voice — you can do this later in Settings."); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; audioRef.current?.pause(); };
+  }, []);
+
+  function preview(v: ElVoice) {
+    setSelected(v.id);
+    if (!v.previewUrl) return;
+    audioRef.current?.pause();
+    const audio = new Audio(v.previewUrl);
+    audioRef.current = audio;
+    void audio.play().catch(() => {});
+  }
+
+  function choose() {
+    if (selected) {
+      localStorage.setItem("deckos_voice", selected);
+      const v = voices.find((x) => x.id === selected);
+      if (v) localStorage.setItem("deckos_voice_name", v.name);
+    }
+    onNext(selected);
+  }
+
+  return (
+    <div className="fixed inset-0 flex flex-col items-center justify-center bg-background z-50 p-6">
+      <HudCorners />
+      <Scanline />
+      <div className="w-full max-w-lg space-y-6 animate-[ob-fade-in_0.5s_ease_both]">
+        <div className="text-center space-y-1">
+          <div className="font-mono text-xs tracking-[0.4em] uppercase text-primary/50">Choose {aiName}&apos;s Voice</div>
+          <p className="font-mono text-[11px] text-primary/30">Tap to preview — from your ElevenLabs voices</p>
+        </div>
+
+        {loading && <div className="font-mono text-xs text-primary/40 text-center py-8">Loading your voices…</div>}
+        {!loading && err && (
+          <div className="font-mono text-[11px] text-primary/40 text-center leading-relaxed border border-primary/15 p-4">{err}</div>
+        )}
+        {!loading && !err && voices.length === 0 && (
+          <div className="font-mono text-[11px] text-primary/40 text-center py-6">No voices found on your ElevenLabs account.</div>
+        )}
+
+        {!loading && voices.length > 0 && (
+          <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
+            {voices.map((v) => (
+              <button
+                key={v.id}
+                onClick={() => preview(v)}
+                className={`w-full flex items-center justify-between gap-3 border px-4 py-3 text-left transition-colors
+                  ${selected === v.id ? "border-primary/60 bg-primary/10" : "border-primary/15 hover:border-primary/40"}`}
+              >
+                <span className="min-w-0">
+                  <span className="block font-mono text-sm text-primary truncate">{v.name}</span>
+                  {v.descriptor && <span className="block font-mono text-[10px] text-primary/40 truncate">{v.descriptor}</span>}
+                </span>
+                <span className="font-mono text-[10px] text-primary/40 shrink-0">{selected === v.id ? "▶ preview" : "preview"}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="flex flex-col items-center gap-2">
+          <ObButton onClick={choose}>{selected ? "Use this voice →" : "Skip for now →"}</ObButton>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
 // Main Onboarding orchestrator
 // ─────────────────────────────────────────────
 export function Onboarding({ onComplete }: { onComplete: () => void }) {
@@ -1796,7 +2008,7 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
   const [flashing, setFlash] = useState(false);
   const [cfg, setCfg]       = useState<Partial<AccumulatedConfig>>({
     color: getStoredColor(),
-    aiName: "JARVIS",
+    aiName: "Nobi",
     voiceMode: false,
     userName: "",
     photoDataUrl: null,
@@ -1821,32 +2033,39 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
   return (
     <>
       {overlay}
+      <AskNeura />
       {phase === "color" && (
         <ColorPickPhase onNext={(c) => { applyColor(c); advance("boot", { color: c }); }} />
       )}
       {phase === "boot" && (
-        <BootPhase aiName={cfg.aiName ?? "JARVIS"} onNext={() => advance("ai_name")} />
+        <BootPhase aiName={cfg.aiName ?? "Nobi"} onNext={() => advance("ai_name")} />
       )}
       {phase === "ai_name" && (
         <AiNamePhase voiceMode={cfg.voiceMode ?? false} onNext={(n) => advance("api_keys", { aiName: n })} />
       )}
       {phase === "api_keys" && (
-        <ApiKeysPhase aiName={cfg.aiName ?? "JARVIS"} onNext={() => advance("voice_mode")} />
+        <ApiKeysPhase aiName={cfg.aiName ?? "Nobi"} onNext={() => advance("voice_mode")} />
       )}
       {phase === "voice_mode" && (
-        <VoiceModePhase aiName={cfg.aiName ?? "JARVIS"} onNext={(v) => advance("user_name", { voiceMode: v })} />
+        <VoiceModePhase
+          aiName={cfg.aiName ?? "Nobi"}
+          onNext={(v) => advance(v ? "voice_pick" : "user_name", { voiceMode: v })}
+        />
+      )}
+      {phase === "voice_pick" && (
+        <VoicePickPhase aiName={cfg.aiName ?? "Nobi"} onNext={() => advance("user_name")} />
       )}
       {phase === "user_name" && (
         <UserNamePhase
           voiceMode={cfg.voiceMode ?? false}
-          aiName={cfg.aiName ?? "JARVIS"}
+          aiName={cfg.aiName ?? "Nobi"}
           onNext={(n) => advance("photo", { userName: n })}
         />
       )}
       {phase === "photo" && (
         <PhotoPhase
           voiceMode={cfg.voiceMode ?? false}
-          aiName={cfg.aiName ?? "JARVIS"}
+          aiName={cfg.aiName ?? "Nobi"}
           userName={cfg.userName ?? "Commander"}
           onNext={(p, c) => advance("questions", { photoDataUrl: p, photoComment: c })}
         />
@@ -1854,7 +2073,7 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
       {phase === "questions" && (
         <QuestionsPhase
           voiceMode={cfg.voiceMode ?? false}
-          aiName={cfg.aiName ?? "JARVIS"}
+          aiName={cfg.aiName ?? "Nobi"}
           userName={cfg.userName ?? "Commander"}
           onNext={(a) => advance("visual_mode", { answers: a })}
         />
@@ -1863,7 +2082,7 @@ export function Onboarding({ onComplete }: { onComplete: () => void }) {
         <VisualModePhase onNext={(m) => advance("mobile_setup", { visualMode: m })} />
       )}
       {phase === "mobile_setup" && (
-        <MobileSetupPhase aiName={cfg.aiName ?? "JARVIS"} onNext={() => advance("activation")} />
+        <MobileSetupPhase aiName={cfg.aiName ?? "Nobi"} onNext={() => advance("activation")} />
       )}
       {phase === "activation" && (
         <ActivationPhase config={cfg} onComplete={onComplete} />

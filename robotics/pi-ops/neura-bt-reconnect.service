@@ -1,0 +1,15 @@
+[Unit]
+Description=Nobi Bluetooth auto-reconnect (mic + speaker)
+After=bluetooth.target
+Wants=bluetooth.target
+
+[Service]
+Type=simple
+User=devindungeon
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+ExecStart=/usr/bin/env bash /home/devindungeon/pi-ops/neura-bt-reconnect.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

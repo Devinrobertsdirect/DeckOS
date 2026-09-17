@@ -1,13 +1,17 @@
 {
   "name": "neura-desktop",
   "version": "1.0.0",
-  "description": "Neura — your own neural network, with a face. Cross-platform desktop app.",
+  "description": "Nobi — your own neural network, with a face. Cross-platform desktop app.",
   "main": "main.js",
   "private": true,
-  "author": { "name": "Devberri LLC", "email": "support@developmentindustries.org" },
+  "author": {
+    "name": "Devberri LLC",
+    "email": "support@developmentindustries.org"
+  },
   "homepage": "https://developmentindustries.org",
   "scripts": {
     "start": "electron .",
+    "fetch-ollama": "node scripts/fetch-ollama.mjs",
     "stage": "node scripts/pack.mjs --stage-only",
     "pack": "node scripts/pack.mjs",
     "pack:win": "node scripts/pack.mjs --win",
@@ -24,7 +28,7 @@
   },
   "build": {
     "appId": "com.devberri.neura",
-    "productName": "Neura",
+    "productName": "Nobi",
     "copyright": "Copyright © 2026 Devberri LLC",
     "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "directories": {
@@ -36,16 +40,46 @@
       "preload.js",
       "build/**/*",
       "api-dist/**/*",
-      "frontend-dist/**/*"
+      "frontend-dist/**/*",
+      "mobile-dist/**/*"
     ],
     "extraResources": [
-      { "from": "api-dist", "to": "api-dist" },
-      { "from": "frontend-dist", "to": "frontend-dist" }
+      {
+        "from": "api-dist",
+        "to": "api-dist"
+      },
+      {
+        "from": "frontend-dist",
+        "to": "frontend-dist"
+      },
+      {
+        "from": "mobile-dist",
+        "to": "mobile-dist"
+      },
+      {
+        "from": "vendor/ollama",
+        "to": "ollama",
+        "filter": [
+          "**/*"
+        ]
+      }
     ],
     "win": {
       "target": [
-        { "target": "nsis", "arch": ["x64", "ia32"] },
-        { "target": "portable", "arch": ["x64", "ia32"] }
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "ia32"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64",
+            "ia32"
+          ]
+        }
       ],
       "icon": "build/icon.png"
     },
@@ -53,16 +87,26 @@
       "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
-      "shortcutName": "Neura",
-      "artifactName": "${productName}-${version}-setup-${arch}.${ext}"
+      "shortcutName": "Nobi",
+      "artifactName": "${productName}-setup-${arch}.${ext}"
     },
     "portable": {
-      "artifactName": "${productName}-${version}-portable-${arch}.${ext}"
+      "artifactName": "${productName}-portable-${arch}.${ext}"
     },
     "mac": {
       "target": [
-        { "target": "dmg", "arch": ["universal"] },
-        { "target": "zip", "arch": ["universal"] }
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "universal"
+          ]
+        }
       ],
       "category": "public.app-category.productivity",
       "icon": "build/icon.png",
@@ -70,12 +114,22 @@
       "gatekeeperAssess": false
     },
     "dmg": {
-      "title": "Neura ${version}"
+      "title": "Nobi ${version}"
     },
     "linux": {
       "target": [
-        { "target": "AppImage", "arch": ["x64"] },
-        { "target": "deb", "arch": ["x64"] }
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "category": "Utility",
       "icon": "build/icon.png",

@@ -36,6 +36,7 @@ minimumReleaseAgeExclude:
 
 packages:
   - core/server
+  - cloud
   - core/lib/*
   - core/lib/integrations/*
   - interfaces/desktop

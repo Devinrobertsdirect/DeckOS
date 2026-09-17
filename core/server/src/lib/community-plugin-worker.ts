@@ -1,4 +1,5 @@
 import { workerData, parentPort, isMainThread } from "worker_threads";
+import { pathToFileURL } from "node:url";
 
 if (isMainThread) {
   throw new Error("community-plugin-worker must run inside a Worker thread");
@@ -88,7 +89,9 @@ async function dispatchToSubscribers(event: Record<string, unknown>): Promise<vo
 async function run(): Promise<void> {
   let mod: unknown;
   try {
-    mod = await import(filePath);
+    // Same Win32 ESM-loader constraint as plugin-registry: absolute paths must
+    // be file:// URLs or Node rejects "C:\..." as an unknown URL scheme.
+    mod = await import(pathToFileURL(filePath).href);
   } catch (err) {
     parentPort!.postMessage({ type: "load_error", error: `Import failed: ${String(err)}` });
     return;

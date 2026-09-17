@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState, useCallback, type FormEvent } from "react";
 import { useVoiceRecorder } from "./hooks/useVoiceRecorder";
 import { useAudioPlayback } from "./hooks/useAudioPlayback";
+import * as conn from "./lib/connection";
 
-const API_BASE = `${window.location.origin}/api`;
-const WS_URL = `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/api/ws`;
+// Base + WS resolved by the connection layer for the current mode (local vs
+// Nobi Cloud). Mode changes trigger a reload, so these recompute per session.
+const API_BASE = conn.apiBase();
+const WS_URL = conn.wsUrl();
 
 type Role = "user" | "assistant" | "system";
 type Channel = "web" | "mobile" | "whatsapp" | "voice";
@@ -189,6 +192,7 @@ function useWebSocket(onMessage: (data: unknown) => void) {
 
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
+    if (!WS_URL) { setWsState("closed"); return; } // cloud mode w/o token, or no socket
 
     const ws = new WebSocket(WS_URL);
     wsRef.current = ws;
@@ -270,18 +274,21 @@ function PairingGate({ onPaired }: { onPaired: () => void }) {
 
         <div className="flex flex-col items-center gap-3">
           <div className="w-16 h-16 rounded-full border-2 border-primary/40 flex items-center justify-center bg-primary/5">
-            <span className="font-mono text-2xl font-bold text-primary">J</span>
+            <svg viewBox="0 0 48 48" className="w-8 h-8 text-primary" fill="currentColor" aria-hidden="true">
+              <rect x="13" y="15" width="7" height="18" rx="3.5" />
+              <rect x="28" y="15" width="7" height="18" rx="3.5" />
+            </svg>
           </div>
           <div className="text-center">
-            <p className="font-mono text-sm text-primary tracking-widest uppercase">DeckOS Atlas Mobile</p>
-            <p className="font-mono text-[10px] text-primary/30 mt-1 uppercase tracking-widest">Personal AI Operating System</p>
+            <p className="font-mono text-sm text-primary tracking-widest uppercase">Nobi</p>
+            <p className="font-mono text-[10px] text-primary/30 mt-1 uppercase tracking-widest">Your Own Neural Network</p>
           </div>
         </div>
 
         <div className="text-center space-y-1">
           <p className="font-mono text-xs text-primary/60">Enter your desktop pairing code</p>
           <p className="font-mono text-[10px] text-primary/30 leading-relaxed">
-            Open DeckOS Atlas on your desktop → Settings → Mobile Access
+            Open Nobi on your desktop → Settings → Mobile Access
           </p>
         </div>
 
@@ -314,34 +321,170 @@ function PairingGate({ onPaired }: { onPaired: () => void }) {
         </form>
 
         <p className="font-mono text-[9px] text-primary/15 text-center leading-relaxed max-w-xs">
-          The pairing code links your mobile device to a specific DeckOS Atlas instance. You only need to do this once.
+          The pairing code links your mobile device to a specific Nobi instance. You only need to do this once.
         </p>
+
+        <button
+          type="button"
+          onClick={() => { conn.setMode("cloud"); window.location.reload(); }}
+          className="font-mono text-[10px] text-primary/50 hover:text-primary underline underline-offset-2 uppercase tracking-widest"
+        >
+          Use Nobi Cloud (online) →
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Online mode: log in to a Nobi Cloud account (reachable from anywhere). */
+function CloudAuthGate({ onAuthed }: { onAuthed: () => void }) {
+  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
+  const [errorMsg, setErrorMsg] = useState("");
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [cloudUrl, setCloudUrlState] = useState(conn.getCloudUrl());
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!email.trim() || password.length < 8) {
+      setStatus("error");
+      setErrorMsg("Enter your email and a password (8+ characters).");
+      return;
+    }
+    setStatus("loading");
+    setErrorMsg("");
+    conn.setCloudUrl(cloudUrl);
+    try {
+      if (mode === "signup") await conn.cloudSignup(email.trim(), password);
+      else await conn.cloudLogin(email.trim(), password);
+      onAuthed();
+    } catch (err) {
+      setStatus("error");
+      setErrorMsg((err as Error).message || "Something went wrong. Try again.");
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 flex flex-col bg-background text-primary">
+      <div className="scanline pointer-events-none" />
+      <div className="flex-1 flex flex-col items-center justify-center px-8 gap-7">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-16 h-16 rounded-full border-2 border-primary/40 flex items-center justify-center bg-primary/5">
+            <svg viewBox="0 0 48 48" className="w-8 h-8 text-primary" fill="currentColor" aria-hidden="true">
+              <rect x="13" y="15" width="7" height="18" rx="3.5" />
+              <rect x="28" y="15" width="7" height="18" rx="3.5" />
+            </svg>
+          </div>
+          <div className="text-center">
+            <p className="font-mono text-sm text-primary tracking-widest uppercase">Nobi</p>
+            <p className="font-mono text-[10px] text-primary/30 mt-1 uppercase tracking-widest">
+              {mode === "login" ? "Sign in to your account" : "Create your account"}
+            </p>
+          </div>
+        </div>
+
+        <form onSubmit={(e) => void submit(e)} className="w-full max-w-xs space-y-3">
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@email.com"
+            autoComplete="email"
+            autoCapitalize="none"
+            spellCheck={false}
+            className="w-full bg-transparent border border-primary/30 focus:border-primary/60 px-4 py-3 font-mono text-sm text-primary placeholder-primary/20 outline-none"
+          />
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="password"
+            autoComplete={mode === "login" ? "current-password" : "new-password"}
+            className="w-full bg-transparent border border-primary/30 focus:border-primary/60 px-4 py-3 font-mono text-sm text-primary placeholder-primary/20 outline-none"
+          />
+          {status === "error" && (
+            <p className="font-mono text-[10px] text-[#f03248] text-center leading-relaxed">{errorMsg}</p>
+          )}
+          <button
+            type="submit"
+            disabled={status === "loading"}
+            className="w-full py-3 font-mono text-xs border border-primary/40 text-primary bg-primary/10 hover:bg-primary/20 disabled:opacity-30 transition-colors uppercase tracking-widest"
+          >
+            {status === "loading" ? "…" : mode === "login" ? "Sign in →" : "Create account →"}
+          </button>
+        </form>
+
+        <div className="flex flex-col items-center gap-2">
+          <button
+            type="button"
+            onClick={() => { setMode(mode === "login" ? "signup" : "login"); setStatus("idle"); }}
+            className="font-mono text-[10px] text-primary/50 hover:text-primary"
+          >
+            {mode === "login" ? "No account? Create one" : "Have an account? Sign in"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowAdvanced((v) => !v)}
+            className="font-mono text-[9px] text-primary/25 hover:text-primary/50 uppercase tracking-widest"
+          >
+            {showAdvanced ? "Hide" : "Advanced"}
+          </button>
+          {showAdvanced && (
+            <input
+              value={cloudUrl}
+              onChange={(e) => setCloudUrlState(e.target.value)}
+              placeholder="https://your-neura-cloud.replit.app"
+              autoCapitalize="none"
+              spellCheck={false}
+              className="w-64 bg-transparent border border-primary/20 px-3 py-2 font-mono text-[10px] text-primary/70 placeholder-primary/20 outline-none text-center"
+            />
+          )}
+
+          <button
+            type="button"
+            onClick={() => { conn.setMode("local"); window.location.reload(); }}
+            className="font-mono text-[10px] text-primary/40 hover:text-primary underline underline-offset-2 uppercase tracking-widest mt-1"
+          >
+            Have a desktop nearby? Use a connection code →
+          </button>
+        </div>
       </div>
     </div>
   );
 }
 
 export default function App() {
-  const [paired, setPaired] = useState(() => !!localStorage.getItem(PAIRING_KEY));
+  const [ready, setReady] = useState(() => conn.isReady());
 
-  const handleUnpair = () => {
-    localStorage.removeItem(PAIRING_KEY);
-    localStorage.removeItem(SESSION_ID_KEY);
-    setPaired(false);
+  const handleSignOut = () => {
+    if (conn.isCloud()) {
+      conn.setToken("");
+    } else {
+      localStorage.removeItem(PAIRING_KEY);
+      localStorage.removeItem(SESSION_ID_KEY);
+    }
+    setReady(false);
+    window.location.reload();
   };
 
-  if (!paired) {
-    return (
+  if (!ready) {
+    // Online mode (Nobi Cloud) → account login; local mode → pairing code.
+    return conn.isCloud() ? (
+      <CloudAuthGate onAuthed={() => window.location.reload()} />
+    ) : (
       <PairingGate
         onPaired={() => {
-          setPaired(true);
+          setReady(true);
           window.location.reload();
         }}
       />
     );
   }
 
-  return <PairedApp onUnpair={handleUnpair} />;
+  return <PairedApp onUnpair={handleSignOut} />;
 }
 
 function PairedApp({ onUnpair }: { onUnpair: () => void }) {
@@ -349,7 +492,7 @@ function PairedApp({ onUnpair }: { onUnpair: () => void }) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [identity, setIdentity] = useState<VoiceIdentity | null>(null);
-  const [aiName, setAiName] = useState("JARVIS");
+  const [aiName, setAiName] = useState("Nobi");
   const [userName, setUserName] = useState<string | null>(null);
   const [voiceState, setVoiceState] = useState<VoicePipelineState>("idle");
   const [showSettings, setShowSettings] = useState(false);
@@ -362,6 +505,7 @@ function PairedApp({ onUnpair }: { onUnpair: () => void }) {
 
   /* Silent startup re-validation — if the desktop reset its code, send user back to pairing gate */
   useEffect(() => {
+    if (conn.isCloud()) return; // cloud uses Bearer sessions, not pairing codes
     const code = localStorage.getItem(PAIRING_KEY);
     if (!code) { onUnpair(); return; }
     fetch(`${API_BASE}/pairing/validate`, {
@@ -503,24 +647,23 @@ function PairedApp({ onUnpair }: { onUnpair: () => void }) {
 
     const requestId = `mob_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     try {
-      const res = await fetch(`${API_BASE}/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text, channel: "mobile", sessionId: SESSION_ID, requestId }),
-      });
-      const data = await res.json() as { response: string; modelUsed: string; latencyMs: number; fromCache: boolean; tier?: string; reasonCode?: string };
-      const tier = tierByRequestRef.current.get(requestId) ?? data.tier;
+      // Prior turns (before this message) as history — used by cloud /v1/chat.
+      const priorHistory = messages
+        .filter((m) => !m.pending && (m.role === "user" || m.role === "assistant"))
+        .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
+      const out = await conn.sendChat(text, priorHistory, { sessionId: SESSION_ID, requestId });
+      const tier = tierByRequestRef.current.get(requestId) ?? out.tier;
       tierByRequestRef.current.delete(requestId);
       const aiMsg: ChatMsg = {
         id: `a_${Date.now()}`,
         role: "assistant",
-        content: data.response,
+        content: out.content,
         channel: "mobile",
-        modelUsed: data.modelUsed,
+        modelUsed: out.modelUsed,
         tier,
-        latencyMs: data.latencyMs,
-        fromCache: data.fromCache,
-        reasonCode: data.reasonCode,
+        latencyMs: out.latencyMs,
+        fromCache: out.fromCache,
+        reasonCode: out.reasonCode,
         timestamp: new Date().toISOString(),
       };
       setMessages((prev) => [...prev.filter((m) => !m.pending), aiMsg]);
@@ -678,7 +821,7 @@ function PairedApp({ onUnpair }: { onUnpair: () => void }) {
           <div>
             <div className="font-bold text-primary tracking-widest text-sm uppercase leading-none">{aiName}</div>
             <div className="font-mono text-xs text-primary/40 leading-none mt-0.5">
-              {userName ? `${userName} · Mobile` : "Atlas.Mobile"}
+              {userName ? `${userName} · Mobile` : "Nobi.Mobile"}
             </div>
           </div>
         </div>
@@ -755,7 +898,7 @@ function PairedApp({ onUnpair }: { onUnpair: () => void }) {
                     merge: true,
                   }),
                 });
-                if (fields.aiName   !== undefined) setAiName(fields.aiName || "JARVIS");
+                if (fields.aiName   !== undefined) setAiName(fields.aiName || "Nobi");
                 if (fields.userName !== undefined) setUserName(fields.userName || null);
               }
               if (fields.persona) {
@@ -857,7 +1000,7 @@ function MessageBubble({ msg }: { msg: ChatMsg }) {
     <div className={`flex gap-2 msg-in ${isUser ? "flex-row-reverse" : "flex-row"}`}>
       {/* avatar */}
       <div className={`shrink-0 w-6 h-6 rounded-full border flex items-center justify-center font-mono text-xs mt-1 ${isUser ? "border-primary/30 bg-primary/10 text-primary" : "border-[#00d4ff]/30 bg-[#00d4ff]/5 text-[#00d4ff]"}`}>
-        {isUser ? "U" : "J"}
+        {isUser ? "U" : "N"}
       </div>
 
       {/* bubble */}
@@ -1005,7 +1148,7 @@ function SettingsPanel({
 
   const handleIdentitySave = async (e: FormEvent) => {
     e.preventDefault();
-    await onSave({ aiName: draftAiName.trim() || "JARVIS", userName: draftUserName.trim() || undefined });
+    await onSave({ aiName: draftAiName.trim() || "Nobi", userName: draftUserName.trim() || undefined });
     onClose();
   };
 
@@ -1104,7 +1247,7 @@ function SettingsPanel({
                   value={draftAiName}
                   onChange={(e) => setDraftAiName(e.target.value)}
                   maxLength={32}
-                  placeholder="JARVIS"
+                  placeholder="Nobi"
                   className="w-full bg-transparent border border-primary/30 px-3 py-2 font-mono text-sm text-primary placeholder-primary/20 outline-none focus:border-primary/60"
                 />
               </div>
@@ -1331,7 +1474,7 @@ function jarvisWelcome(): ChatMsg {
   return {
     id: "welcome",
     role: "assistant",
-    content: `${getTimeGreeting()}. Atlas online. All systems nominal. How can I assist you?`,
+    content: `${getTimeGreeting()}. Nobi online. All systems nominal. How can I assist you?`,
     channel: "mobile",
     timestamp: new Date().toISOString(),
   };

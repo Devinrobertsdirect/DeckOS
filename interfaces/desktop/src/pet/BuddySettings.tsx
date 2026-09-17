@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { X, User, KeyRound, Sparkles, Volume2, Eye, Smile, Palette, Cpu, Brain, Check, Trash2 } from "lucide-react";
+import { X, User, KeyRound, Sparkles, Volume2, Eye, Smile, Palette, Cpu, Brain, Check, Trash2, Wifi, Activity } from "lucide-react";
+import { ConnectivityPanel } from "@/pet/ConnectivityPanel";
+import { DiagPanel } from "@/components/DiagPanel";
 import { AtlasFace, FACE_THEMES, EMOJI_PACKS, useFaceTheme, saveFaceTheme, useEmojiPack } from "@/components/faces/AtlasFace";
 import { applyColor, getStoredColor, type ColorScheme } from "@/components/Onboarding";
 import { PERSONAS, setPersona, usePersonaId } from "@/genesis/personality";
@@ -128,7 +130,7 @@ export function BuddySettings({ onClose }: { onClose: () => void }) {
             </label>
             <label className="block">
               <span className="mb-1.5 block text-xs text-muted-foreground">Your bot's name</span>
-              <Input value={botName} onChange={(e) => setBotNameL(e.target.value)} onBlur={commitNames} placeholder="Neura" />
+              <Input value={botName} onChange={(e) => setBotNameL(e.target.value)} onBlur={commitNames} placeholder="Nobi" />
             </label>
           </div>
         </Section>
@@ -242,6 +244,16 @@ export function BuddySettings({ onClose }: { onClose: () => void }) {
               </button>
             ))}
           </div>
+        </Section>
+
+        {/* ── Network & connections (robot: join WiFi / pair a speaker) ────── */}
+        <Section icon={<Wifi className="h-4 w-4" />} title="Network & connections" subtitle="Join WiFi and pair a Bluetooth speaker — right here, no keyboard-console needed.">
+          <ConnectivityPanel />
+        </Section>
+
+        {/* ── System vitals ─────────────────────────────────────────────────── */}
+        <Section icon={<Activity className="h-4 w-4" />} title="System vitals" subtitle="How the machine's doing right now.">
+          <DiagPanel />
         </Section>
       </div>
     </motion.div>

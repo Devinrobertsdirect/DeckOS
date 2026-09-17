@@ -1,8 +1,8 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# Neura — self-host / server image.
+# Nobi — self-host / server image.
 #
 # This is the ADVANCED / self-host channel, NOT the consumer download (that's the
-# Electron desktop app in interfaces/electron). It runs the Neura brain + web UI
+# Electron desktop app in interfaces/electron). It runs the Nobi brain + web UI
 # on port 8080; open http://localhost:8080. Runs fully DB-less by default
 # (config persists to the /data volume); no Postgres required.
 #

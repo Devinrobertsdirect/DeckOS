@@ -58,13 +58,13 @@ export const EMOTION_STYLE: Record<Emotion, EmotionStyle> = {
   thinking:   { expression: "thinking",   eyeColor: null,          discTint: null },
   // Widened spectrum — several now use the new expressive forms (heart/star/wink).
   love:       { expression: "love",       eyeColor: "236,138,160", discTint: null, emojiKey: "love" },
-  surprised:  { expression: "excited",    eyeColor: "255,214,120", discTint: null, emojiKey: "exclaim" },
-  proud:      { expression: "happy",      eyeColor: null,          discTint: null, emojiKey: "ok" },
+  surprised:  { expression: "surprised",  eyeColor: "255,214,120", discTint: null, emojiKey: "exclaim" },
+  proud:      { expression: "proud",      eyeColor: null,          discTint: null, emojiKey: "ok" },
   playful:    { expression: "wink",       eyeColor: null,          discTint: null, emojiKey: "wink" },
   grateful:   { expression: "love",       eyeColor: "236,138,160", discTint: null, emojiKey: "love" },
   celebrating:{ expression: "starstruck", eyeColor: "255,214,120", discTint: null, emojiKey: "sparkle" },
-  curious:    { expression: "listening",  eyeColor: null,          discTint: null, emojiKey: "question" },
-  cool:       { expression: "idle",       eyeColor: "150,180,205", discTint: null, emojiKey: "cool" },
+  curious:    { expression: "curious",    eyeColor: null,          discTint: null, emojiKey: "question" },
+  cool:       { expression: "cool",       eyeColor: "150,180,205", discTint: null, emojiKey: "cool" },
 };
 
 // Keyword lexicon. Matched case-insensitively as substrings/word-ish hits.

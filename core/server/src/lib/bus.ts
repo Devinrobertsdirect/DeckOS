@@ -1,10 +1,13 @@
 import { EventBus } from "@workspace/event-bus";
-import { db, systemEventsTable } from "@workspace/db";
+import { db, dbEnabled, systemEventsTable } from "@workspace/db";
 import type { BusEvent } from "@workspace/event-bus";
 import { logger } from "./logger.js";
 import { traceState } from "./trace.js";
 
 function persistEvent(event: BusEvent): void {
+  // No database on local-first desktop. This fires for EVERY bus event, so
+  // attempting it would mean a failed Postgres connection per event.
+  if (!dbEnabled) return;
   db.insert(systemEventsTable)
     .values({
       level: "info",

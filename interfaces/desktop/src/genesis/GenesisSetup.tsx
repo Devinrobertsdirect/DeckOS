@@ -256,7 +256,7 @@ export function GenesisSetup({ onComplete }: { onComplete: () => void }) {
   // ── Step content ────────────────────────────────────────────────────────────
   // Warm, adoption-flavoured copy — you're not filling a form, you're bringing
   // a new companion home. Titles interpolate the name once it's chosen.
-  const botLabel = botName.trim() || "Neura";
+  const botLabel = botName.trim() || "Nobi";
   const stepTitle = [
     "Bring your AIs along",
     "Let's get acquainted",
@@ -475,7 +475,7 @@ function NamesStep({
         />
         <div className="w-full">
           <label htmlFor="atlas-bot-name" className="mb-2 block text-sm text-white/60">
-            Name your Neura
+            Name your Nobi
           </label>
           <Input
             id="atlas-bot-name"
@@ -483,14 +483,14 @@ function NamesStep({
             onChange={(e) => onBotName(e.target.value)}
             onFocus={onFocus}
             onBlur={onBlur}
-            placeholder="Neura"
+            placeholder="Nobi"
             autoComplete="off"
             spellCheck={false}
             className={INPUT_CLASS + " h-11 text-base"}
           />
         </div>
         <p className="text-center text-xs text-white/30">
-          A nickname for your Neura — it always answers to "Neura" too. You can change it any time.
+          A nickname for your Nobi — it always answers to "Nobi" too. You can change it any time.
         </p>
       </div>
     </div>
@@ -535,13 +535,13 @@ function ExplainerStep() {
   const points: { icon: string; title: string; body: string }[] = [
     {
       icon: "🔌",
-      title: "Neura is the hub — the AIs are the power",
-      body: "On its own, Neura organizes your day. Plugged into services like Claude or Gemini, it gets dramatically smarter — you choose which ones.",
+      title: "Nobi is the hub — the AIs are the power",
+      body: "On its own, Nobi organizes your day. Plugged into services like Claude or Gemini, it gets dramatically smarter — you choose which ones.",
     },
     {
       icon: "🔑",
       title: "A key is just a private password",
-      body: "Each service gives you a key — a long password that lets Neura use your account. You paste it once. Neura does the talking from then on.",
+      body: "Each service gives you a key — a long password that lets Nobi use your account. You paste it once. Nobi does the talking from then on.",
     },
     {
       icon: "🏠",
@@ -551,13 +551,13 @@ function ExplainerStep() {
     {
       icon: "⏭️",
       title: "Totally optional — skip and add later",
-      body: "Neura already works with the free brain running on your computer. Connect nothing now if you like; everything on the next screen can wait.",
+      body: "Nobi already works with the free brain running on your computer. Connect nothing now if you like; everything on the next screen can wait.",
     },
   ];
   return (
     <div className="mx-auto flex h-full max-w-xl flex-col justify-center gap-3">
       <p className="mb-1 text-center text-sm text-white/55">
-        Think of the next screen like giving Neura a phone book of brilliant
+        Think of the next screen like giving Nobi a phone book of brilliant
         friends it can call for you.
       </p>
       <div className="grid gap-3 sm:grid-cols-2">
@@ -595,9 +595,9 @@ function ProvidersStep({
       {/* Plain-language primer, folded into the keys screen. */}
       <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3.5 text-xs leading-relaxed text-white/60">
         <span className="text-[#C9DCF0]">New to this?</span> A “key” is just a
-        private password an AI service gives you. Paste it once and Neura does the
+        private password an AI service gives you. Paste it once and Nobi does the
         talking — keys stay on your machine and can be removed any time. Everything
-        here is optional; Neura already works with the free brain on your computer.
+        here is optional; Nobi already works with the free brain on your computer.
       </div>
       {CATEGORY_ORDER.map(({ cat, label }) => {
         const items = providersByCategory(cat);
@@ -721,8 +721,8 @@ const EMOTION_SHOWCASE: FaceState[] = [
 // The six accent schemes as swatches. Hexes mirror the app's ColorScheme map so
 // clicking one recolours the eyes (which follow the accent) live.
 const ACCENT_SWATCHES: { scheme: ColorScheme; hex: string; label: string }[] = [
-  { scheme: "steel", hex: "#4A7FB5", label: "Neura Steel" },
-  { scheme: "ice", hex: "#C9DCF0", label: "Neura Ice" },
+  { scheme: "steel", hex: "#4A7FB5", label: "Nobi Steel" },
+  { scheme: "ice", hex: "#C9DCF0", label: "Nobi Ice" },
   { scheme: "blue", hex: "#3f84f3", label: "Cobalt" },
   { scheme: "green", hex: "#11d97a", label: "Emerald" },
   { scheme: "yellow", hex: "#ffc820", label: "Amber" },
@@ -894,7 +894,7 @@ function MeetStep({
   voiceEngine: VoiceEngine;
 }) {
   const theme = useFaceTheme();
-  const bot = botName.trim() || "Neura";
+  const bot = botName.trim() || "Nobi";
   const voiceLabel = voiceEngine === "server" ? "ElevenLabs" : "Default";
   return (
     <div className="flex h-full flex-col items-center justify-center gap-6 text-center">

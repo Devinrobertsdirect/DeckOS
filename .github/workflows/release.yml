@@ -1,7 +1,7 @@
 name: Release (desktop installers)
 
 # Tag a version (e.g. `git tag v1.0.0 && git push --tags`) → builds signed
-# Neura installers for Windows, macOS, and Linux and attaches them to a GitHub
+# Nobi installers for Windows, macOS, and Linux and attaches them to a GitHub
 # Release. Manual runs (workflow_dispatch) build + upload artifacts without a
 # release. Signing/notarization happen automatically IF the secrets below are
 # set; otherwise the builds are produced unsigned (fine for internal testing).

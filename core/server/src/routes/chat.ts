@@ -2,7 +2,10 @@ import { Router } from "express";
 import { z } from "zod/v4";
 import { db, chatMessagesTable, voiceIdentityTable, memoryEntriesTable } from "@workspace/db";
 import { desc, eq } from "drizzle-orm";
-import { runInference } from "../lib/inference.js";
+import { runInference, getAnthropicApiKey, getClaudeModel, getClaudeMaxTokens, isClaudeReachable } from "../lib/inference.js";
+import { runToolLoop, runLocalToolLoop, mightNeedTools } from "../lib/agent-loop.js";
+import { getLocalBrain } from "../lib/local-model.js";
+import { retrieveRelevant } from "../lib/memory-retrieval.js";
 import { bus } from "../lib/bus.js";
 import { broadcast } from "../lib/ws-server.js";
 import { presenceManager } from "../lib/presence-manager.js";
@@ -28,7 +31,7 @@ const ChatRequestSchema = z.object({
   })).optional(),
   facts: z.array(z.string()).optional(),
   /** Client-built personality instruction (name + traits). */
-  persona: z.string().max(600).optional(),
+  persona: z.string().max(4000).optional(),
 });
 
 const VoiceIdentityUpdateSchema = z.object({
@@ -72,7 +75,7 @@ router.post("/chat", async (req, res) => {
     .from(memoryEntriesTable)
     .where(eq(memoryEntriesTable.type, "short_term"))
     .orderBy(desc(memoryEntriesTable.createdAt))
-    .limit(5)
+    .limit(60) // wider pool; we retrieve the RELEVANT ones below, not just recent
     .catch(() => []);
 
   const recentHistory = await db
@@ -97,8 +100,12 @@ router.post("/chat", async (req, res) => {
 
   const eggResponse = checkEasterEgg(message, personaCtx);
 
-  const baseSystemPrompt = await buildPersonalizedPrompt(recentMemory.map((m) => m.content), channel)
-    .catch(() => "You are Neura, the AI core of DeckOS. Be concise, capable, and warm.");
+  // Semantic recall: from the wider pool, keep the memories most RELEVANT to the
+  // current message (embeddings when a key is present, lexical otherwise).
+  const relevantMemory = await retrieveRelevant(message, recentMemory.map((m) => m.content), 6)
+    .catch(() => recentMemory.slice(0, 3).map((m) => m.content));
+  const baseSystemPrompt = await buildPersonalizedPrompt(relevantMemory, channel)
+    .catch(() => "You are Nobi, the AI core of DeckOS. Be concise, capable, and warm.");
   const aceraCtx = getAceraContext();
   const starkCtx = getStarkContext();
   // The client-chosen personality (name + traits) leads the prompt so replies
@@ -121,9 +128,9 @@ router.post("/chat", async (req, res) => {
     systemPrompt = `${factsBlock}\n\n${systemPrompt}`;
   }
 
-  let response: string;
-  let modelUsed: string;
-  let fromCache: boolean;
+  let response = "";
+  let modelUsed = "";
+  let fromCache = false;
   let tier: string | undefined;
 
   if (eggResponse !== null) {
@@ -131,37 +138,75 @@ router.post("/chat", async (req, res) => {
     modelUsed = "easter-egg-v1";
     fromCache = false;
     tier      = "autopilot";
-  } else
-  try {
-    const result = await runInference({
-      prompt:   message,
-      mode:     "deep",
-      task:     "chat",
-      context:  [
-        { role: "system", content: systemPrompt },
-        ...context.slice(-8),
-        ...(history ?? []).slice(-12),
-      ],
-      useCache: false, // conversations shouldn't be cached
-      preferFast: true, // interactive chat → fastest brain (Haiku) when available
-      onTierResolved: requestId
-        ? (resolvedTier, model) => {
-            broadcast({
-              type: "ai.inference_started",
-              payload: { requestId, tier: resolvedTier, model },
-            });
+  } else {
+    // ── Tool-calling: when the ask plausibly needs live data/actions and a
+    // Claude key is present, let Nobi actually CALL tools. Any failure falls
+    // straight through to the normal inference path — zero regression. ────────
+    let handled = false;
+    if (mightNeedTools(message)) {
+      try {
+        const convo = [...context.slice(-8), ...(history ?? []).slice(-12), { role: "user", content: message }]
+          .filter((m) => m.role === "user" || m.role === "assistant")
+          .map((m) => ({ role: m.role as "user" | "assistant", content: String(m.content) }));
+        const key = await getAnthropicApiKey();
+        if (key && isClaudeReachable()) {
+          // Online: Claude tool-use (best tool support).
+          const model = await getClaudeModel();
+          const loop = await runToolLoop(systemPrompt, convo, model, await getClaudeMaxTokens(), { maxTurns: 5 });
+          response = loop.text;
+          modelUsed = loop.toolsUsed.length ? `${model}+tools(${loop.toolsUsed.join(",")})` : model;
+          fromCache = false;
+          tier = "apex";
+          handled = true;
+        } else {
+          // Offline / no cloud key: run the SAME tools on the local model.
+          const local = await getLocalBrain();
+          if (local) {
+            const loop = await runLocalToolLoop(systemPrompt, convo, local.model, local.base, { maxTurns: 4 });
+            response = loop.text;
+            modelUsed = loop.toolsUsed.length ? `${local.model}+tools(${loop.toolsUsed.join(",")})` : local.model;
+            fromCache = false;
+            tier = "cortex";
+            handled = true;
           }
-        : undefined,
-    });
-    response = result.response;
-    modelUsed = result.modelUsed;
-    fromCache = result.fromCache;
-    tier = result.tier;
-  } catch (err) {
-    req.log.error({ err }, "Chat inference failed");
-    response = "I'm having trouble processing that right now. Rule engine fallback active.";
-    modelUsed = "rule-engine-v1";
-    fromCache = false;
+        }
+      } catch (err) {
+        req.log.warn({ err }, "tool loop failed; falling back to normal inference");
+      }
+    }
+    if (!handled) {
+      try {
+        const result = await runInference({
+          prompt:   message,
+          mode:     "deep",
+          task:     "chat",
+          context:  [
+            { role: "system", content: systemPrompt },
+            ...context.slice(-8),
+            ...(history ?? []).slice(-12),
+          ],
+          useCache: false, // conversations shouldn't be cached
+          preferFast: true, // interactive chat → fastest brain (Haiku) when available
+          onTierResolved: requestId
+            ? (resolvedTier, model) => {
+                broadcast({
+                  type: "ai.inference_started",
+                  payload: { requestId, tier: resolvedTier, model },
+                });
+              }
+            : undefined,
+        });
+        response = result.response;
+        modelUsed = result.modelUsed;
+        fromCache = result.fromCache;
+        tier = result.tier;
+      } catch (err) {
+        req.log.error({ err }, "Chat inference failed");
+        response = "I'm having trouble processing that right now. Rule engine fallback active.";
+        modelUsed = "rule-engine-v1";
+        fromCache = false;
+      }
+    }
   }
 
   const latencyMs = Date.now() - startMs;

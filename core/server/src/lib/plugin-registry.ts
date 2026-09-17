@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import path from "path";
-import { fileURLToPath } from "url";
+import { fileURLToPath, pathToFileURL } from "url";
 import { readdir, access } from "fs/promises";
 import { Worker } from "worker_threads";
 import type { EventBus, BusEvent, PluginBusEvent, EventType, EventHandler } from "@workspace/event-bus";
@@ -81,7 +81,11 @@ export class PluginRegistry {
   async loadPlugin(filePath: string): Promise<void> {
     let mod: unknown;
     try {
-      mod = await import(filePath);
+      // Windows: a bare absolute path ("C:\...") is rejected by the ESM loader
+      // (ERR_UNSUPPORTED_ESM_URL_SCHEME — it reads "c:" as a URL scheme). Every
+      // plugin silently failed to load in packaged Windows builds. Always hand
+      // dynamic import() a file:// URL; harmless on POSIX, required on Win32.
+      mod = await import(pathToFileURL(filePath).href);
     } catch (err) {
       logger.error({ err, filePath }, "PluginRegistry: failed to import plugin file");
       return;

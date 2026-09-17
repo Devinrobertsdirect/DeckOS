@@ -111,7 +111,7 @@ export const VOICE_OPTIONS = [
 export const FACE_OPTIONS: { id: FaceStyle; label: string; description: string }[] = [
   {
     id: "atlas",
-    label: "NEURA",
+    label: "NOBI",
     description: "The companion face — two eyes, eight moods, no mouth needed",
   },
   {

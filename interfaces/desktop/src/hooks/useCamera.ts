@@ -20,8 +20,10 @@ export interface CameraState {
 
 export function useCamera(): CameraState {
   const [enabled, setEnabled] = useState<boolean>(() => {
-    const v = localStorage.getItem(CAMERA_KEY);
-    return v !== "false";
+    // Opt-in only: never auto-acquire the camera on mount. On a Wayland kiosk an
+    // unsolicited getUserMedia pops the OS portal "Allow camera?" dialog over the
+    // face (and the robot has no camera anyway). The user turns it on explicitly.
+    return localStorage.getItem(CAMERA_KEY) === "true";
   });
   const [status,      setStatus]      = useState<CameraStatus>("idle");
   const [lastDescription, setLastDescription] = useState<string | null>(null);

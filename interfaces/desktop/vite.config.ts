@@ -44,6 +44,26 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        // Deterministic vendor chunks so the Pi's cold-boot critical path stays
+        // small: React core loads with the shell; the map and chart stacks only
+        // download when a lazy page that uses them mounts.
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return undefined;
+          if (/[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/.test(id)) {
+            return "vendor-react";
+          }
+          if (/[\\/]node_modules[\\/](leaflet|react-leaflet|@react-leaflet)[\\/]/.test(id)) {
+            return "vendor-map";
+          }
+          if (/[\\/]node_modules[\\/](recharts|recharts-scale|victory-vendor|react-smooth|d3-[^\\/]+)[\\/]/.test(id)) {
+            return "vendor-charts";
+          }
+          return undefined;
+        },
+      },
+    },
   },
   server: {
     port,

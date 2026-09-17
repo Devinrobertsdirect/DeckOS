@@ -55,7 +55,7 @@ function spokenList(items: string[]): string {
  */
 export function buildGenesisScript(ctx: GenesisContext): GenesisBeat[] {
   const name = ctx.name?.trim() || "friend";
-  const bot = ctx.botName?.trim() || "Neura";
+  const bot = ctx.botName?.trim() || "Nobi";
   const greet = timeGreeting(ctx.hour);
   const hasProviders = ctx.providers.length > 0;
   const providerList = spokenList(ctx.providers);

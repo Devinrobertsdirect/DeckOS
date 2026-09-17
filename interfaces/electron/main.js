@@ -7,6 +7,7 @@ const http = require("http");
 const API_PORT = 8080;
 const STARTUP_TIMEOUT_MS = 20_000;
 let apiProcess = null;
+let ollamaProcess = null;
 let tray = null;
 let mainWindow = null;
 
@@ -83,7 +84,7 @@ function handleWsEventForNotification(msg) {
       const value = payload.value != null ? ` (${Math.round(payload.value)}%)` : "";
       showNotification(
         `system.resource.alert.${resource}`,
-        "Neura — System Alert",
+        "Nobi — System Alert",
         `High ${resource} usage detected${value}. Check the System tab.`
       );
       break;
@@ -93,7 +94,7 @@ function handleWsEventForNotification(msg) {
       const pluginId = payload.pluginId ?? payload.plugin ?? "plugin";
       showNotification(
         `plugin.error.${pluginId}`,
-        "Neura — Plugin Error",
+        "Nobi — Plugin Error",
         `Plugin "${pluginId}" encountered an error.`
       );
       break;
@@ -104,7 +105,7 @@ function handleWsEventForNotification(msg) {
       const body = payload.body ?? payload.message ?? "";
       showNotification(
         `notification.created.${title}`,
-        `Neura — ${title}`,
+        `Nobi — ${title}`,
         body
       );
       break;
@@ -114,7 +115,7 @@ function handleWsEventForNotification(msg) {
       const name = payload.name ?? payload.routineName ?? "Routine";
       showNotification(
         `routine.completed.${name}`,
-        "Neura — Routine Complete",
+        "Nobi — Routine Complete",
         `"${name}" finished successfully.`
       );
       break;
@@ -124,7 +125,7 @@ function handleWsEventForNotification(msg) {
       const message = payload.message ?? payload.error ?? "An unexpected system error occurred.";
       showNotification(
         "system.error",
-        "Neura — System Error",
+        "Nobi — System Error",
         message
       );
       break;
@@ -135,7 +136,7 @@ function handleWsEventForNotification(msg) {
       if (mainWindow && !mainWindow.isVisible()) {
         showNotification(
           "ai.inference_completed",
-          "Neura — Response Ready",
+          "Nobi — Response Ready",
           payload.summary ?? "AI inference completed."
         );
       }
@@ -180,9 +181,9 @@ const ICONS = {
 };
 
 const STATUS_LABELS = {
-  offline: "Neura — offline",
-  online: "Neura — online",
-  speaking: "Neura — speaking",
+  offline: "Nobi — offline",
+  online: "Nobi — online",
+  speaking: "Nobi — speaking",
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -224,6 +225,7 @@ function startApiServer() {
   const apiDist = getResourcePath("api-dist");
   const serverEntry = path.join(apiDist, "index.mjs");
   const frontendDist = getResourcePath("frontend-dist");
+  const mobileDist = getResourcePath("mobile-dist");
 
   apiProcess = spawn(process.execPath, [serverEntry], {
     env: {
@@ -235,6 +237,7 @@ function startApiServer() {
       PORT: String(API_PORT),
       ELECTRON_STATIC: "1",
       ELECTRON_FRONTEND_DIST: frontendDist,
+      ELECTRON_MOBILE_DIST: mobileDist,
       // Per-user data dir so config/keys persist across updates; placeholder
       // DATABASE_URL so the server boots fully DB-less (degraded persistence).
       ATLAS_DATA_DIR: path.join(app.getPath("userData"), "atlas"),
@@ -270,7 +273,7 @@ function buildTrayMenu() {
 
   return Menu.buildFromTemplate([
     {
-      label: "Open Neura",
+      label: "Open Nobi",
       click: () => {
         if (mainWindow) {
           mainWindow.show();
@@ -390,9 +393,52 @@ function connectStatusWs() {
 }
 
 // ─── Main window ──────────────────────────────────────────────────────────────
+function probeOllama(url) {
+  return new Promise((resolve) => {
+    const req = http.get(`${url}/api/tags`, (res) => { res.resume(); resolve(res.statusCode < 500); });
+    req.on("error", () => resolve(false));
+    req.setTimeout(1500, () => { req.destroy(); resolve(false); });
+  });
+}
+
+// Start a local model runtime (Ollama) so a FRESH machine has a free local brain
+// with zero setup. Prefers a bundled sidecar binary (shipped in resources/ollama),
+// falls back to a system-installed `ollama`. The API server then auto-detects,
+// pulls a small default model, and warms it. Harmless no-op if neither exists —
+// the app still runs (cloud key or rule-engine). Disable with NEURA_NO_OLLAMA=1.
+async function startOllamaSidecar() {
+  const BIND = process.env.OLLAMA_BIND || "127.0.0.1:11434";
+  const url = `http://${BIND}`;
+  process.env.OLLAMA_HOST = url; // the API server reads this as the base URL
+  if (process.env.NEURA_NO_OLLAMA === "1") return;
+  try {
+    if (await probeOllama(url)) { console.log(`[neura] Ollama already running at ${url}`); return; }
+    const exe = process.platform === "win32" ? "ollama.exe" : "ollama";
+    const bundled = getResourcePath("ollama", exe);
+    const usingBundled = fs.existsSync(bundled);
+    const bin = usingBundled ? bundled : exe; // bundled sidecar → system PATH
+    const modelsDir = path.join(app.getPath("userData"), "ollama-models");
+    fs.mkdirSync(modelsDir, { recursive: true });
+    ollamaProcess = spawn(bin, ["serve"], {
+      env: { ...process.env, OLLAMA_HOST: BIND, OLLAMA_MODELS: modelsDir },
+      stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true,
+    });
+    ollamaProcess.stdout.on("data", (d) => process.stdout.write(`[ollama] ${d}`));
+    ollamaProcess.stderr.on("data", (d) => process.stderr.write(`[ollama] ${d}`));
+    ollamaProcess.on("error", (e) => { console.warn(`[neura] Ollama sidecar unavailable: ${e.message}`); ollamaProcess = null; });
+    ollamaProcess.on("exit", () => { ollamaProcess = null; });
+    console.log(`[neura] started Ollama sidecar (${usingBundled ? "bundled" : "system"})`);
+  } catch (e) {
+    console.warn(`[neura] could not start Ollama sidecar: ${e.message}`);
+    ollamaProcess = null;
+  }
+}
+
 async function createWindow() {
   loadSettings();
   createTray();
+  void startOllamaSidecar(); // sets OLLAMA_HOST synchronously, then spins up the runtime
   startApiServer();
 
   // When auto-launched at login (--startup) skip the splash entirely so the
@@ -431,7 +477,7 @@ async function createWindow() {
     minWidth: 900,
     minHeight: 620,
     icon: path.join(__dirname, "build", "icon.png"),
-    title: "Neura",
+    title: "Nobi",
     backgroundColor: "#000000",
     show: false,
     webPreferences: {
@@ -474,6 +520,10 @@ async function createWindow() {
       apiProcess.kill();
       apiProcess = null;
     }
+    if (ollamaProcess) {
+      ollamaProcess.kill();
+      ollamaProcess = null;
+    }
   });
 }
 
@@ -485,6 +535,7 @@ app.on("window-all-closed", () => {
   // the user explicitly chooses Quit from the tray menu (app.isQuitting = true).
   if (process.platform !== "darwin" && app.isQuitting) {
     if (apiProcess) apiProcess.kill();
+    if (ollamaProcess) ollamaProcess.kill();
     app.quit();
   }
 });
@@ -507,6 +558,10 @@ app.on("before-quit", () => {
   if (apiProcess) {
     apiProcess.kill();
     apiProcess = null;
+  }
+  if (ollamaProcess) {
+    ollamaProcess.kill();
+    ollamaProcess = null;
   }
 });
 

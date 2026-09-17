@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import { EventBus } from "@workspace/event-bus";
 import { logger } from "./logger.js";
-import { db, deviceReadingsTable } from "@workspace/db";
+import { db, dbEnabled, deviceReadingsTable } from "@workspace/db";
 
 export type DeviceCategory = "sensor" | "actuator" | "hybrid";
 export type DeviceProtocol = "mqtt" | "websocket" | "simulated";
@@ -109,6 +109,9 @@ export class DeviceManager {
 
   private recordTelemetry(deviceId: string, readings: DeviceReading[]): void {
     if (readings.length === 0) return;
+    // Telemetry is a firehose — with no database this fires on every sensor tick
+    // forever. Skip silently; live readings are still served from memory.
+    if (!dbEnabled) return;
     const rows = readings.map((r) => ({
       deviceId,
       sensor: r.sensor,

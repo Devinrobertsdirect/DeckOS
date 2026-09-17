@@ -147,7 +147,7 @@ function CapabilityCard({
           type="button"
           onClick={() => { onClose(); onAsk(suggestion); }}
           className="group mt-0.5 flex items-center gap-1.5 self-start rounded-md bg-primary/[0.06] px-2 py-1 text-left text-[11px] text-primary/80 transition-colors hover:bg-primary/12 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          title="Ask Neura this"
+          title="Ask Nobi this"
         >
           <CornerDownLeft className="h-3 w-3 opacity-60 group-hover:opacity-100" />
           “{suggestion}”

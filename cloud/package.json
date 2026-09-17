@@ -1,0 +1,28 @@
+{
+  "name": "@workspace/neura-cloud",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Nobi Cloud — accounts, encrypted API-key vault, cloud brain, and bot relay for the Nobi mobile app.",
+  "main": "dist/index.mjs",
+  "scripts": {
+    "build": "node ./build.mjs",
+    "start": "node ./dist/index.mjs",
+    "dev": "node --watch ./dist/index.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "ws": "^8.18.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.5",
+    "@types/ws": "^8.5.13",
+    "esbuild": "^0.24.2",
+    "typescript": "^5.7.3"
+  }
+}

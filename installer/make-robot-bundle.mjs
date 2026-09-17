@@ -41,6 +41,10 @@ cpSync(uiDist, join(ROOT, "ui"), { recursive: true });
 cpSync(join(REPO, "robotics", "firmware"), join(ROOT, "firmware"), { recursive: true });
 if (existsSync(join(REPO, "robotics", "profiles")))
   cpSync(join(REPO, "robotics", "profiles"), join(ROOT, "profiles"), { recursive: true });
+// pi-ops = the die-often resilience kit (kiosk supervisor, watchdog setup,
+// CDP eval, chaos test) — proven on the first live robot; every robot gets it.
+if (existsSync(join(REPO, "robotics", "pi-ops")))
+  cpSync(join(REPO, "robotics", "pi-ops"), join(ROOT, "pi-ops"), { recursive: true });
 
 writeFileSync(join(ROOT, "VERSION"), `${VERSION}\n`);
 
@@ -57,29 +61,68 @@ say(){ printf '\\n\\033[1;36m== %s ==\\033[0m\\n' "$1"; }
 say "ATLAS v${VERSION} — robot brain"
 IS_PI=0; grep -qiE 'raspberry pi|bcm2' /proc/cpuinfo /proc/device-tree/model 2>/dev/null && IS_PI=1
 
-say "1/4 Node.js"
+say "1/5 Node.js"
 if ! command -v node >/dev/null 2>&1 || [ "$(node -v | sed 's/v\\([0-9]*\\).*/\\1/')" -lt 20 ]; then
-  curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt-get install -y nodejs
+  # nodejs.org tarball into /opt — far lighter than the NodeSource apt repo on
+  # the small SD cards robots ship with (proven on the first live robot).
+  NODEVER=v22.12.0
+  case "$(uname -m)" in aarch64|arm64) NARCH=arm64 ;; x86_64) NARCH=x64 ;; *) NARCH="" ;; esac
+  if [ -n "$NARCH" ]; then
+    curl -fsSL -o /tmp/node.tar.xz "https://nodejs.org/dist/$NODEVER/node-$NODEVER-linux-$NARCH.tar.xz"
+    sudo mkdir -p /opt/nodejs
+    sudo tar -xJf /tmp/node.tar.xz -C /opt/nodejs --strip-components=1 && rm -f /tmp/node.tar.xz
+    sudo ln -sf /opt/nodejs/bin/node /usr/local/bin/node
+    sudo ln -sf /opt/nodejs/bin/npm  /usr/local/bin/npm
+    sudo ln -sf /opt/nodejs/bin/npx  /usr/local/bin/npx
+  else
+    curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt-get install -y nodejs
+  fi
 fi
 node -v
 
-say "2/4 Hardware natives (serial body link; GPIO on a Pi)"
+say "2/5 Hardware natives (GPIO + I2C for motor HATs; serial body link)"
 cd "$DIR/server"
 [ -f package.json ] || echo '{"name":"atlas-robot-server","private":true,"version":"${VERSION}"}' > package.json
 npm install --no-save --omit=dev serialport@^13 >/dev/null 2>&1 || echo "  (serialport skipped — USB body link unavailable)"
 if [ "$IS_PI" = 1 ]; then
-  sudo apt-get install -y pigpio >/dev/null 2>&1 || true
-  sudo systemctl enable --now pigpiod 2>/dev/null || true
-  npm install --no-save --omit=dev pigpio >/dev/null 2>&1 || echo "  (pigpio skipped — GPIO driving unavailable)"
+  # Debian trixie DROPPED the pigpio apt package — apt first, source as fallback.
+  if ! ldconfig -p 2>/dev/null | grep -q libpigpio; then
+    sudo apt-get install -y pigpio >/dev/null 2>&1 || {
+      say "  building pigpio from source (trixie has no apt package)"
+      curl -fsSL -o /tmp/pigpio.tar.gz https://github.com/joan2937/pigpio/archive/refs/tags/v79.tar.gz
+      tar xzf /tmp/pigpio.tar.gz -C /tmp
+      make -C /tmp/pigpio-79 -j4 >/dev/null 2>&1 && sudo make -C /tmp/pigpio-79 install >/dev/null 2>&1 && sudo ldconfig
+      rm -rf /tmp/pigpio.tar.gz /tmp/pigpio-79
+    }
+  fi
+  npm install --no-save --omit=dev pigpio i2c-bus >/dev/null 2>&1 || echo "  (pigpio/i2c-bus skipped — GPIO/I2C driving unavailable)"
+  sudo raspi-config nonint do_i2c 0 2>/dev/null || true
 fi
 
-say "3/4 Data dir"
+say "3/5 Data dir"
 mkdir -p "$HOME/.atlas"
 
-say "4/4 Autostart service"
+say "4/5 Face kiosk + resilience kit"
+if [ -d "$DIR/pi-ops" ]; then
+  mkdir -p "$HOME/pi-ops"
+  cp -f "$DIR/pi-ops/"* "$HOME/pi-ops/"
+  chmod +x "$HOME/pi-ops/"*.sh
+  cp -f "$HOME/pi-ops/neura-kiosk.sh" "$HOME/neura-kiosk.sh" && chmod +x "$HOME/neura-kiosk.sh"
+  mkdir -p "$HOME/.config/autostart"
+  tee "$HOME/.config/autostart/neura-face.desktop" >/dev/null <<DESK
+[Desktop Entry]
+Type=Application
+Name=Nobi Face
+Exec=$HOME/neura-kiosk.sh
+X-GNOME-Autostart-enabled=true
+DESK
+  sudo bash "$HOME/pi-ops/setup-hardening.sh" || true
+fi
+
+say "5/5 Autostart service"
 sudo tee /etc/systemd/system/atlas.service >/dev/null <<UNIT
 [Unit]
-Description=ATLAS v${VERSION} — Neura robot brain
+Description=ATLAS v${VERSION} — Nobi robot brain
 After=network-online.target
 Wants=network-online.target
 StartLimitIntervalSec=60
@@ -98,9 +141,39 @@ Environment=ATLAS_DATA_DIR=$HOME/.atlas
 Environment=DATABASE_URL=postgresql://127.0.0.1/neura
 Environment=ELECTRON_STATIC=1
 Environment=ELECTRON_FRONTEND_DIST=$DIR/ui
+# Driving an Adeept Motor HAT V2? Uncomment the profile and switch User= to
+# root (the pigpio C lib needs /dev/mem for its PWM timing):
+#Environment=ATLAS_PROFILE=adeept-motorhat-v2
 UNIT
 sudo systemctl daemon-reload
 sudo systemctl enable --now atlas.service
+
+say "Bluetooth auto-reconnect (mic + speaker)"
+# Keep the paired headset/speaker connected on its own — connects it within
+# seconds of being powered on, selects the HFP profile so the mic works, and
+# makes it the default sink+source. Generated with this box's user/home/uid.
+if [ -f "$HOME/pi-ops/neura-bt-reconnect.sh" ]; then
+  sudo tee /etc/systemd/system/neura-bt-reconnect.service >/dev/null <<UNIT
+[Unit]
+Description=Nobi Bluetooth auto-reconnect (mic + speaker)
+After=bluetooth.target
+Wants=bluetooth.target
+
+[Service]
+Type=simple
+User=$USER
+Environment=XDG_RUNTIME_DIR=/run/user/$(id -u)
+ExecStart=/usr/bin/env bash $HOME/pi-ops/neura-bt-reconnect.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+UNIT
+  sudo systemctl daemon-reload
+  sudo systemctl enable --now neura-bt-reconnect.service || true
+  echo "  bluetooth auto-reconnect: enabled"
+fi
 
 say "Done — the brain is live"
 echo "  Open:   http://$(hostname).local:8080   (robot face + full dashboard)"
@@ -111,8 +184,12 @@ echo "  Kiosk face on an attached screen:  chromium-browser --kiosk http://local
 // ── run.sh — foreground run (bench testing) ──────────────────────────────────
 writeFileSync(join(ROOT, "run.sh"), `#!/usr/bin/env bash
 # Run the ATLAS brain in the foreground (bench testing; Ctrl-C stops it).
+# NODE_ENV=production is REQUIRED: the bundle is cross-built, and the dev-only
+# pretty-logger transport bakes the build machine's absolute worker path into
+# the bundle — on any other machine it crashes at boot. Production skips it.
 DIR="$(cd "$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
 cd "$DIR/server"
+NODE_ENV=production \\
 PORT=\${PORT:-8080} ATLAS_DATA_DIR="\${ATLAS_DATA_DIR:-$HOME/.atlas}" \\
 DATABASE_URL="\${DATABASE_URL:-postgresql://127.0.0.1/neura}" \\
 ELECTRON_STATIC=1 ELECTRON_FRONTEND_DIST="$DIR/ui" \\
@@ -122,7 +199,7 @@ exec node index.mjs
 // ── README ───────────────────────────────────────────────────────────────────
 writeFileSync(join(ROOT, "README.md"), `# ATLAS v${VERSION} — robot brain
 
-This is the robot-only build of the Neura system: exactly the parts a robot
+This is the robot-only build of the Nobi system: exactly the parts a robot
 needs, nothing else.
 
 - \`server/\`   — the brain (self-contained Node bundle: chat, memory, skills,
@@ -145,8 +222,8 @@ bash install.sh
 
 Then open \`http://<robot>.local:8080\`. The brain auto-connects to a plugged-in
 body board, runs fully offline out of the box, and gets smarter when you add
-cloud AI keys in Settings. Your companion is a Neura — name it once and it
-answers to that name (and to "Neura") everywhere, including here.
+cloud AI keys in Settings. Your companion is a Nobi — name it once and it
+answers to that name (and to "Nobi") everywhere, including here.
 `);
 
 // ── tarball ──────────────────────────────────────────────────────────────────

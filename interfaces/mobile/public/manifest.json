@@ -1,18 +1,41 @@
 {
-  "name": "DeckOS Atlas",
-  "short_name": "Atlas",
-  "description": "DeckOS Atlas — personal AI operating system (mobile companion)",
+  "id": "/mobile/",
+  "name": "Nobi",
+  "short_name": "Nobi",
+  "description": "Nobi — your own neural network. Talk to your Nobi from anywhere; it connects to the brain running on your desktop or robot.",
   "start_url": "/mobile/",
+  "scope": "/mobile/",
   "display": "standalone",
-  "background_color": "#050c1a",
-  "theme_color": "#050c1a",
+  "display_override": ["standalone", "minimal-ui"],
+  "background_color": "#070d1f",
+  "theme_color": "#070d1f",
   "orientation": "portrait",
+  "lang": "en",
+  "dir": "ltr",
   "icons": [
+    {
+      "src": "/mobile/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/mobile/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/mobile/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
     {
       "src": "/mobile/favicon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "any"
     }
   ],
   "categories": ["productivity", "utilities"]

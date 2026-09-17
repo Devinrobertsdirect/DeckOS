@@ -3,10 +3,12 @@ import type { AtlasBody, BodyBackend, HardwareProfile, LineTransport } from "./t
 import { SimBody } from "./bodies/sim.js";
 import { SerialBridgeBody } from "./bodies/serialBridge.js";
 import { PiGpioBody } from "./bodies/pi.js";
+import { AdeeptMotorHatBody, adeeptProfile } from "./bodies/adeept.js";
 
 export * from "./types.js";
 export * from "./protocol.js";
-export { SimBody, SerialBridgeBody, PiGpioBody };
+export { SimBody, SerialBridgeBody, PiGpioBody, AdeeptMotorHatBody, adeeptProfile };
+export { Pca9685Driver } from "./drivers/pca9685.js";
 
 /**
  * Is this a Raspberry Pi? Read the device-tree model (works on Pi OS + most
@@ -42,6 +44,10 @@ export interface DetectResult {
 export function detectBackend(profile?: HardwareProfile): DetectResult {
   const isPi = isRaspberryPi();
   const platform = process.platform;
+  const forced = envProfile();
+  if (forced) {
+    return { backend: forced.backend, reason: `ATLAS_PROFILE forces "${forced.id}" (${forced.backend})`, isPi, platform };
+  }
   if (profile?.backend) {
     return { backend: profile.backend, reason: `profile "${profile.id}" requests ${profile.backend}`, isPi, platform };
   }
@@ -61,6 +67,23 @@ export function desktopProfile(): HardwareProfile {
 }
 
 /**
+ * A built-in profile forced by env: ATLAS_PROFILE=<id> selects the same body
+ * everywhere (e.g. ATLAS_PROFILE=adeept-motorhat-v2 on a stock Adeept HAT).
+ * The runtime has no YAML loader — robotics/profiles/*.yaml document these
+ * values; the shipped profiles live in code. Unknown ids fall through to
+ * normal detection.
+ */
+export function envProfile(): HardwareProfile | null {
+  const id = process.env["ATLAS_PROFILE"]?.trim();
+  if (!id) return null;
+  switch (id) {
+    case "adeept-motorhat-v2": return adeeptProfile();
+    case "desktop-sim": return desktopProfile();
+    default: return null;
+  }
+}
+
+/**
  * Build the body for a profile. Serial bodies need a concrete `transport`
  * (USB serial / WiFi WebSocket / BLE) supplied by the runtime, so the HAL keeps
  * zero dependency on any transport library.
@@ -69,12 +92,17 @@ export function createBody(
   profile: HardwareProfile = desktopProfile(),
   opts?: { transport?: LineTransport },
 ): AtlasBody {
+  // An ATLAS_PROFILE override replaces the caller's profile wholesale, so the
+  // forced body also gets its pin map / geometry (not just the backend).
+  profile = envProfile() ?? profile;
   const { backend } = detectBackend(profile);
   switch (backend) {
     case "sim":
       return new SimBody(profile);
     case "pi":
       return new PiGpioBody(profile);
+    case "adeept":
+      return new AdeeptMotorHatBody(profile);
     case "serial":
       if (!opts?.transport) {
         throw new Error(

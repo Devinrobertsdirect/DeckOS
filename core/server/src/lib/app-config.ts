@@ -42,6 +42,17 @@ function resolveConfigFile(): string {
   return join(dataDir, "config.json");
 }
 const CONFIG_FILE = resolveConfigFile();
+// A STABLE fallback in the home dir. Config is mirror-written here and merge-read
+// from here, so a key saved under one ATLAS_DATA_DIR (e.g. the packaged app's
+// userData) is still found in another launch mode (e.g. dev) — the real cause of
+// "my key won't persist."
+const HOME_CONFIG_FILE = join(homedir() || ".", ".atlas", "config.json");
+let lastWrite: { ok: boolean; at: number; path: string; error: string | null } = {
+  ok: false,
+  at: 0,
+  path: CONFIG_FILE,
+  error: null,
+};
 
 /** Some keys have an aliased env var the rest of the app reads. */
 function applyEnv(key: string, value: string): void {
@@ -53,32 +64,45 @@ function clearEnv(key: string): void {
   if (key === "OPENAI_API_KEY") delete process.env["AI_INTEGRATIONS_OPENAI_API_KEY"];
 }
 
-function readFileConfig(): Record<string, string> {
+function readOne(path: string): Record<string, string> {
   try {
-    const raw = readFileSync(CONFIG_FILE, "utf8");
-    const obj = JSON.parse(raw) as Record<string, unknown>;
+    const obj = JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>;
     const out: Record<string, string> = {};
-    for (const [k, v] of Object.entries(obj)) {
-      if (typeof v === "string") out[k] = v;
-    }
+    for (const [k, v] of Object.entries(obj)) if (typeof v === "string") out[k] = v;
     return out;
   } catch {
-    return {}; // missing/corrupt file → empty; first run or read-only FS
+    return {};
+  }
+}
+
+function readFileConfig(): Record<string, string> {
+  const primary = readOne(CONFIG_FILE);
+  if (CONFIG_FILE === HOME_CONFIG_FILE) return primary;
+  // Home is the fallback base; the primary (ATLAS_DATA_DIR) wins on conflict.
+  return { ...readOne(HOME_CONFIG_FILE), ...primary };
+}
+
+function writeOne(path: string, obj: Record<string, string>): boolean {
+  try {
+    mkdirSync(dirname(path), { recursive: true });
+    const tmp = `${path}.tmp`;
+    writeFileSync(tmp, JSON.stringify(obj, null, 2), "utf8");
+    renameSync(tmp, path); // atomic-ish
+    return true;
+  } catch (e) {
+    console.error(`[app-config] FAILED to write ${path}: ${(e as Error).message}`);
+    lastWrite = { ok: false, at: Date.now(), path, error: (e as Error).message };
+    return false;
   }
 }
 
 function writeFileConfig(entries: Map<string, string>): void {
-  try {
-    mkdirSync(dirname(CONFIG_FILE), { recursive: true });
-    const obj: Record<string, string> = {};
-    for (const [k, v] of entries) obj[k] = v;
-    // Atomic-ish: write to a temp file then rename over the target.
-    const tmp = `${CONFIG_FILE}.tmp`;
-    writeFileSync(tmp, JSON.stringify(obj, null, 2), "utf8");
-    renameSync(tmp, CONFIG_FILE);
-  } catch {
-    // Read-only FS or permissions — DB/env still hold the value this session.
-  }
+  const obj: Record<string, string> = {};
+  for (const [k, v] of entries) obj[k] = v;
+  const okPrimary = writeOne(CONFIG_FILE, obj);
+  // Mirror to the stable home location so keys are found in any launch mode.
+  if (CONFIG_FILE !== HOME_CONFIG_FILE) writeOne(HOME_CONFIG_FILE, obj);
+  if (okPrimary) lastWrite = { ok: true, at: Date.now(), path: CONFIG_FILE, error: null };
 }
 
 // Seed the cache + process.env from disk at module load, before any request.
@@ -89,7 +113,22 @@ function writeFileConfig(entries: Map<string, string>): void {
     applyEnv(k, v);
   }
   cacheTime = Date.now(); // don't force a DB refresh just to serve the file config
+  console.log(
+    `[app-config] config file: ${CONFIG_FILE}` +
+      (CONFIG_FILE !== HOME_CONFIG_FILE ? ` (+home mirror ${HOME_CONFIG_FILE})` : "") +
+      ` — loaded ${Object.keys(fileCfg).length} setting(s): ${Object.keys(fileCfg).join(", ") || "(none)"}`,
+  );
 })();
+
+/** Diagnostics for "why won't my key persist" — path, keys present, last write. */
+export function configDiagnostics(): {
+  path: string;
+  homeMirror: string;
+  keys: string[];
+  lastWrite: typeof lastWrite;
+} {
+  return { path: CONFIG_FILE, homeMirror: HOME_CONFIG_FILE, keys: [...cache.keys()], lastWrite };
+}
 
 async function refresh(): Promise<void> {
   // File is the base; DB (if reachable) overlays it. File keeps us alive with no DB.

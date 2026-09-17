@@ -115,11 +115,17 @@ const inferenceState: {
   openclawAvailable: boolean | null;
   /** Anthropic Claude (Apex tier) — true when an API key is configured */
   claudeAvailable: boolean | null;
+  /** OpenRouter — the primary cloud brain when configured (used before Claude) */
+  openRouterAvailable: boolean | null;
   /** Cached CLOUD_PREFERENCE — refreshed by refreshOllamaDetection so the sync gateway can read it */
   cloudPreference: CloudPreference;
   lastDetected: Date;
   /** Models discovered from Ollama /api/tags — populated on each detection */
   ollamaModels: string[];
+  /** Circuit-breaker: epoch ms until which Claude is treated as unreachable
+   *  (set when a cloud call fails with a network error, e.g. no internet). While
+   *  tripped, routing skips the cloud and goes straight to the local model. */
+  claudeUnreachableUntil: number;
 } = {
   totalRequests:      0,
   cacheHits:          0,
@@ -132,9 +138,11 @@ const inferenceState: {
   openWebUIAvailable: null,
   openclawAvailable:  null,
   claudeAvailable:    null,
+  openRouterAvailable: null,
   cloudPreference:    "local-first",
   lastDetected:       new Date(),
   ollamaModels:       [],
+  claudeUnreachableUntil: 0,
 };
 
 export function getInferenceState() {
@@ -260,12 +268,14 @@ export async function refreshOllamaDetection(): Promise<void> {
     inferenceState.openWebUIAvailable,
     inferenceState.openclawAvailable,
     inferenceState.claudeAvailable,
+    inferenceState.openRouterAvailable,
     inferenceState.cloudPreference,
   ] = await Promise.all([
     detectOllama(),
     detectOpenWebUI(),
     detectOpenClaw(),
     detectClaude(),
+    getOpenRouterKey().then((k) => k.length > 0),
     getCloudPreference(),
   ]);
   inferenceState.lastDetected = new Date();
@@ -417,6 +427,12 @@ export async function getCloudPreference(): Promise<CloudPreference> {
   return raw === "cloud-first" || raw === "local-only" ? raw : "local-first";
 }
 
+/** Is the cloud (Claude) currently usable — i.e. NOT tripped by the offline
+ *  circuit-breaker? Used to route tool-calling to the local loop when offline. */
+export function isClaudeReachable(): boolean {
+  return Date.now() >= inferenceState.claudeUnreachableUntil;
+}
+
 /** Apex availability = a configured API key. No network probe — key presence
  *  is the signal, so detection stays instant and offline-safe. */
 export async function detectClaude(): Promise<boolean> {
@@ -476,6 +492,125 @@ export async function callClaude(
     .map((b) => b.text as string)
     .join("");
   return text || "[No response from Claude]";
+}
+
+// ── OpenRouter (OpenAI-compatible cloud brain) ──────────────────────────────
+// A single key unlocks many models (Anthropic, OpenAI, Google, open models) via
+// one OpenAI-compatible endpoint. When configured it becomes Nobi's primary
+// "apex" brain — used before Claude — so the whole system runs on OpenRouter.
+const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+export const DEFAULT_OPENROUTER_MODEL = "anthropic/claude-3.5-sonnet";
+
+export async function getOpenRouterKey(): Promise<string> {
+  try { return ((await getConfig("OPENROUTER_API_KEY")) ?? process.env["OPENROUTER_API_KEY"] ?? "").trim(); }
+  catch { return (process.env["OPENROUTER_API_KEY"] ?? "").trim(); }
+}
+export async function getOpenRouterModel(): Promise<string> {
+  try { return (((await getConfig("OPENROUTER_MODEL")) ?? process.env["OPENROUTER_MODEL"]) || DEFAULT_OPENROUTER_MODEL).trim(); }
+  catch { return (process.env["OPENROUTER_MODEL"] || DEFAULT_OPENROUTER_MODEL).trim(); }
+}
+const OPENROUTER_HEADERS = (key: string) => ({
+  "Content-Type": "application/json",
+  Authorization: `Bearer ${key}`,
+  "HTTP-Referer": "https://deckos.local",
+  "X-Title": "Nobi",
+});
+
+export async function callOpenRouter(
+  messages: Array<{ role: string; content: string }>,
+  model: string,
+  key: string,
+): Promise<string> {
+  const res = await fetch(OPENROUTER_URL, {
+    method: "POST",
+    headers: OPENROUTER_HEADERS(key),
+    body: JSON.stringify({ model, messages, stream: false }),
+    signal: AbortSignal.timeout(90_000),
+  });
+  if (!res.ok) throw new Error(`OpenRouter ${res.status}: ${(await res.text().catch(() => res.statusText)).slice(0, 200)}`);
+  const data = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
+  return data.choices?.[0]?.message?.content ?? "[No response from OpenRouter]";
+}
+
+export async function callOpenRouterStreaming(
+  messages: Array<{ role: string; content: string }>,
+  model: string,
+  key: string,
+  onToken: (t: string) => void,
+): Promise<string> {
+  const res = await fetch(OPENROUTER_URL, {
+    method: "POST",
+    headers: OPENROUTER_HEADERS(key),
+    body: JSON.stringify({ model, messages, stream: true }),
+    signal: AbortSignal.timeout(120_000),
+  });
+  if (!res.ok) throw new Error(`OpenRouter ${res.status}: ${(await res.text().catch(() => res.statusText)).slice(0, 200)}`);
+  if (!res.body) throw new Error("No body from OpenRouter");
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  let full = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const lines = buf.split("\n");
+    buf = lines.pop() ?? "";
+    for (const line of lines) {
+      const t = line.trim();
+      if (!t.startsWith("data:")) continue;
+      const payload = t.slice(5).trim();
+      if (payload === "[DONE]") continue;
+      try {
+        const j = JSON.parse(payload) as { choices?: Array<{ delta?: { content?: string } }> };
+        const tok = j.choices?.[0]?.delta?.content;
+        if (tok) { full += tok; onToken(tok); }
+      } catch { /* keep-alive or partial — ignore */ }
+    }
+  }
+  return full || "[No response from OpenRouter]";
+}
+
+/**
+ * Claude vision — describe an image (e.g. a screenshot of Nobi's own screen).
+ * Same Messages API + key as callClaude, but the user turn carries an image block.
+ */
+export async function callClaudeVision(
+  imageBase64: string,
+  mediaType: string,
+  prompt: string,
+  model: string,
+  maxTokens = 260,
+): Promise<string> {
+  const apiKey = await getAnthropicApiKey();
+  if (!apiKey) throw new Error("Anthropic API key not configured");
+  const res = await fetch(ANTHROPIC_API_URL, {
+    method: "POST",
+    headers: {
+      "x-api-key":         apiKey,
+      "anthropic-version": "2023-06-01",
+      "content-type":      "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: maxTokens,
+      messages: [{
+        role: "user",
+        content: [
+          { type: "image", source: { type: "base64", media_type: mediaType, data: imageBase64 } },
+          { type: "text", text: prompt },
+        ],
+      }],
+    }),
+    signal: AbortSignal.timeout(60_000),
+  });
+  if (!res.ok) throw new Error(`Claude vision ${res.status}: ${res.statusText}`);
+  const data = (await res.json()) as { content?: Array<{ type: string; text?: string }> };
+  return (data.content ?? [])
+    .filter((b) => b.type === "text" && typeof b.text === "string")
+    .map((b) => b.text as string)
+    .join("")
+    .trim();
 }
 
 export async function callClaudeStreaming(
@@ -583,7 +718,14 @@ function resolveGateway(
 ): Tier {
   const pref = cloudPreference ?? inferenceState.cloudPreference;
   const hasLocalAI = inferenceState.ollamaAvailable || inferenceState.openclawAvailable || inferenceState.openWebUIAvailable;
-  const apexReady = !!inferenceState.claudeAvailable && pref !== "local-only";
+  // Circuit-breaker: if a recent cloud call failed with a network error (e.g. no
+  // internet), treat Claude as unreachable so routing goes STRAIGHT to the local
+  // model — no per-message cloud timeout. Auto-retries once the window elapses.
+  const claudeReachable = Date.now() >= inferenceState.claudeUnreachableUntil;
+  // OpenRouter, when configured, is the primary cloud brain — it makes apex the
+  // default for reasoning-class work regardless of CLOUD_PREFERENCE.
+  const openRouterReady = !!inferenceState.openRouterAvailable && pref !== "local-only";
+  const apexReady = openRouterReady || (!!inferenceState.claudeAvailable && claudeReachable && pref !== "local-only");
 
   // Deterministic mode, or nothing intelligent to route to → autopilot (rule engine)
   if (mode === "none" || (!hasLocalAI && !apexReady)) return "autopilot";
@@ -593,7 +735,7 @@ function resolveGateway(
 
   // Apex (Claude): explicit "deep" mode, or cortex-class tasks under cloud-first
   const isCortexClass = task !== undefined ? CORTEX_CLASS_TASKS.has(task) : mode === "deep";
-  if (apexReady && ((pref === "cloud-first" && isCortexClass) || mode === "deep")) {
+  if (apexReady && ((pref === "cloud-first" && isCortexClass) || mode === "deep" || (openRouterReady && isCortexClass))) {
     return "apex";
   }
 
@@ -826,14 +968,26 @@ export async function runInferenceStreaming(
     localTier  = "cortex";
     localModel = resolveBestModel("cortex", MODEL_CONFIG.REASONING);
     try {
-      const apexModel = claudeModel || DEFAULT_CLAUDE_MODEL;
-      const maxTokens = await getClaudeMaxTokens();
-      response  = await callClaudeStreaming(msgs, apexModel, maxTokens, onToken);
-      modelUsed = `claude:${apexModel}`;
+      const orKey = await getOpenRouterKey();
+      if (orKey) {
+        const orModel = await getOpenRouterModel();
+        response  = await callOpenRouterStreaming(msgs, orModel, orKey, onToken);
+        modelUsed = `openrouter:${orModel}`;
+      } else {
+        const apexModel = claudeModel || DEFAULT_CLAUDE_MODEL;
+        const maxTokens = await getClaudeMaxTokens();
+        response  = await callClaudeStreaming(msgs, apexModel, maxTokens, onToken);
+        modelUsed = `claude:${apexModel}`;
+      }
       usedTier  = "apex";
       inferenceState.apexRequests++;
+      inferenceState.claudeUnreachableUntil = 0; // cloud reachable again → reset breaker
       done = true;
-    } catch { /* fall through to local chain */ }
+    } catch (e) {
+      const msg = String((e as Error)?.message || "");
+      if (!msg.includes("Claude API") && !msg.includes("OpenRouter")) inferenceState.claudeUnreachableUntil = Date.now() + 60_000;
+      /* fall through to the local chain below */
+    }
   }
 
   if (!done) {
@@ -952,14 +1106,28 @@ export async function runInference(opts: InferenceOptions): Promise<InferenceRes
     localTier  = "cortex";
     localModel = dynModels.reasoning;
     try {
-      const apexModel = claudeModel || DEFAULT_CLAUDE_MODEL;
-      const maxTokens = await getClaudeMaxTokens();
-      response  = await callClaude(msgs, apexModel, maxTokens);
-      modelUsed = `claude:${apexModel}`;
+      const orKey = await getOpenRouterKey();
+      if (orKey) {
+        const orModel = await getOpenRouterModel();
+        response  = await callOpenRouter(msgs, orModel, orKey);
+        modelUsed = `openrouter:${orModel}`;
+      } else {
+        const apexModel = claudeModel || DEFAULT_CLAUDE_MODEL;
+        const maxTokens = await getClaudeMaxTokens();
+        response  = await callClaude(msgs, apexModel, maxTokens);
+        modelUsed = `claude:${apexModel}`;
+      }
       usedTier  = "apex";
       inferenceState.apexRequests++;
+      inferenceState.claudeUnreachableUntil = 0; // cloud reachable again → reset breaker
       done = true;
-    } catch { /* fall through to local chain */ }
+    } catch (e) {
+      // Trip the breaker only on NETWORK failures (no internet) — not HTTP errors
+      // (bad key / rate limit), where the cloud IS reachable, just erroring.
+      const msg = String((e as Error)?.message || "");
+      if (!msg.includes("Claude API") && !msg.includes("OpenRouter")) inferenceState.claudeUnreachableUntil = Date.now() + 60_000;
+      /* fall through to the local chain below — never goes silent */
+    }
   }
 
   if (!done) {

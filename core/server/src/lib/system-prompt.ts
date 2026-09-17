@@ -1,6 +1,8 @@
 import { db, userCognitiveModelTable, aiPersonaTable } from "@workspace/db";
 import { capabilitiesPromptBlock } from "./capabilities.js";
-import { botName, SPECIES, neuraIdentityLine } from "./identity.js";
+import { botName, SPECIES, neuraIdentityLine, cleanName } from "./identity.js";
+import { getOrCreatePairingCode } from "./pairing.js";
+import { snarkPromptBlock } from "./snark.js";
 
 interface IdentityLayer {
   aiName?: string;
@@ -95,9 +97,17 @@ You have the ability to update your own personality settings. If the user asks y
 %%SELF_UPDATE:{"gravityLevel":50,"snarkinessLevel":20,"flirtatiousnessLevel":0}%%
 Only include the keys you are actually changing. Valid ranges: gravityLevel 0-100 (0=silly, 100=gravely serious), snarkinessLevel 0-100 (0=sincere, 100=max snark), flirtatiousnessLevel 0-100 (0=neutral, 100=openly flirty). Do not explain the directive — it is invisible to the user and processed automatically.`;
 
+export interface LiveContext {
+  view?: string; // the view/screen the user is in right now (e.g. "dashboard", "pet")
+  recentActions?: string[]; // last few things they did (e.g. "changed eye color", "muted mic")
+  system?: string; // a short system snapshot (e.g. "CPU 22%, robot connected")
+  device?: string; // "desktop" | "robot" | "mobile"
+}
+
 export async function buildPersonalizedPrompt(
   memoryContext: string[],
   channel: string = "web",
+  live?: LiveContext,
 ): Promise<string> {
   let identity: IdentityLayer = {};
   let persona: Partial<AiPersonaRow> = {};
@@ -117,7 +127,7 @@ export async function buildPersonalizedPrompt(
 
   // The user-given name wins over any DB default, so the bot's identity is
   // whatever the user named it — everywhere.
-  const aiName   = botName() !== SPECIES ? botName() : (persona.aiName?.trim() || identity.aiName?.trim() || SPECIES);
+  const aiName   = cleanName(botName() !== SPECIES ? botName() : (persona.aiName?.trim() || identity.aiName?.trim() || SPECIES));
   const userName = identity.userName?.trim() || "Commander";
   const answers  = identity.answers ?? [];
 
@@ -160,12 +170,43 @@ export async function buildPersonalizedPrompt(
 
   const memSection =
     memoryContext.length > 0
-      ? `\n\nRecent context from memory:\n${memoryContext.slice(0, 3).join("\n")}`
+      ? `\n\nRelevant context from memory:\n${memoryContext.slice(0, 6).join("\n")}`
       : "";
 
   const genderSentence = genderNote ? ` ${genderNote}` : "";
 
-  return `${neuraIdentityLine(aiName)} You run on DeckOS — a complete personal AI operating system that can also inhabit robots — serving as ${userName}'s personal command center. At your core you are capable, warm, and slightly witty. You are ${attitudePhrase}.${genderSentence} ${lengthPhrase} ${depthPhrase} ${dialModifiers}${channelNote}${aboutSection}${memSection}\n\n${capabilitiesPromptBlock({ compact: false })}${NO_EMOJI_INSTRUCTION}${SELF_UPDATE_INSTRUCTION}`;
+  // ── Live situational awareness ─────────────────────────────────────────────
+  // The local brain runs on the user's own machine, so new Date() IS their local
+  // time. This makes Nobi aware of the moment without ever being asked.
+  let liveSection = "";
+  try {
+    const now = new Date();
+    const when = now.toLocaleString(undefined, {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+    liveSection = `\n\nRIGHT NOW: It is ${when} (${userName}'s local time). Factor this in naturally — greet by time of day, be aware of the day and date — and never ask what time or day it is.`;
+    if (live?.device) liveSection += ` You are running on ${userName}'s ${live.device}.`;
+    if (live?.view) liveSection += ` They are currently in the ${live.view} view.`;
+    if (live?.recentActions?.length)
+      liveSection += ` Just now they: ${live.recentActions.slice(0, 5).join("; ")}.`;
+    if (live?.system) liveSection += ` System: ${live.system}.`;
+  } catch {
+    /* clock unavailable — skip */
+  }
+
+  // Live phone-connection code, injected so the AI can just TELL the user their
+  // code when asked ("what's my connection code?") — no hunting through Settings.
+  let pairingSection = "";
+  try {
+    const code = await getOrCreatePairingCode();
+    pairingSection = `\n\nDEVICE CONNECTION: This computer's phone-connection code is ${code}. To link a phone, ${userName} opens the Nobi mobile app and taps "Have a desktop nearby? Use a connection code", then enters ${code} — or finds it in Settings → Mobile Access. If ${userName} asks for the connection/pairing code or how to connect their phone, give them the code (${code}) directly and plainly; never make them go hunting for it.`;
+  } catch { /* config unavailable — omit */ }
+
+  return `${neuraIdentityLine(aiName)} You run on DeckOS — a complete personal AI operating system that can also inhabit robots — serving as ${userName}'s personal command center. At your core you are capable, warm, and slightly witty. You are ${attitudePhrase}.${genderSentence} ${lengthPhrase} ${depthPhrase} ${dialModifiers}${channelNote}${liveSection}${aboutSection}${memSection}${pairingSection}${snarkPromptBlock(snarkinessLevel)}\n\n${capabilitiesPromptBlock({ compact: false })}${NO_EMOJI_INSTRUCTION}${SELF_UPDATE_INSTRUCTION}`;
 }
 
 // ── Exported helper: parse and strip self-update directives ───────────────────

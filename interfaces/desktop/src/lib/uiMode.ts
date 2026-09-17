@@ -101,13 +101,19 @@ export function setUserName(name: string) {
   localStorage.setItem(NAME_KEY, name);
 }
 
-// Every companion is a "Neura" (its species/classification — it always answers
-// to Neura); the user layers a personal nickname on top. Until named, the
+// Every companion is a "Nobi" (its species/classification — it always answers
+// to Nobi); the user layers a personal nickname on top. Until named, the
 // nickname IS the species name.
-export const SPECIES = "Neura";
+export const SPECIES = "Nobi";
 const BOT_NAME_KEY = "atlas_bot_name";
+// Retired names, never spoken: "Atlas" (internal codename) and "Neura" (the
+// pre-2026-09 brand, dropped for trademark reasons). A stale stored value
+// holding either means "unnamed" so the bot never calls itself an old name.
+const RETIRED_NAMES = new Set(["atlas", "neura"]);
 export function getBotName(): string {
-  return (localStorage.getItem(BOT_NAME_KEY) || "").trim() || SPECIES;
+  const raw = (localStorage.getItem(BOT_NAME_KEY) || "").trim();
+  if (!raw || RETIRED_NAMES.has(raw.toLowerCase())) return SPECIES;
+  return raw;
 }
 /** True while the companion still goes by the species name (unnamed). */
 export function isBotUnnamed(): boolean {
@@ -118,6 +124,65 @@ export function setBotName(name: string) {
   localStorage.setItem(BOT_NAME_KEY, clean);
   syncBotNameToServer(clean || SPECIES);
   window.dispatchEvent(new CustomEvent("atlas:botNameChanged", { detail: clean }));
+  void neuraSnark("rename");
+}
+
+/**
+ * Fire a reactive Stark-snark quip when the user does something TO Nobi
+ * (rename, mute, recolor, reset…). The server gates each trigger on a cooldown
+ * (say-it-once, then hush ~20 min) and returns { line: null } when suppressed, so
+ * this never gets annoying. Shows a transient toast + emits `neura:snark`.
+ */
+export async function neuraSnark(trigger: string): Promise<void> {
+  try {
+    const r = await fetch(`${import.meta.env.BASE_URL}api/snark?trigger=${encodeURIComponent(trigger)}`);
+    const d = (await r.json()) as { line?: string | null };
+    if (!d?.line) return; // on cooldown or nothing → stay quiet
+    window.dispatchEvent(new CustomEvent("neura:snark", { detail: d.line }));
+    showSnarkToast(d.line);
+  } catch {
+    /* offline — no quip, no harm */
+  }
+}
+
+function showSnarkToast(line: string): void {
+  try {
+    const el = document.createElement("div");
+    el.textContent = `“${line}”`;
+    el.setAttribute("role", "status");
+    Object.assign(el.style, {
+      position: "fixed",
+      bottom: "22px",
+      left: "50%",
+      transform: "translateX(-50%) translateY(10px)",
+      maxWidth: "440px",
+      padding: "12px 18px",
+      zIndex: "99999",
+      font: "italic 13px/1.5 ui-monospace, SFMono-Regular, monospace",
+      color: "rgba(201,220,240,0.92)",
+      background: "rgba(7,13,31,0.92)",
+      border: "1px solid rgba(125,160,230,0.28)",
+      borderRadius: "12px",
+      boxShadow: "0 10px 34px rgba(0,0,0,0.45)",
+      backdropFilter: "blur(8px)",
+      textAlign: "center",
+      pointerEvents: "none",
+      opacity: "0",
+      transition: "opacity .3s ease, transform .3s ease",
+    } as Partial<CSSStyleDeclaration>);
+    document.body.appendChild(el);
+    requestAnimationFrame(() => {
+      el.style.opacity = "1";
+      el.style.transform = "translateX(-50%) translateY(0)";
+    });
+    setTimeout(() => {
+      el.style.opacity = "0";
+      el.style.transform = "translateX(-50%) translateY(10px)";
+      setTimeout(() => el.remove(), 400);
+    }, 4200);
+  } catch {
+    /* DOM unavailable — ignore */
+  }
 }
 
 /**
@@ -138,6 +203,7 @@ export function syncBotNameToServer(name: string) {
 
 /** Reset the whole first-run experience (used by a "replay intro" control). */
 export function resetGenesis() {
+  void neuraSnark("wipe_memory");
   localStorage.removeItem(SETUP_KEY);
   localStorage.removeItem(INTRO_KEY);
   localStorage.removeItem("atlas_input_mode"); // re-ask talk/type

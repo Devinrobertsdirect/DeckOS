@@ -23,7 +23,31 @@ export type FaceState =
   | "sad"         // downward arcs
   | "love"        // heart-shaped eyes
   | "wink"        // one eye closed
-  | "starstruck"; // star-shaped eyes
+  | "starstruck"  // star-shaped eyes
+  // ── Expanded emotional range (video-ready) — all built from the 8 base
+  //    shapes with fresh geometry, so every one animates + tweens for free. ──
+  | "surprised"   // big round eyes, gaze up
+  | "curious"     // head-tilt, one eye raised
+  | "cool"        // level half-lids (shades)
+  | "proud"       // big warm smile, chin up
+  | "sleepy"      // heavy low lids
+  | "bored"       // half lids, gaze drifts away
+  | "content"     // soft gentle smile
+  | "skeptical"   // one raised brow
+  | "mischievous" // sly half-lid + tilt
+  | "shy"         // lids + gaze down/away
+  | "focused"     // narrowed, intense
+  | "annoyed"     // flat slanted dashes
+  | "scared"      // wide + tilt
+  | "laughing"    // big squinty laugh arcs
+  | "relieved"    // soft exhale arc
+  | "determined"  // firm inward slant
+  | "shocked"     // huge round eyes
+  | "grumpy"      // mini-angry
+  | "hopeful"     // bright, gaze up
+  | "dizzy"       // round + wobble
+  | "mindblown"   // stars, gaze up
+  | "crying";     // deep downward arcs
 
 export type FaceMode = "atlas" | "neural" | "auto";
 
@@ -204,6 +228,118 @@ const POSES: Record<FaceState, PoseSpec> = {
     right: { shape: "star", w: 0.17, h: 0.17, dx: 0, dy: 0 },
     gazeX: 0, gazeY: 0, tilt: 0, blink: false, duration: 280,
   },
+
+  // ── Expanded set ───────────────────────────────────────────────────────────
+  surprised: {
+    left: { shape: "pill", w: 0.185, h: 0.37, dx: 0, dy: 0 },
+    right: { shape: "pill", w: 0.185, h: 0.37, dx: 0, dy: 0 },
+    gazeX: 0, gazeY: -0.03, tilt: 0, blink: false, duration: 200,
+  },
+  curious: {
+    left: { shape: "pill", w: 0.155, h: 0.335, dx: 0, dy: -0.01 },
+    right: { shape: "pill", w: 0.135, h: 0.255, dx: 0, dy: 0.01 },
+    gazeX: 0.025, gazeY: -0.01, tilt: 0.07, blink: true, duration: 300,
+  },
+  cool: {
+    left: { shape: "halfLid", w: 0.17, h: 0.085, dx: 0, dy: -0.005 },
+    right: { shape: "halfLid", w: 0.17, h: 0.085, dx: 0, dy: -0.005 },
+    gazeX: 0, gazeY: 0, tilt: 0, blink: false, duration: 320,
+  },
+  proud: {
+    left: { shape: "arc", w: 0.185, h: 0.115, dx: 0, dy: -0.025 },
+    right: { shape: "arc", w: 0.185, h: 0.115, dx: 0, dy: -0.025 },
+    gazeX: 0, gazeY: -0.02, tilt: 0, blink: false, duration: 280,
+  },
+  sleepy: {
+    left: { shape: "halfLid", w: 0.15, h: 0.07, dx: 0, dy: 0.03 },
+    right: { shape: "halfLid", w: 0.15, h: 0.07, dx: 0, dy: 0.03 },
+    gazeX: 0, gazeY: 0.03, tilt: 0, blink: true, duration: 460,
+  },
+  bored: {
+    left: { shape: "halfLid", w: 0.15, h: 0.09, dx: 0, dy: 0.01 },
+    right: { shape: "halfLid", w: 0.15, h: 0.09, dx: 0, dy: 0.01 },
+    gazeX: 0.075, gazeY: 0.02, tilt: 0, blink: true, duration: 420,
+  },
+  content: {
+    left: { shape: "arc", w: 0.155, h: 0.07, dx: 0, dy: -0.01 },
+    right: { shape: "arc", w: 0.155, h: 0.07, dx: 0, dy: -0.01 },
+    gazeX: 0, gazeY: 0, tilt: 0, blink: true, duration: 340,
+  },
+  skeptical: {
+    left: { shape: "halfLid", w: 0.15, h: 0.09, dx: 0, dy: 0.005 },
+    right: { shape: "pill", w: 0.13, h: 0.315, dx: 0, dy: -0.01 },
+    gazeX: 0.02, gazeY: 0, tilt: -0.05, blink: false, duration: 300,
+  },
+  mischievous: {
+    left: { shape: "halfLid", w: 0.15, h: 0.10, dx: 0, dy: 0 },
+    right: { shape: "pill", w: 0.15, h: 0.30, dx: 0, dy: 0 },
+    gazeX: 0.05, gazeY: 0.01, tilt: 0.06, blink: false, duration: 280,
+  },
+  shy: {
+    left: { shape: "halfLid", w: 0.14, h: 0.11, dx: 0, dy: 0.01 },
+    right: { shape: "halfLid", w: 0.14, h: 0.11, dx: 0, dy: 0.01 },
+    gazeX: 0.05, gazeY: 0.05, tilt: 0.06, blink: true, duration: 340,
+  },
+  focused: {
+    left: { shape: "pill", w: 0.115, h: 0.31, dx: 0, dy: 0 },
+    right: { shape: "pill", w: 0.115, h: 0.31, dx: 0, dy: 0 },
+    gazeX: 0, gazeY: -0.01, tilt: 0, blink: false, duration: 260,
+  },
+  annoyed: {
+    left: { shape: "dash", w: 0.16, h: 0.05, dx: 0, dy: -0.01, rot: 0.18 },
+    right: { shape: "dash", w: 0.16, h: 0.05, dx: 0, dy: -0.01, rot: 0.18 },
+    gazeX: 0, gazeY: 0, tilt: 0, blink: false, duration: 260,
+  },
+  scared: {
+    left: { shape: "pill", w: 0.17, h: 0.35, dx: 0, dy: 0 },
+    right: { shape: "pill", w: 0.17, h: 0.35, dx: 0, dy: 0 },
+    gazeX: -0.03, gazeY: -0.02, tilt: 0.04, blink: false, duration: 200,
+  },
+  laughing: {
+    left: { shape: "arc", w: 0.19, h: 0.13, dx: 0, dy: -0.03 },
+    right: { shape: "arc", w: 0.19, h: 0.13, dx: 0, dy: -0.03 },
+    gazeX: 0, gazeY: 0, tilt: 0, blink: false, duration: 220,
+  },
+  relieved: {
+    left: { shape: "arc", w: 0.16, h: 0.08, dx: 0, dy: 0 },
+    right: { shape: "arc", w: 0.16, h: 0.08, dx: 0, dy: 0 },
+    gazeX: 0, gazeY: 0.02, tilt: 0, blink: true, duration: 360,
+  },
+  determined: {
+    left: { shape: "pill", w: 0.135, h: 0.25, dx: 0, dy: 0, rot: 0.2 },
+    right: { shape: "pill", w: 0.135, h: 0.25, dx: 0, dy: 0, rot: 0.2 },
+    gazeX: 0, gazeY: -0.005, tilt: 0, blink: false, duration: 240,
+  },
+  shocked: {
+    left: { shape: "pill", w: 0.205, h: 0.40, dx: 0, dy: 0 },
+    right: { shape: "pill", w: 0.205, h: 0.40, dx: 0, dy: 0 },
+    gazeX: 0, gazeY: -0.04, tilt: 0, blink: false, duration: 180,
+  },
+  grumpy: {
+    left: { shape: "pill", w: 0.15, h: 0.155, dx: 0, dy: 0, rot: 0.35 },
+    right: { shape: "pill", w: 0.15, h: 0.155, dx: 0, dy: 0, rot: 0.35 },
+    gazeX: 0, gazeY: 0.02, tilt: 0, blink: false, duration: 300,
+  },
+  hopeful: {
+    left: { shape: "pill", w: 0.155, h: 0.33, dx: 0, dy: -0.01 },
+    right: { shape: "pill", w: 0.155, h: 0.33, dx: 0, dy: -0.01 },
+    gazeX: 0, gazeY: -0.045, tilt: 0.02, blink: true, duration: 320,
+  },
+  dizzy: {
+    left: { shape: "pill", w: 0.17, h: 0.17, dx: 0, dy: 0, rot: 0.3 },
+    right: { shape: "pill", w: 0.17, h: 0.17, dx: 0, dy: 0, rot: -0.3 },
+    gazeX: 0, gazeY: 0, tilt: 0.08, blink: false, duration: 300,
+  },
+  mindblown: {
+    left: { shape: "star", w: 0.185, h: 0.185, dx: 0, dy: -0.005 },
+    right: { shape: "star", w: 0.185, h: 0.185, dx: 0, dy: -0.005 },
+    gazeX: 0, gazeY: -0.03, tilt: 0, blink: false, duration: 220,
+  },
+  crying: {
+    left: { shape: "arcDown", w: 0.16, h: 0.12, dx: 0, dy: 0.03 },
+    right: { shape: "arcDown", w: 0.16, h: 0.12, dx: 0, dy: 0.03 },
+    gazeX: 0, gazeY: 0.045, tilt: 0, blink: false, duration: 340,
+  },
 };
 
 const EYE_OFFSET_X = 0.155; // eye centre distance from face centre /D
@@ -344,6 +480,9 @@ export interface EngineDrawOpts {
   tintStrength?: number;
   /** Optional momentary glyph flashed above the eyes (an accent, not the eyes). 1–2 chars. */
   emoji?: string | null;
+  /** "Bare" = no disc/rim: the eyes float on the screen itself (robot: the whole
+   *  round display IS the face). The disc + glass rim are skipped; eyes only. */
+  bare?: boolean;
   theme: FaceTheme;
 }
 
@@ -444,32 +583,37 @@ export class AtlasFaceEngine {
       baseInner = `rgb(${mix(dr, tr)},${mix(dg, tg)},${mix(db, tb)})`;
       baseOuter = `rgb(${mix(16, Math.round(tr * 0.6))},${mix(24, Math.round(tg * 0.6))},${mix(34, Math.round(tb * 0.6))})`;
     }
-    const disc = ctx.createRadialGradient(cx, cy - R * 0.25, R * 0.1, cx, cy, R);
-    disc.addColorStop(0, baseInner);
-    disc.addColorStop(1, baseOuter);
-    ctx.beginPath();
-    ctx.arc(cx, cy, R - 1, 0, Math.PI * 2);
-    ctx.fillStyle = disc;
-    ctx.fill();
+    // Bare mode (robot: the screen itself is the face) skips the disc + rim so
+    // the eyes float directly on the display's own dark background.
+    if (!opts.bare) {
+      const disc = ctx.createRadialGradient(cx, cy - R * 0.25, R * 0.1, cx, cy, R);
+      disc.addColorStop(0, baseInner);
+      disc.addColorStop(1, baseOuter);
+      ctx.beginPath();
+      ctx.arc(cx, cy, R - 1, 0, Math.PI * 2);
+      ctx.fillStyle = disc;
+      ctx.fill();
 
-    // Glass rim + idle glow ("it breathes — the shell glows faintly as it thinks")
-    const glowPulse =
-      this.state === "thinking" || this.neuralBlend > 0.3
-        ? 0.5 + 0.5 * Math.sin(now * 0.0035)
-        : 0.5 + 0.5 * Math.sin(now * 0.0012);
-    ctx.beginPath();
-    ctx.arc(cx, cy, R - 1.5, 0, Math.PI * 2);
-    ctx.strokeStyle = `rgba(${opts.eyeRgb},${(0.12 + 0.14 * glowPulse * opts.theme.idleGlow).toFixed(3)})`;
-    ctx.lineWidth = Math.max(1, D * 0.006);
-    ctx.stroke();
+      // Glass rim + idle glow ("it breathes — the shell glows faintly as it thinks")
+      const glowPulse =
+        this.state === "thinking" || this.neuralBlend > 0.3
+          ? 0.5 + 0.5 * Math.sin(now * 0.0035)
+          : 0.5 + 0.5 * Math.sin(now * 0.0012);
+      ctx.beginPath();
+      ctx.arc(cx, cy, R - 1.5, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(${opts.eyeRgb},${(0.12 + 0.14 * glowPulse * opts.theme.idleGlow).toFixed(3)})`;
+      ctx.lineWidth = Math.max(1, D * 0.006);
+      ctx.stroke();
+    }
 
     const eyeAlpha = 1 - this.neuralBlend;
     if (eyeAlpha > 0.02) this.drawEyes(ctx, now, D, cx, cy, eyeAlpha, opts);
     if (this.neuralBlend > 0.02) this.drawCluster(ctx, now, dt, D, cx, cy, this.neuralBlend, opts);
 
     // ── Emoji overlay ─────────────────────────────────────────────────────────
-    // A momentary accent glyph near the top of the face; the eyes stay the star.
-    const emoji = opts.emoji && opts.emoji.trim() ? opts.emoji.trim() : null;
+    // A momentary accent glyph near the top of the face. NOT in bare/robot mode:
+    // on the robot the emotion lives entirely in the eyes — no floating glyph.
+    const emoji = !opts.bare && opts.emoji && opts.emoji.trim() ? opts.emoji.trim() : null;
     if (emoji !== this.emojiValue) {
       this.emojiValue = emoji;
       this.emojiSince = now;

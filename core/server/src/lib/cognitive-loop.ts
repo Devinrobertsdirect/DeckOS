@@ -13,7 +13,7 @@
  *   4. Decay stale goals (once per DECAY_EVERY_MS)
  *   5. Prune old predictions (once per PRUNE_EVERY_MS)
  */
-import { db, goalsTable, predictionsTable, autonomyConfigTable, userCognitiveModelTable } from "@workspace/db";
+import { db, dbEnabled, goalsTable, predictionsTable, autonomyConfigTable, userCognitiveModelTable } from "@workspace/db";
 import { eq, desc, lt, and } from "drizzle-orm";
 import { bus } from "./bus.js";
 import { logger } from "./logger.js";
@@ -45,6 +45,11 @@ export class CognitiveLoop {
   // ── Main tick ────────────────────────────────────────────────────────────
 
   async tick(): Promise<void> {
+    // The cognitive loop is entirely DB-backed (predictions, goals, autonomy).
+    // With no database it has nothing to operate on — skip the tick rather than
+    // run five queries that each reject. Autonomy/predictions need a backend.
+    if (!dbEnabled) return;
+
     this.tickCount++;
     const now = Date.now();
 

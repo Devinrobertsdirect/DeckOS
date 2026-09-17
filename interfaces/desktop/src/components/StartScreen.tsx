@@ -21,8 +21,8 @@ const COLOR_HEX: Record<ColorScheme, string> = {
   red:    "#f03248",
 };
 const COLOR_NAME: Record<ColorScheme, string> = {
-  steel:  "NEURA STEEL",
-  ice:    "NEURA ICE",
+  steel:  "NOBI STEEL",
+  ice:    "NOBI ICE",
   blue:   "COBALT",
   green:  "EMERALD",
   yellow: "AMBER",
@@ -53,7 +53,7 @@ function HudCorners() {
   );
 }
 
-const TITLE = "NEURA";
+const TITLE = "NOBI";
 const SUBTITLE = "DECKOS — PERSONAL AI OPERATING SYSTEM";
 
 export function StartScreen({ onStart }: Props) {
@@ -229,6 +229,7 @@ export function StartScreen({ onStart }: Props) {
         {/* START button */}
         <button
           onClick={onStart}
+          autoFocus
           className="w-full font-mono font-bold text-xl tracking-[0.35em] uppercase py-4 border-2 transition-colors bg-transparent"
           style={{
             color: "hsl(var(--primary))",

@@ -9,7 +9,7 @@
  * behind the HAL." — ATL-HW-001.)
  */
 
-export type BodyBackend = "sim" | "serial" | "pi";
+export type BodyBackend = "sim" | "serial" | "pi" | "adeept";
 
 export interface Odometry {
   x: number;   // metres
@@ -36,7 +36,7 @@ export interface BodyState {
 export type BodyEvent = "ready" | "telemetry" | "event" | "disconnect";
 
 export interface AtlasBody {
-  /** Which backend this is — "sim" | "serial" | "pi". */
+  /** Which backend this is — "sim" | "serial" | "pi" | "adeept". */
   readonly kind: BodyBackend;
   /** Connect / spin up. Resolves once the body is ready (or a sim is running). */
   start(): Promise<void>;

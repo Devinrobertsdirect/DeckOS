@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+</head>
+<body>
+<title>Meet Nobi</title>
+<style>
+  :root{
+    --bg:#080d1a; --bg2:#0c1428; --ink:#eaf1ff; --dim:#9fb2d6; --faint:#6d80a8;
+    --cobalt:#4f8bff; --cobalt-2:#7aa8ff; --gold:#f5b83d; --line:#22314f;
+    --eye:#c9dcf0; --panel:rgba(18,28,52,.72);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:'Segoe UI',ui-sans-serif,system-ui,-apple-system,sans-serif;color:var(--ink);
+    background:
+      radial-gradient(1200px 700px at 78% -10%,rgba(79,139,255,.20),transparent 60%),
+      radial-gradient(1000px 620px at 6% 108%,rgba(245,184,61,.10),transparent 55%),
+      var(--bg);
+    overflow:hidden;
+  }
+  .stage{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:22px;text-align:center}
+
+  /* narrator face */
+  .face{width:132px;height:132px;flex:0 0 auto;filter:drop-shadow(0 0 22px rgba(79,139,255,.35));transition:filter .6s}
+  .face .eye{fill:var(--eye);transition:fill .7s}
+  .face .lid{fill:var(--bg);}
+  .blink{animation:blink 5.4s infinite}
+  @keyframes blink{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.08)}}
+  @media (prefers-reduced-motion:reduce){.blink{animation:none}*{animation-duration:.001s!important}}
+
+  /* scene stage */
+  .viz{height:min(38vh,320px);width:min(92vw,560px);margin:6px 0 10px;position:relative;display:flex;align-items:center;justify-content:center}
+  .scene{position:absolute;inset:0;display:none;align-items:center;justify-content:center}
+  .scene.on{display:flex}
+
+  .kicker{font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--gold);font-weight:800}
+  h1{font-size:clamp(26px,5vw,44px);font-weight:850;letter-spacing:-.02em;margin:6px 0 4px;text-wrap:balance}
+  h1 em{color:var(--gold);font-style:normal}
+  .say{color:var(--dim);font-size:clamp(14px,2.3vw,17px);max-width:52ch;margin:0 auto;line-height:1.5}
+  .cmds{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:14px;min-height:30px}
+  .cmd{font-family:ui-monospace,Consolas,monospace;font-size:13px;color:#fff;background:rgba(10,19,39,.85);border:1px solid var(--line);border-radius:9px;padding:4px 11px}
+  .cmd::before{content:"“";color:var(--faint)}.cmd::after{content:"”";color:var(--faint)}
+
+  /* controls */
+  .ctrl{position:fixed;left:0;right:0;bottom:20px;display:flex;flex-direction:column;align-items:center;gap:12px}
+  .rail{display:flex;gap:7px;align-items:center}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--line);border:0;cursor:pointer;padding:0;transition:all .3s}
+  .dot.on{background:var(--cobalt);box-shadow:0 0 10px var(--cobalt);width:26px;border-radius:5px}
+  .btns{display:flex;gap:10px;align-items:center}
+  .btns button{font:inherit;font-size:14px;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:9px 16px;cursor:pointer;display:flex;align-items:center;gap:8px;backdrop-filter:blur(6px)}
+  .btns button:hover{border-color:var(--cobalt)}
+  .btns .play{min-width:112px;justify-content:center}
+  .hint{position:fixed;top:16px;left:0;right:0;text-align:center;font-size:12px;color:var(--faint)}
+  .hint b{color:var(--dim)}
+  .counter{font-variant-numeric:tabular-nums;color:var(--faint);font-size:12.5px;min-width:44px;text-align:center}
+
+  /* ---------- shared animation atoms ---------- */
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes spinR{to{transform:rotate(-360deg)}}
+  @keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+  @keyframes ripple{0%{transform:scale(.4);opacity:.9}100%{transform:scale(1.9);opacity:0}}
+  @keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-13px)}}
+  @keyframes rollx{0%{transform:translateX(-150px)}100%{transform:translateX(150px)}}
+  @keyframes draw{to{stroke-dashoffset:0}}
+  @keyframes pop{0%{transform:scale(0);opacity:0}70%{transform:scale(1.12)}100%{transform:scale(1);opacity:1}}
+  @keyframes hue{to{filter:hue-rotate(360deg)}}
+  @keyframes eq{0%,100%{height:14px}50%{height:52px}}
+  @keyframes fanIn{0%{transform:translateY(24px) rotate(0);opacity:0}100%{transform:translateY(0) var(--rot);opacity:1}}
+  @keyframes sweep{0%{transform:translateX(-100%)}100%{transform:translateX(220%)}}
+  @keyframes tickIn{0%{transform:translateX(-14px);opacity:0}100%{transform:translateX(0);opacity:1}}
+  @keyframes sparkle{0%,100%{opacity:0;transform:scale(.4)}50%{opacity:1;transform:scale(1)}}
+  .svg{width:100%;height:100%;overflow:visible}
+  .c-cobalt{color:var(--cobalt)} .c-gold{color:var(--gold)}
+
+  /* scene: colors — hue cycling eyes */
+  .huebox{animation:hue 6s linear infinite}
+  /* scene: voice equalizer bars */
+  .bars{display:flex;gap:7px;align-items:center;height:70px}
+  .bars i{width:9px;border-radius:5px;background:linear-gradient(var(--cobalt),var(--gold));animation:eq 1s ease-in-out infinite}
+  /* scene: thinking dots */
+  .think{display:flex;gap:10px}.think i{width:15px;height:15px;border-radius:50%;background:var(--cobalt);animation:bounce 1.1s infinite}
+  /* card fan */
+  .fan{position:relative;width:220px;height:150px}
+  .fan .card{position:absolute;left:60px;top:14px;width:100px;height:124px;border-radius:12px;background:linear-gradient(160deg,#16233f,#0e1830);border:1px solid var(--line);box-shadow:0 10px 26px rgba(0,0,0,.4);animation:fanIn .7s both}
+  /* sparkles */
+  .spk{position:absolute;width:12px;height:12px;color:var(--gold);animation:sparkle 1.6s infinite}
+</style>
+
+<div class="hint" id="hint">Nobi’s walkthrough · <b>tap the dots or use ← →</b></div>
+
+<div class="stage">
+  <!-- narrator face -->
+  <svg class="face" id="face" viewBox="0 0 120 120" aria-hidden="true">
+    <g id="eyes" class="blink" style="transform-origin:60px 60px">
+      <rect class="eye" id="eL" x="34" y="34" width="14" height="52" rx="7"/>
+      <rect class="eye" id="eR" x="72" y="34" width="14" height="52" rx="7"/>
+    </g>
+  </svg>
+
+  <div class="viz" id="viz">
+    <!-- 1 meet -->
+    <div class="scene on" data-color="#4f8bff">
+      <svg class="svg" viewBox="0 0 400 300"><g style="animation:floaty 4s ease-in-out infinite">
+        <circle cx="200" cy="150" r="96" fill="none" stroke="#22314f" stroke-width="2"/>
+        <circle cx="200" cy="150" r="120" fill="none" stroke="#16233f" stroke-width="2" style="animation:spin 22s linear infinite;transform-origin:200px 150px"/>
+        <rect x="160" y="112" width="20" height="76" rx="10" fill="#c9dcf0" style="animation:blink 3.5s infinite;transform-origin:200px 150px"/>
+        <rect x="222" y="112" width="20" height="76" rx="10" fill="#c9dcf0" style="animation:blink 3.5s infinite;transform-origin:200px 150px"/>
+      </g></svg>
+    </div>
+    <!-- 2 wake -->
+    <div class="scene" data-color="#45C4FF">
+      <svg class="svg" viewBox="0 0 400 300">
+        <circle cx="200" cy="150" r="34" fill="none" stroke="#45C4FF" stroke-width="3" style="animation:ripple 2.4s ease-out infinite;transform-origin:200px 150px"/>
+        <circle cx="200" cy="150" r="34" fill="none" stroke="#45C4FF" stroke-width="3" style="animation:ripple 2.4s ease-out infinite 1.2s;transform-origin:200px 150px"/>
+        <circle cx="200" cy="150" r="70" fill="none" stroke="#f5b83d" stroke-width="3" stroke-dasharray="8 12" style="animation:spin 8s linear infinite;transform-origin:200px 150px"/>
+        <rect x="184" y="132" width="12" height="36" rx="6" fill="#c9dcf0"/><rect x="206" y="132" width="12" height="36" rx="6" fill="#c9dcf0"/>
+      </svg>
+    </div>
+    <!-- 3 talk / brain -->
+    <div class="scene" data-color="#7aa8ff">
+      <svg class="svg" viewBox="0 0 400 300">
+        <g style="transform-origin:200px 150px;animation:floaty 3.5s ease-in-out infinite">
+          <circle cx="200" cy="140" r="60" fill="url(#brainG)" opacity=".9"/>
+          <circle cx="200" cy="140" r="60" fill="none" stroke="#7aa8ff" stroke-width="2"/>
+          <path d="M200 90 v100 M170 110 q30 30 60 0 M170 170 q30 -30 60 0" stroke="#0c1428" stroke-width="3" fill="none"/>
+        </g>
+        <g transform="translate(200 240)"><g class="think" style="transform:translateX(-25px)"></g></g>
+        <defs><radialGradient id="brainG"><stop offset="0%" stop-color="#7aa8ff"/><stop offset="100%" stop-color="#3d5aff"/></radialGradient></defs>
+      </svg>
+      <div style="position:absolute;bottom:6px" class="think"><i></i><i style="animation-delay:.15s"></i><i style="animation-delay:.3s"></i></div>
+    </div>
+    <!-- 4 expressions -->
+    <div class="scene" data-color="#B14AFF">
+      <svg class="svg" viewBox="0 0 400 300" id="exprSvg">
+        <g id="exprEyes"></g>
+      </svg>
+    </div>
+    <!-- 5 colors -->
+    <div class="scene" data-color="#22E0A0">
+      <svg class="svg huebox" viewBox="0 0 400 300">
+        <rect x="150" y="110" width="26" height="90" rx="13" fill="#22E0A0"/><rect x="224" y="110" width="26" height="90" rx="13" fill="#22E0A0"/>
+        <circle cx="200" cy="155" r="120" fill="none" stroke="#22E0A0" stroke-width="2" opacity=".4"/>
+      </svg>
+    </div>
+    <!-- 6 voice -->
+    <div class="scene" data-color="#f5b83d">
+      <div class="bars" id="bars"></div>
+    </div>
+    <!-- 7 drive -->
+    <div class="scene" data-color="#FF7A18">
+      <svg class="svg" viewBox="0 0 400 300">
+        <line x1="40" y1="230" x2="360" y2="230" stroke="#22314f" stroke-width="3"/>
+        <g style="animation:rollx 3s ease-in-out infinite alternate">
+          <rect x="170" y="150" width="70" height="56" rx="12" fill="#16233f" stroke="#FF7A18" stroke-width="2"/>
+          <rect x="188" y="166" width="14" height="24" rx="4" fill="#FF9F1C"/><rect x="210" y="166" width="14" height="24" rx="4" fill="#FF9F1C"/>
+          <circle cx="188" cy="212" r="15" fill="#0c1428" stroke="#FF7A18" stroke-width="3" style="animation:spin 1s linear infinite;transform-origin:188px 212px"/>
+          <circle cx="222" cy="212" r="15" fill="#0c1428" stroke="#FF7A18" stroke-width="3" style="animation:spin 1s linear infinite;transform-origin:222px 212px"/>
+        </g>
+      </svg>
+    </div>
+    <!-- 8 screens -->
+    <div class="scene" data-color="#4f8bff">
+      <div class="fan" id="fan"></div>
+    </div>
+    <!-- 9 goals -->
+    <div class="scene" data-color="#34d399">
+      <svg class="svg" viewBox="0 0 400 300" id="goalsSvg"></svg>
+    </div>
+    <!-- 10 memory -->
+    <div class="scene" data-color="#45C4FF">
+      <svg class="svg" viewBox="0 0 400 300">
+        <g id="memCards"></g>
+        <path d="M200 70 q-46 0 -46 46 q-30 6 -30 40 q0 34 40 40 q6 26 44 26 q38 0 44 -26 q40 -6 40 -40 q0 -34 -30 -40 q0 -46 -46 -46z" fill="none" stroke="#45C4FF" stroke-width="2" opacity=".5" transform="translate(0 10) scale(.9)" transform-origin="200 150"/>
+      </svg>
+    </div>
+    <!-- 11 image gen -->
+    <div class="scene" data-color="#E070FF">
+      <svg class="svg" viewBox="0 0 400 300">
+        <rect x="120" y="80" width="160" height="140" rx="10" fill="#0c1428" stroke="#E070FF" stroke-width="2"/>
+        <circle cx="170" cy="130" r="16" fill="#f5b83d" stroke-dasharray="120" stroke-dashoffset="120" style="animation:draw 1.4s ease-out infinite alternate" stroke="#f5b83d"/>
+        <path d="M130 200 L175 150 L205 185 L235 145 L270 200 Z" fill="none" stroke="#52FFC0" stroke-width="3" stroke-dasharray="360" stroke-dashoffset="360" style="animation:draw 2.2s ease-out infinite alternate"/>
+        <text class="spk" x="292" y="92" style="animation-delay:0s">✦</text>
+        <text class="spk" x="104" y="210" style="animation-delay:.5s">✦</text>
+        <text class="spk" x="300" y="210" style="animation-delay:1s">✦</text>
+      </svg>
+    </div>
+    <!-- 12 agentic -->
+    <div class="scene" data-color="#4f8bff">
+      <svg class="svg" viewBox="0 0 400 300">
+        <g transform="translate(150 150)" style="animation:spin 6s linear infinite;transform-origin:150px 150px"><path id="gear" d="M0-46 l10 6 12-4 4 12 12 6-4 12 6 10-10 6-6 12-12-4-10 6-10-6-12 4-6-12-10-6 4-12-6-10 10-6 6-12 12 4 10-6z" fill="#16233f" stroke="#4f8bff" stroke-width="2"/><circle r="16" fill="#0c1428" stroke="#4f8bff" stroke-width="2"/></g>
+        <g transform="translate(250 130)" style="animation:spinR 4s linear infinite;transform-origin:250px 130px"><use href="#gear" transform="scale(.62)"/></g>
+        <g transform="translate(250 205)" style="animation:spinR 5s linear infinite;transform-origin:250px 205px"><use href="#gear" transform="scale(.5)"/></g>
+      </svg>
+    </div>
+    <!-- 13 fun -->
+    <div class="scene" data-color="#FFC820">
+      <svg class="svg" viewBox="0 0 400 300">
+        <g style="animation:floaty 2.4s ease-in-out infinite"><rect x="120" y="110" width="80" height="80" rx="14" fill="#16233f" stroke="#FFC820" stroke-width="2" style="animation:spin 3s ease-in-out infinite;transform-origin:160px 150px"/>
+        <circle cx="145" cy="135" r="7" fill="#FFC820"/><circle cx="175" cy="165" r="7" fill="#FFC820"/><circle cx="160" cy="150" r="7" fill="#FFC820"/></g>
+        <g style="animation:floaty 2.4s ease-in-out infinite .4s"><circle cx="270" cy="150" r="44" fill="#0c1428" stroke="#4f8bff" stroke-width="2"/><circle cx="270" cy="150" r="20" fill="#4f8bff"/><text x="270" y="156" text-anchor="middle" fill="#fff" font-size="18" font-weight="800">8</text></g>
+      </svg>
+    </div>
+    <!-- 14 phone -->
+    <div class="scene" data-color="#52FFC0">
+      <svg class="svg" viewBox="0 0 400 300">
+        <rect x="150" y="70" width="100" height="170" rx="16" fill="#0c1428" stroke="#52FFC0" stroke-width="2"/>
+        <g id="qr" transform="translate(170 100)"></g>
+        <text x="200" y="228" text-anchor="middle" fill="#fff" font-size="15" font-weight="800" font-family="monospace">4 7 · C 9</text>
+      </svg>
+    </div>
+    <!-- 15 roster -->
+    <div class="scene" data-color="#f5b83d">
+      <svg class="svg" viewBox="0 0 400 300"><g id="grid"></g>
+        <text x="200" y="160" text-anchor="middle" fill="#fff" font-size="40" font-weight="850">177</text>
+        <text x="200" y="186" text-anchor="middle" fill="#9fb2d6" font-size="13" letter-spacing="3">VOICE SKILLS</text>
+      </svg>
+    </div>
+    <!-- 16 recap -->
+    <div class="scene" data-color="#FF6FB0">
+      <svg class="svg" viewBox="0 0 400 300">
+        <rect x="158" y="118" width="20" height="64" rx="10" fill="#c9dcf0"/>
+        <path d="M214 150 q10 -14 22 0 q-4 12 -22 20 q-18 -8 -22 -20 q12 -14 22 0z" fill="#FF6FB0" style="animation:bounce 1.6s ease-in-out infinite"/>
+        <text class="spk" x="150" y="110">✦</text><text class="spk" x="250" y="120" style="animation-delay:.6s">✦</text>
+      </svg>
+    </div>
+  </div>
+
+  <div class="copy">
+    <div class="kicker" id="kicker">Welcome</div>
+    <h1 id="title">Meet <em>Nobi</em></h1>
+    <p class="say" id="say">Your companion with a brain on your machine and a face on your desk. Let me show you everything I can do.</p>
+    <div class="cmds" id="cmds"></div>
+  </div>
+</div>
+
+<div class="ctrl">
+  <div class="rail" id="rail"></div>
+  <div class="btns">
+    <button id="prev">←</button>
+    <button class="play" id="play">⏸ Pause</button>
+    <button id="next">→</button>
+    <span class="counter" id="counter"></span>
+  </div>
+</div>
+
+<script>
+const SC = [
+  {k:"Welcome",t:"Meet <em>Nobi</em>",s:"Your companion with a brain on your machine and a face on your desk. Let me walk you through everything I can do.",c:[],face:"#4f8bff"},
+  {k:"Wake me",t:"Just say my <em>name</em>",s:"Say “Nobi” or “robot” and I start listening. After I answer I keep listening for about 8 seconds, so follow-ups need no wake word.",c:["Nobi","hey robot"],face:"#45C4FF"},
+  {k:"Talk to me",t:"Ask me <em>anything</em>",s:"I think with Claude and answer out loud in a natural voice. Ask a question, get help, or just chat.",c:["what's the weather","explain photosynthesis","help me word this text"],face:"#7aa8ff"},
+  {k:"Expressions",t:"37 <em>faces</em>",s:"My eyes reshape to show emotion, and they recolor to match. Ask for a mood or a funny face any time.",c:["show me happy","make a funny face","go dizzy"],face:"#B14AFF"},
+  {k:"Color",t:"Any <em>color</em> you say",s:"Fifty-five colors. Say one and my eyes snap to the nearest vivid match.",c:["go emerald","turn hot pink","make it gold"],face:"#22E0A0"},
+  {k:"Voice",t:"I <em>speak</em> back",s:"Every answer is spoken in a premium ElevenLabs voice. Tell me to talk faster, slower, or switch voices.",c:["talk faster","slow down","use the ElevenLabs voice"],face:"#f5b83d"},
+  {k:"Move",t:"<em>Drive</em> the body",s:"Movement is gated behind the word “drive,” so normal talk never moves me. Then steer.",c:["drive forward","drive left","spin around"],face:"#FF7A18"},
+  {k:"Navigate",t:"Open any <em>screen</em>",s:"Sixteen screens, all by voice — memory, analytics, the brain panel, the plugin store, and more.",c:["open my memory","open analytics","the plugin store"],face:"#4f8bff"},
+  {k:"Plan",t:"Goals & <em>planning</em>",s:"Add goals, get a daily briefing, hear predictions, check what's nagging you. (Needs the database on the full build.)",c:["add a goal to ship the demo","brief me","any nudges"],face:"#34d399"},
+  {k:"Remember",t:"I <em>remember</em>",s:"Tell me things and I keep them. Ask me later and I recall. Forget on command.",c:["remember I take my coffee black","what do you know about me","forget that"],face:"#45C4FF"},
+  {k:"Create",t:"<em>Generate</em> an image",s:"Describe a picture and I paint it and show it on my face — no key needed to start.",c:["draw me a neon city","generate an image of a fox","picture a sunset over mountains"],face:"#E070FF"},
+  {k:"Do things",t:"Put me to <em>work</em>",s:"When your keys are in, I don't just talk — I use tools: check your system, run commands, search your memory, look things up.",c:["what's my system status","search my memory for the demo","look up today's news"],face:"#4f8bff"},
+  {k:"Play",t:"Fun & <em>games</em>",s:"No wifi needed. Flip a coin, roll dice, play the number game, take a riddle, get roasted.",c:["flip a coin","roll a dice","rock paper scissors","tell me a riddle"],face:"#FFC820"},
+  {k:"Connect",t:"Pair your <em>phone</em>",s:"Ask for the code and control me from your phone — no keyboard on the robot required.",c:["how do I connect my phone","what's the pairing code"],face:"#52FFC0"},
+  {k:"Everything",t:"<em>177</em> skills, and counting",s:"That's the whole toolkit — colors, moods, movement, planning, memory, creativity, and play. Explore them all in the Skill Roster.",c:["what can you do","help"],face:"#f5b83d"},
+  {k:"Anytime",t:"Say <em>“tutorial mode”</em>",s:"Want this walkthrough again? Just say the word and I'll bring it right back. Now go talk to me.",c:["tutorial mode"],face:"#FF6FB0"},
+];
+const scenes=[...document.querySelectorAll('.scene')];
+const rail=document.getElementById('rail'), face=document.getElementById('face');
+const eL=document.getElementById('eL'), eR=document.getElementById('eR'), eyes=document.getElementById('eyes');
+let i=0, playing=true, timer=null;
+const DUR=8200;
+
+// build dynamic bits
+document.getElementById('bars').innerHTML=Array.from({length:11},(_,n)=>`<i style="animation-delay:${n*0.09}s"></i>`).join('');
+document.getElementById('fan').innerHTML=[-16,-8,0,8,16].map((r,n)=>`<div class="card" style="--rot:rotate(${r}deg);animation-delay:${n*0.12}s;background:linear-gradient(160deg,#16233f,#0e1830)"></div>`).join('');
+document.getElementById('qr').innerHTML=Array.from({length:36},(_,n)=>Math.random()>.42?`<rect x="${(n%6)*10}" y="${((n/6)|0)*10}" width="9" height="9" rx="1.5" fill="#52FFC0"/>`:'').join('');
+document.getElementById('grid').innerHTML=Array.from({length:70},(_,n)=>`<circle cx="${40+(n%14)*24}" cy="${70+((n/14)|0)*34}" r="4" fill="#4f8bff" opacity="0"><animate attributeName="opacity" values="0;.7;0" dur="2.4s" begin="${(n%14)*0.08+((n/14)|0)*0.1}s" repeatCount="indefinite"/></circle>`).join('');
+document.getElementById('goalsSvg').innerHTML=[0,1,2].map((n)=>`<g style="animation:tickIn .5s both ${0.5+n*0.5}s"><rect x="120" y="${90+n*46}" width="160" height="34" rx="8" fill="#16233f" stroke="#22314f"/><path d="M132 ${107+n*46} l7 7 13-14" stroke="#34d399" stroke-width="3" fill="none" stroke-dasharray="30" stroke-dashoffset="30" style="animation:draw .5s ease-out both ${0.9+n*0.5}s"/><rect x="160" y="${102+n*46}" width="${90-n*16}" height="8" rx="4" fill="#2a3a5c"/></g>`).join('');
+document.getElementById('memCards').innerHTML=[0,1,2,3].map(n=>`<rect x="${150+n*4}" y="${190-n*26}" width="100" height="30" rx="7" fill="#16233f" stroke="#45C4FF" stroke-width="1.5" style="animation:pop .5s both ${n*0.25}s"/>`).join('');
+const exprSet=[["rect|160,112,20,76,10","rect|220,112,20,76,10"],["path|M158 150 q22 -26 44 0","path|M220 150 q22 -26 44 0"],["path|M158 168 q22 22 44 0","path|M220 168 q22 22 44 0"],["circle|182,150,20","circle|240,150,20"],["rect|160,120,20,60,10","path|M220 150 q22 -22 44 0"]];
+let exprIdx=0;
+function drawExpr(){const g=document.getElementById('exprEyes');const pair=exprSet[exprIdx%exprSet.length];g.innerHTML=pair.map(spec=>{const[t,d]=spec.split('|');const a=d.split(',');if(t==='rect')return `<rect x="${a[0]}" y="${a[1]}" width="${a[2]}" height="${a[3]}" rx="${a[4]}" fill="#B14AFF"/>`;if(t==='circle')return `<circle cx="${a[0]}" cy="${a[1]}" r="${a[2]}" fill="none" stroke="#B14AFF" stroke-width="14"/>`;return `<path d="${d}" fill="none" stroke="#B14AFF" stroke-width="14" stroke-linecap="round"/>`;}).join('');exprIdx++;}
+setInterval(()=>{ if(scenes[3].classList.contains('on')) drawExpr(); },900); drawExpr();
+
+SC.forEach((_,n)=>{const b=document.createElement('button');b.className='dot'+(n===0?' on':'');b.onclick=()=>go(n);rail.appendChild(b);});
+
+function render(){
+  const s=SC[i];
+  document.getElementById('kicker').textContent=s.k;
+  document.getElementById('title').innerHTML=s.t;
+  document.getElementById('say').textContent=s.s;
+  document.getElementById('cmds').innerHTML=s.c.map(c=>`<span class="cmd">${c}</span>`).join('');
+  document.getElementById('counter').textContent=(i+1)+' / '+SC.length;
+  scenes.forEach((sc,n)=>sc.classList.toggle('on',n===i));
+  rail.querySelectorAll('.dot').forEach((d,n)=>d.classList.toggle('on',n===i));
+  eL.setAttribute('fill',s.face); eR.setAttribute('fill',s.face);
+  face.style.filter=`drop-shadow(0 0 22px ${s.face}66)`;
+  // little face reaction
+  eyes.style.transform=`translateX(${(i%3-1)*6}px)`;
+}
+function go(n){ i=(n+SC.length)%SC.length; render(); if(playing) arm(); }
+function arm(){ clearTimeout(timer); timer=setTimeout(()=>go(i+1), DUR); }
+function setPlay(p){ playing=p; document.getElementById('play').textContent=p?'⏸ Pause':'▶ Play'; if(p) arm(); else clearTimeout(timer); }
+document.getElementById('next').onclick=()=>go(i+1);
+document.getElementById('prev').onclick=()=>go(i-1);
+document.getElementById('play').onclick=()=>setPlay(!playing);
+addEventListener('keydown',e=>{if(e.key==='ArrowRight')go(i+1);else if(e.key==='ArrowLeft')go(i-1);else if(e.key===' '){e.preventDefault();setPlay(!playing);}});
+render(); arm();
+</script>
+
+</body>
+</html>

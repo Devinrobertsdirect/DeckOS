@@ -10,7 +10,7 @@ import {
   ExecutePluginCommandBody,
   ExecutePluginCommandResponse,
 } from "@workspace/api-zod";
-import { db, pluginStateTable } from "@workspace/db";
+import { db, dbEnabled, pluginStateTable } from "@workspace/db";
 import { logger } from "../lib/logger.js";
 
 const router = Router();
@@ -131,6 +131,9 @@ const HEALTH_CHECK_COMMANDS: Record<string, string> = {
 };
 
 async function persistPluginState(plugin: Plugin): Promise<void> {
+  // Local-first desktop runs with no Postgres — don't dial a socket that isn't
+  // there. Plugin state simply stays in memory for the session.
+  if (!dbEnabled) return;
   try {
     await db
       .insert(pluginStateTable)
@@ -153,6 +156,10 @@ async function persistPluginState(plugin: Plugin): Promise<void> {
 }
 
 async function loadPluginState(): Promise<void> {
+  if (!dbEnabled) {
+    logger.info("plugins: no database configured — using in-memory plugin state");
+    return;
+  }
   try {
     const rows = await db.select().from(pluginStateTable);
     const stateMap = new Map(rows.map((r) => [r.pluginId, r]));

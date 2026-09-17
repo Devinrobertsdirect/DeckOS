@@ -6,6 +6,7 @@ import { botName } from "./identity.js";
 import { PluginRegistry } from "./plugin-registry.js";
 import { memoryService } from "./memory-service.js";
 import { runInference, runInferenceStreaming, refreshOllamaDetection, getInferenceState, type InferenceMode } from "./inference.js";
+import { ensureLocalModel } from "./local-model.js";
 import { broadcast } from "./ws-server.js";
 import { buildPersonalizedPrompt } from "./system-prompt.js";
 import { logger } from "./logger.js";
@@ -433,10 +434,19 @@ export async function bootstrap(): Promise<void> {
   });
 
   await refreshOllamaDetection().catch(() => {});
+  // Auto-install a local model if a local runtime is present but empty, then
+  // hook it — so Nobi always has a free local brain once Ollama is around.
+  void ensureLocalModel().catch(() => {});
 
   // Re-probe Ollama every 30 s so it is discovered automatically when started
-  // after the server (e.g. user launches Ollama while Deck OS is already running).
-  setInterval(() => { void refreshOllamaDetection().catch(() => {}); }, 30_000);
+  // after the server (e.g. user launches Ollama while Deck OS is already running),
+  // and auto-install/hook a model the moment a runtime appears.
+  setInterval(() => {
+    void (async () => {
+      await refreshOllamaDetection().catch(() => {});
+      await ensureLocalModel().catch(() => {});
+    })();
+  }, 30_000);
 
   await registry.loadPluginsDir();
 

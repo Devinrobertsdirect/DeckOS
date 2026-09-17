@@ -1,6 +1,6 @@
 # DeckOS Atlas — Genesis (the first-run sequence)
 
-> A developer's guide to what happens the *very first* time someone opens Neura, before
+> A developer's guide to what happens the *very first* time someone opens Nobi, before
 > they ever see a dashboard. Genesis is three acts: **Setup wizard → Genesis intro →
 > the app (Pet or Developer mode).** Related: [ARCHITECTURE.md](ARCHITECTURE.md),
 > [FACE-SPEC.md](FACE-SPEC.md) (the expressions), [DEVICES-AND-BLE.md](DEVICES-AND-BLE.md)
@@ -42,13 +42,13 @@ not fork them:
                                               └────────────────────────┘
 ```
 
-Both gates are checked on load. If both are already satisfied, Neura boots straight into
+Both gates are checked on load. If both are already satisfied, Nobi boots straight into
 the app in the last-used `atlas_ui_mode`.
 
 ## Act 1 — Setup wizard
 
 Runs while `isSetupDone()` is `false`. It collects three things and nothing else — the
-goal is "talking to Neura in under a minute," not a settings marathon.
+goal is "talking to Nobi in under a minute," not a settings marathon.
 
 1. **Name.** "What should I call you?" → `setUserName(name)`. Stored in
    `atlas_user_name`; later spoken by the intro (`{name}`) and used throughout the app.
@@ -62,7 +62,7 @@ goal is "talking to Neura in under a minute," not a settings marathon.
    are write-only from the UI** — never read them back or print them.
 3. **Voice engine.** `setVoiceEngine("browser" | "server")`. `"browser"` is the
    zero-config default (`window.speechSynthesis`). `"server"` unlocks once an ElevenLabs
-   key is saved and gives Neura a real, waveform-driven voice. Stored in
+   key is saved and gives Nobi a real, waveform-driven voice. Stored in
    `atlas_voice_engine`.
 
 On finish, call `markSetupDone()` and advance to the intro.
@@ -119,7 +119,7 @@ Offer a **skip** (still call `markIntroDone()`), and see `resetGenesis()` below 
 
 ## Act 3 — Pet mode vs Developer mode
 
-After the intro, Neura lands in the app in one of two UI modes (`useUiMode()` /
+After the intro, Nobi lands in the app in one of two UI modes (`useUiMode()` /
 `getUiMode()` / `setUiMode()`, persisted in `atlas_ui_mode`, **default `"pet"`**):
 
 | Mode | Who it's for | What it is |
@@ -137,7 +137,7 @@ subscribers re-render live when the mode is toggled anywhere in the app.
 | `atlas_genesis_setup_done` | `markSetupDone()` | Setup wizard finished — skip Act 1. |
 | `atlas_genesis_intro_done` | `markIntroDone()` | Intro watched (or skipped) — skip Act 2. |
 | `atlas_ui_mode` | `setUiMode()` | `"pet"` or `"developer"` (default `"pet"`). |
-| `atlas_user_name` | `setUserName()` | What Neura calls the user; spoken in the intro. |
+| `atlas_user_name` | `setUserName()` | What Nobi calls the user; spoken in the intro. |
 | `atlas_voice_engine` | `setVoiceEngine()` | `"browser"` (default) or `"server"` (ElevenLabs). |
 
 > Note: `atlas_user_name`, `atlas_ui_mode`, and `atlas_voice_engine` are *preferences*
@@ -192,7 +192,7 @@ Keep the two in sync: a `ProviderDef` with no backend connector should stay
 
 ## AI-powered intro (v2)
 
-The intro narration is generated live the first time Neura meets a user, so the
+The intro narration is generated live the first time Nobi meets a user, so the
 "banter" is written by the model, not hard-coded:
 
 - `POST /api/genesis/intro { name, providers?[] }` → `{ beats:[{expression,text}], source:"ai"|"fallback" }`.
@@ -201,7 +201,7 @@ The intro narration is generated live the first time Neura meets a user, so the
   idle/happy/listening/thinking/excited/confused), and returns a hand-written
   fallback if generation or JSON parsing fails.
 - The client (`GenesisIntro.tsx`) pre-fetches on mount (cached in sessionStorage
-  as `atlas_intro_beats`) so it's ready by the time the user taps to wake Neura.
+  as `atlas_intro_beats`) so it's ready by the time the user taps to wake Nobi.
   If the model is slow (local Ollama can take ~40–100s), it falls back to the
   static `buildGenesisScript` after ~2.5s — the user never waits. A fast cloud
   model (Claude Haiku, Gemini Flash) returns in a couple of seconds and the
@@ -209,7 +209,7 @@ The intro narration is generated live the first time Neura meets a user, so the
 
 ## Setup wizard (4 steps)
 
-Name → **How Neura gets smart** (a plain-language API/keys explainer, added so a
+Name → **How Nobi gets smart** (a plain-language API/keys explainer, added so a
 non-technical user understands *before* the connect screen) → Connect your minds
 → Give me a voice. All before the intro.
 
@@ -227,10 +227,10 @@ Reordered so the **API-keys screen is the first thing after the home screen**:
 1. Home (StartScreen)
 2. **Do you have any AI keys to plug in?** — provider cards with a plain-language
    primer, save or skip. The voice engine is auto-set here: if an ElevenLabs key
-   is present, Neura uses it; otherwise the browser voice.
+   is present, Nobi uses it; otherwise the browser voice.
 3. **What should I call you?** — name.
 4. **Genesis intro** — AI-written, uses the connected providers.
-5. **Talk or type?** (`InputChoice.tsx`) — Neura asks out loud; choosing *Talk*
+5. **Talk or type?** (`InputChoice.tsx`) — Nobi asks out loud; choosing *Talk*
    triggers `acquireMic()` (silent on a robot with no permission gate, a prompt on
    desktop). On denial it falls back to text gracefully.
 6. **Pet mode** — in the chosen modality.
@@ -245,7 +245,7 @@ person is *actually* done vs. just thinking mid-sentence:
   modal ("I want **to**…", "**and then**…", "we **could**…").
 - Complete-looking thoughts send after a short grace (~450 ms); trailing-off ones
   wait up to ~2.2 s for more speech before sending anyway.
-- While Neura speaks it goes deaf (`paused`) so it never hears itself.
+- While Nobi speaks it goes deaf (`paused`) so it never hears itself.
 - No SpeechRecognition (or the robot build) → falls back to text / the robot's
   own Whisper+VAD stack.
 

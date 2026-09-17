@@ -100,6 +100,8 @@ interface AtlasFaceProps {
   discTint?: string | null;
   /** Momentary accent glyph flashed above the eyes (e.g. "❤", "!", "✨"). */
   emoji?: string | null;
+  /** Bare = no disc/rim; eyes float on the screen itself (robot full-face). */
+  bare?: boolean;
   className?: string;
 }
 
@@ -115,6 +117,7 @@ export function AtlasFace({
   eyeColorOverride = null,
   discTint = null,
   emoji = null,
+  bare = false,
   className = "",
 }: AtlasFaceProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -122,8 +125,8 @@ export function AtlasFace({
   const theme = useFaceTheme();
 
   // Keep latest props in refs so the RAF loop never restarts.
-  const propsRef = useRef({ mode, state, activity, theme, eyeColorOverride, discTint, emoji });
-  propsRef.current = { mode, state, activity, theme, eyeColorOverride, discTint, emoji };
+  const propsRef = useRef({ mode, state, activity, theme, eyeColorOverride, discTint, emoji, bare });
+  propsRef.current = { mode, state, activity, theme, eyeColorOverride, discTint, emoji, bare };
 
   useEffect(() => {
     if (!engineRef.current) engineRef.current = new AtlasFaceEngine();
@@ -142,7 +145,7 @@ export function AtlasFace({
       const canvas = canvasRef.current;
       const ctx = canvas?.getContext("2d");
       if (canvas && ctx) {
-        const { mode: m, state: s, activity: a, theme: th, eyeColorOverride: eco, discTint: dt, emoji: em } = propsRef.current;
+        const { mode: m, state: s, activity: a, theme: th, eyeColorOverride: eco, discTint: dt, emoji: em, bare: br } = propsRef.current;
         engine.setMode(m);
         engine.setState(s, now);
         engine.draw(ctx, now, {
@@ -153,6 +156,7 @@ export function AtlasFace({
           tintRgb: dt ?? undefined,
           tintStrength: dt ? 0.4 : undefined,
           emoji: em,
+          bare: br,
           theme: th,
         });
       }
@@ -172,7 +176,7 @@ export function AtlasFace({
       height={size}
       className={className}
       style={{ display: "block", margin: "0 auto", width: size, height: size }}
-      aria-label={`Neura face — ${state}`}
+      aria-label={`Nobi face — ${state}`}
       role="img"
     />
   );

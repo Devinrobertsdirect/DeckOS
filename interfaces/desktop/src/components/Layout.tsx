@@ -11,7 +11,7 @@ import { StarkOverlay } from "@/components/StarkOverlay";
 import { ConnectParticles } from "@/components/ConnectParticles";
 import type { DashboardAction } from "@/lib/aceraGestures";
 import {
-  Activity, HardDrive, Cpu as Microchip, Network, Settings,
+  Activity, HardDrive, Cpu as Microchip, Network, Settings, LineChart,
   TerminalSquare, AlertTriangle, CheckCircle2,
   ChevronRight, Layers, Eye, Minimize2, Film, List,
   Camera, CameraOff, Shield, Zap, Map, MapPin, Bot, Clock, Newspaper, Package, GitBranch, Scan, Heart,
@@ -401,12 +401,18 @@ export function Layout({ children }: { children: React.ReactNode }) {
     Date.now() - new Date(d.created_at).getTime() < 5 * 60_000,
   ).length;
 
+  // Analytics (life dashboard) is toggleable — hidden from the menu when disabled.
+  const analyticsOn = (() => {
+    try { return localStorage.getItem("neura_analytics_enabled") !== "0"; } catch { return true; }
+  })();
+
   const navSections = [
     {
       label: "SYSTEM",
       items: [
         { href: "/",               icon: TerminalSquare, label: "AI.CONSOLE" },
         { href: "/hud",            icon: Activity,       label: "SYS.HUD"    },
+        ...(analyticsOn ? [{ href: "/analytics", icon: LineChart, label: "ANALYTICS" }] : []),
         { href: "/ai/personality", icon: Bot,            label: "AI.PERSONA" },
         { href: "/plugins",        icon: Settings,       label: "PLUGINS"    },
         { href: "/plugins/store",  icon: Package,        label: "PLUGIN.STORE" },

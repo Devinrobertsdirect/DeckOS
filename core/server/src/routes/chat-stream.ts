@@ -28,7 +28,7 @@ const StreamRequestSchema = z.object({
   history: z.array(HistoryMessageSchema).optional(),
   facts: z.array(z.string()).optional(),
   /** The client-built personality instruction (name + traits) — see personality.ts. */
-  persona: z.string().max(600).optional(),
+  persona: z.string().max(4000).optional(),
   sessionId: z.string().optional(),
 });
 

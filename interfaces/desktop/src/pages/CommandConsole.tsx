@@ -262,7 +262,7 @@ export default function CommandConsole() {
     <div className="flex flex-col gap-6 h-full">
       <div className="flex items-center gap-2 font-mono text-xs text-primary/60 uppercase tracking-widest">
         <TerminalSquare className="w-4 h-4 text-primary" />
-        <span>COMMAND.CONSOLE // AI EVENT ROUTER // NEURA TERMINAL</span>
+        <span>COMMAND.CONSOLE // AI EVENT ROUTER // NOBI TERMINAL</span>
       </div>
 
       <div className="flex items-center gap-4 px-4 py-2 border border-primary/20 bg-primary/[0.03]">
@@ -306,7 +306,7 @@ export default function CommandConsole() {
             <CardHeader className="border-b border-primary/20 p-3 flex-row items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-[#22ff44] animate-pulse" />
-                <CardTitle className="font-mono text-xs text-primary">NEURA TERMINAL v9.4.2 // WS EVENT MODE</CardTitle>
+                <CardTitle className="font-mono text-xs text-primary">NOBI TERMINAL v9.4.2 // WS EVENT MODE</CardTitle>
               </div>
               <div className="font-mono text-xs text-muted-foreground flex items-center gap-2">
                 <Circle className="w-1.5 h-1.5 fill-[#00ff88] text-[#00ff88]" />

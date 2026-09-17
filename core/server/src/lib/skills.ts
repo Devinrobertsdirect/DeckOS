@@ -16,6 +16,10 @@ import os from "node:os";
 import { getBody, getBodyDetection } from "./body.js";
 import { getInferenceState } from "./inference.js";
 import { getDeviceManager } from "./device-manager.js";
+import { describeScreen } from "./screen-vision.js";
+import { FUN_SKILLS, EXTRA_ACTION_SKILLS } from "./skills-extra.js";
+import { READOUT_SKILLS } from "./skills-readouts.js";
+import { ACTION_SKILLS } from "./skills-actions.js";
 
 // ── Client action contract (executed by PetShell) ────────────────────────────
 export type UiAction =
@@ -34,9 +38,17 @@ export type UiAction =
   | { type: "setAccentColor"; color: string }
   | { type: "setVoiceEngine"; engine: "server" | "browser" }
   | { type: "voiceRate"; delta: number }
-  | { type: "demoFace"; state: string; ms: number }
+  | { type: "demoFace"; state: string; ms: number; color?: string }
   | { type: "setUiMode"; mode: "developer" | "pet" }
   | { type: "setExperienceMode"; mode: "robot" | "computer" }
+  | { type: "openVideo"; query: string }
+  | { type: "videoControl"; action: "pause" | "resume" | "close" }
+  | { type: "survivor"; variant: "torches" | "snuff"; banner: string }
+  | { type: "showImage"; url: string; prompt?: string }
+  | { type: "showcase" }
+  | { type: "introDemo" }
+  | { type: "openTutorial" }
+  | { type: "closeOverlay" }
   | { type: "replayLast" };
 
 export interface AgentDecision {
@@ -46,9 +58,9 @@ export interface AgentDecision {
   ui?: UiAction;
 }
 
-interface SkillCtx { raw: string; lower: string; facts: string[] }
-interface SkillResult { speak: string; ui?: UiAction }
-interface Skill { id: string; handle(ctx: SkillCtx): Promise<SkillResult | null> | (SkillResult | null) }
+export interface SkillCtx { raw: string; lower: string; facts: string[] }
+export interface SkillResult { speak: string; ui?: UiAction }
+export interface Skill { id: string; handle(ctx: SkillCtx): Promise<SkillResult | null> | (SkillResult | null) }
 
 const wordCount = (s: string) => s.trim().split(/\s+/).filter(Boolean).length;
 
@@ -84,7 +96,7 @@ const releaseEstop: Skill = {
 const spinSkill: Skill = {
   id: "spin",
   async handle({ lower }) {
-    if (!/\b(spin( around| in place)?|do a (spin|360|three sixty)|twirl|full (turn|circle)|all the way around)\b/.test(lower)) return null;
+    if (!/\b(spin( around| in place)?|do a (spin|360|three sixty)|twirl|full (turn|circle))\b/.test(lower)) return null;
     await nudge(0, 1.6, 2200);
     return { speak: "Spinning around." };
   },
@@ -92,7 +104,7 @@ const spinSkill: Skill = {
 const wanderSkill: Skill = {
   id: "wander",
   async handle({ lower }) {
-    if (!/\b(wander|roam|explore|patrol|walk around|go for a wander)\b/.test(lower)) return null;
+    if (!/\b(wander|roam|patrol|walk around|go for a wander)\b/.test(lower)) return null;
     await nudge(0.2, 0.6, 2500);
     return { speak: "Taking a look around." };
   },
@@ -122,20 +134,29 @@ const stopSkill: Skill = {
 const driveSkill: Skill = {
   id: "drive",
   async handle({ lower }) {
-    if (/\bturn (on|off)\b/.test(lower)) return null;              // device control
-    if (/\bgo to\b|\bgo (into|back to)\b/.test(lower)) return null; // navigation / mode
-    const dir = /\b(forward|backward|backwards|ahead|reverse|closer|left|right|around)\b/.test(lower) || /\bcome (here|closer|to me)\b/.test(lower) || /\bback up\b/.test(lower);
-    const moveVerb = /\b(drive|roll|scoot)\b/.test(lower);
-    if (!dir && !moveVerb) return null;
+    // Movement is gated behind the activation word "drive" — Devin's steer. Bare
+    // direction words ("forward", "around", "left") appear constantly in normal
+    // talk ("let's move forward with the plan", "what's around here"); requiring
+    // "drive" means only a deliberate command ever reaches the motors, and the
+    // rest flows through to conversation.
+    if (!/\bdriv(e|es|ing)\b/.test(lower)) return null;
+    // "drive" that isn't a movement command: storage, apps, and idioms.
+    if (/\b(hard|disk|thumb|flash|usb|ssd|google|one) ?drive\b/.test(lower)) return null;
+    if (/\bdrive (me|you|him|her|them|us|it)\b/.test(lower)) return null;      // "drive me crazy/home"
+    if (/\b(test|for a|going for a|out for a) drive\b/.test(lower)) return null;
+
     const slow = /\b(a little|slightly|a bit|slowly|slow|carefully)\b/.test(lower);
     const fast = /\b(fast|quick|quickly|hurry)\b/.test(lower);
     const speed = slow ? 0.15 : fast ? 0.45 : cruiseSpeed;
     const turn = slow ? 0.6 : fast ? 1.6 : cruiseTurn;
-    if (/\bturn\b.*\bleft\b|\bleft\b.*\bturn\b|\bspin left\b|\bgo left\b/.test(lower)) { await nudge(0, turn, 900); return { speak: "Turning left." }; }
-    if (/\bturn\b.*\bright\b|\bright\b.*\bturn\b|\bspin right\b|\bgo right\b/.test(lower)) { await nudge(0, -turn, 900); return { speak: "Turning right." }; }
-    if (/\b(back|backward|backwards|reverse|away)\b/.test(lower)) { await nudge(-speed, 0, 1200); return { speak: "Backing up." }; }
+
+    if (/\bleft\b/.test(lower))  { await nudge(0,  turn, 900);  return { speak: "Driving left." }; }
+    if (/\bright\b/.test(lower)) { await nudge(0, -turn, 900);  return { speak: "Driving right." }; }
+    if (/\b(back|backward|backwards|reverse)\b/.test(lower)) { await nudge(-speed, 0, 1200); return { speak: "Driving back." }; }
+    if (/\b(spin|around|circle)\b/.test(lower)) { await nudge(0, 1.6, 2000); return { speak: "Spinning around." }; }
+    // "drive", "drive forward", "drive ahead", "drive straight" → go forward.
     await nudge(speed, 0, 1200);
-    return { speak: /\bcome\b/.test(lower) ? "On my way." : "Moving forward." };
+    return { speak: "Driving forward." };
   },
 };
 
@@ -157,20 +178,106 @@ const uiModeSkill: Skill = {
   },
 };
 
+// ── Nobi's eyes: describe what's on the screen ───────────────────────────────
+// "what's on screen" / "what do you see" → grab a screenshot of the robot's own
+// display and let Claude vision describe it aloud. Server-side + async.
+const describeScreenSkill: Skill = {
+  id: "describe-screen",
+  async handle({ lower }) {
+    const asks =
+      /\bwhat(?:'?s| is| are you| do you)\b[^.?!]*\b(on (the |my |your )?(screen|display)|see(ing)?|looking at)\b/.test(lower) ||
+      /\b(describe|read|look at|check|analy[sz]e)\b[^.?!]*\b(the |my |your )?(screen|display)\b/.test(lower) ||
+      /\bwhat do you see\b/.test(lower) ||
+      /\bwhat'?s (on|showing on)\b[^.?!]*\b(screen|display)\b/.test(lower);
+    if (!asks) return null;
+    const desc = await describeScreen();
+    return { speak: desc || "Hmm — I couldn't get a clear look at the screen just now." };
+  },
+};
+
+// ── Survivor audition ─────────────────────────────────────────────────────────
+// VISUAL-ONLY easter egg built for the robot's round faceplate: any "survivor"
+// mention → an instant billboard — two torches ROARING on each side of giant
+// "JEFF, SEND ME TO FIJI!" fire text filling the circle — gone in ~3 seconds,
+// then the eyes shuffle fire colors. No TTS at all: speak is "" so the client
+// skips the speech queue and mounts the scene immediately (the old spoken
+// version stalled the visuals behind TTS). "the tribe has spoken" / "snuff" →
+// the snuff-and-relight cut. Registered BEFORE the video skills so "watch
+// survivor" lights torches, not YouTube.
+const survivorSkill: Skill = {
+  id: "survivor",
+  handle({ lower }) {
+    if (/\bthe tribe has spoken\b|\bsnuff\b/.test(lower))
+      return { speak: "", ui: { type: "survivor", variant: "snuff", banner: "CAN'T SNUFF A ROBOT!" } };
+    if (!/\b(survivors?|tribal council|outwit,? outplay,? outlast|jeff probst|immunity (idol|challenge|necklace)|sole survivor)\b/.test(lower)) return null;
+    // "survivor" in clearly non-show senses stays conversational.
+    if (/\b(cancer|crash|disaster|holocaust|abuse|attack) survivors?\b|\bsurvivors? of\b/.test(lower)) return null;
+    return { speak: "", ui: { type: "survivor", variant: "torches", banner: "JEFF, SEND ME TO FIJI!" } };
+  },
+};
+
+// ── YouTube on the face ───────────────────────────────────────────────────────
+// "robot play <query>" opens a video over the eyes; "robot pause/close video"
+// controls it. The client resolves the spoken query to a video and drives an
+// in-app player overlay, so nothing here needs a YouTube key.
+const playVideoSkill: Skill = {
+  id: "play-video",
+  handle({ raw, lower }) {
+    // Imperative "play/put on/pull up/watch <something>", or an explicit video ask.
+    const m = raw.match(/\b(?:play|put on|pull up|bring up|watch|queue up)\s+(.+)$/i);
+    const wantsVideo = /\b(video|youtube)\b/.test(lower);
+    if (!m && !wantsVideo) return null;
+    // "play" that isn't "play a video" — idioms and other skills' territory.
+    if (/\bplay (along|it (cool|safe|by ear)|dumb|dead|nice|fair|hard|house|favou?rites|the (field|part|victim)|devil'?s advocate|a (game|role|joke|prank|trick|sound|tone|note|chord))\b/.test(lower)) return null;
+    // Unless a video is explicitly named, don't let "pull up / play X" swallow a
+    // navigation target or a built-in game — those skills own these phrasings.
+    if (!wantsVideo && /\b(plugin store|skills? store|marketplace|the store|app store|the shop|settings|preferences|analytics|life dashboard|personality|persona|lie detector|command console|the console|my (goals|memory|devices|routines|briefings|plugins|collection)|the (map|timeline|dashboard))\b/.test(lower)) return null;
+    if (!wantsVideo && /\b(guess (the|my|a) number|pick a number|coin|magic (eight|8)|riddle|fun fact|dad joke|would you rather|this or that|never have i ever|spirit animal|fortune|compliment)\b/.test(lower)) return null;
+    let q = (m ? m[1] : raw)
+      .replace(/\b(on|from|via|through)\s+youtube\b/gi, "")
+      .replace(/\b(a |an |the |some |me )?(video|youtube|clip)( of| for| about)?\b/gi, " ")
+      .replace(/\b(please|for me|real quick|right now)\b/gi, "")
+      .replace(/[?.!]+$/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (q.length < 2) return null;  // "play video" with no subject → let Claude ask
+    return { speak: `Pulling up ${q}.`, ui: { type: "openVideo", query: q } };
+  },
+};
+const videoControlSkill: Skill = {
+  id: "video-control",
+  handle({ lower }) {
+    if (!/\b(video|youtube|the clip|playback)\b/.test(lower)) return null;
+    if (/\b(close|exit|stop|end|kill|dismiss|hide|turn off|shut off|get rid of|go back|back to (your )?face|done with)\b/.test(lower))
+      return { speak: "Closing the video.", ui: { type: "videoControl", action: "close" } };
+    if (/\b(pause|hold|freeze|wait)\b/.test(lower))
+      return { speak: "Paused.", ui: { type: "videoControl", action: "pause" } };
+    if (/\b(resume|unpause|un ?pause|continue|keep (playing|going))\b/.test(lower))
+      return { speak: "Back to it.", ui: { type: "videoControl", action: "resume" } };
+    return null;
+  },
+};
+
 // ── Open a DeckOS tool ────────────────────────────────────────────────────────
+// Every navigable page, spoken → routed. Ordered specific→generic so "personality"
+// beats "ai", "plugin store" beats "plugins", "life dashboard" beats "dashboard".
 const TOOL_ROUTES: { re: RegExp; route: string; label: string }[] = [
+  { re: /\b(personality( panel| page| settings?)?|your persona|persona settings?|character settings?|how you'?re tuned)\b/, route: "/ai/personality", label: "my personality panel" },
+  { re: /\b(lie detector|polygraph|truth (test|detector))\b/, route: "/lie-detector", label: "the lie detector" },
+  { re: /\b(analytics|life dashboard|my (life )?stats|life metrics|insights|the numbers)\b/, route: "/analytics", label: "your analytics" },
+  { re: /\b(ai (brain|control|panel|router|settings?)|the brain|brain panel|language model|which (ai|model) you)\b/, route: "/ai", label: "the AI brain" },
   { re: /\b(memor(y|ies)|what you remember|my profile)\b/, route: "/memory", label: "your memory" },
-  { re: /\b(map|location|geofence|where (things|everyone) (is|are))\b/, route: "/map", label: "the map" },
-  { re: /\b(briefings?|catch me up|what'?s (going on|new))\b/, route: "/briefings", label: "your briefings" },
-  { re: /\b(routines?|automations?)\b/, route: "/routines", label: "your routines" },
-  { re: /\b(devices?|gadgets?|smart (home|light))\b/, route: "/devices", label: "your devices" },
-  { re: /\b(timeline|activity|history|what happened)\b/, route: "/timeline", label: "the activity timeline" },
-  { re: /\b(plugins?|add-?ons?|store|marketplace)\b/, route: "/plugins/store", label: "the skills store" },
-  { re: /\b(settings?|preferences?|api keys?|providers?)\b/, route: "/settings", label: "settings" },
-  { re: /\b(collection|faces|eye packs?|wardrobe)\b/, route: "/collection", label: "your collection" },
+  { re: /\b(map|geofences?|where (things|everyone) (is|are)|location map)\b/, route: "/map", label: "the map" },
+  { re: /\b(briefings?|catch me up|daily brief|what'?s (going on|new))\b/, route: "/briefings", label: "your briefings" },
+  { re: /\b(routines?|automations?|scheduled tasks?)\b/, route: "/routines", label: "your routines" },
+  { re: /\b(devices?|gadgets?|smart (home|light)|hardware list)\b/, route: "/devices", label: "your devices" },
+  { re: /\b(timeline|activity( feed)?|history|what happened|the feed)\b/, route: "/timeline", label: "the activity timeline" },
+  { re: /\b(plugin store|skills? store|marketplace|the store|app store|the shop)\b/, route: "/plugins/store", label: "the skills store" },
+  { re: /\b(plugins?|add-?ons?|extensions?|my abilities)\b/, route: "/plugins", label: "your plugins" },
+  { re: /\b(settings?|preferences?|api keys?|providers? page|configuration)\b/, route: "/settings", label: "settings" },
+  { re: /\b(collection|faces?|eye packs?|wardrobe|face gallery)\b/, route: "/collection", label: "your collection" },
   { re: /\b(commands?|console|terminal)\b/, route: "/commands", label: "the command console" },
-  { re: /\b(goals?|planning)\b/, route: "/hud", label: "your goals" },
-  { re: /\b(lie detector|polygraph)\b/, route: "/lie-detector", label: "the lie detector" },
+  { re: /\b(goals?|planning|objectives?|my targets?)\b/, route: "/hud", label: "your goals" },
 ];
 const openSkill: Skill = {
   id: "open",
@@ -178,6 +285,26 @@ const openSkill: Skill = {
     if (!/\b(open|show|go to|take me to|pull up|launch|bring up|let'?s see|display)\b/.test(lower)) return null;
     for (const t of TOOL_ROUTES) if (t.re.test(lower)) return { speak: `Opening ${t.label}.`, ui: { type: "open", route: t.route } };
     return null;
+  },
+};
+// ── Close a DeckOS tool ───────────────────────────────────────────────────────
+// The mirror of openSkill. The face IS home, so every "close the map / close that
+// / go home" resolves to pet mode — no per-route teardown needed. The video overlay
+// owns its own close (videoControlSkill, earlier), and the experience/ui-mode skills
+// own the "…mode" phrasings, so both are excluded here. Registered right before
+// openSkill so a named-screen close ("close the analytics") isn't shadowed.
+const closeSkill: Skill = {
+  id: "close",
+  handle({ lower }) {
+    if (/\b(video|youtube|the clip|playback)\b/.test(lower)) return null;                         // videoControlSkill owns these
+    if (/\b(robot|computer|kiosk|desktop|developer|dev|pet|face.only) mode\b/.test(lower)) return null; // mode skills own these
+    if (/\b(go home|take me home|head home|back to (the |your )?(face|home)|go back to (the |your )?face|return to (the |your )?face|just (show )?(me )?(the |your )?face)\b/.test(lower))
+      return { speak: "Back to my face.", ui: { type: "setUiMode", mode: "pet" } };
+    if (!/\b(close|exit|dismiss|hide|get (me )?out of)\b/.test(lower)) return null;
+    const named = TOOL_ROUTES.find((t) => t.re.test(lower));
+    const generic = /\b(that|this|it|the (screen|page|panel|window|view|app|tool|dashboard|console|store))\b/.test(lower);
+    if (!named && !generic) return null;
+    return { speak: named ? `Closing ${named.label}.` : "Done — back to my face.", ui: { type: "setUiMode", mode: "pet" } };
   },
 };
 
@@ -195,7 +322,9 @@ const controlDevice: Skill = {
     if (!m) return null;
     const action = /off|deactivate/.test(m[0]) ? "off" : /toggle/.test(m[0]) ? "toggle" : "on";
     const dev = findDevice(raw);
-    if (!dev) return { speak: "I couldn't find that device — say the name as it appears in your devices." };
+    // No matching device — yield so a system toggle (bluetooth, trace mode, "turn
+    // everything off") or conversation can handle it, instead of dead-ending here.
+    if (!dev) return null;
     const ok = getDeviceManager().sendCommand(dev.id, { action });
     return { speak: ok ? `Turned ${action} the ${dev.name}.` : `I couldn't reach the ${dev.name}.` };
   },
@@ -349,19 +478,21 @@ const setBotName: Skill = {
 const switchPersona: Skill = {
   id: "switch-persona",
   handle({ lower }) {
-    // Require EXPLICIT persona intent — a bare "stealth"/"forge" is a face theme,
-    // not a persona switch (set-face-theme handles "change your eyes to stealth").
-    const explicit = /\b(persona(lity)?|edition|vibe)\b/.test(lower) ||
-      /\b(switch to|become|use|be) the (warm|witty|workshop|calm|precise|stealth|bold|playful|forge|hot-?rod|gentle|thoughtful|codex)\b/.test(lower) ||
-      /\b(switch to|become|use) (the )?(warm|witty|workshop|calm|precise|stealth|bold|playful|forge|hot-?rod|gentle|thoughtful|codex)\b/.test(lower);
-    if (!explicit) return null;
-    let id: string | null = null;
-    if (/\b(warm|witty|workshop)\b/.test(lower)) id = "workshop";
-    else if (/\b(calm|precise|stealth)\b/.test(lower)) id = "stealth";
-    else if (/\b(bold|playful|forge|hot-?rod)\b/.test(lower)) id = "forge";
-    else if (/\b(gentle|thoughtful|codex)\b/.test(lower)) id = "codex";
-    if (!id) return null;
-    return { speak: "Switching up my whole vibe.", ui: { type: "setPersona", personaId: id } };
+    // Personas are named characters: Rocky (default), Jarvis, Friday, Alfred.
+    // Match the name, but only with a switch verb or a persona/mode word so a
+    // stray "friday" (the day) or "rocky" (adjective) doesn't flip the vibe.
+    const names: [RegExp, string, string][] = [
+      [/\brock(y|ie)?\b/, "rocky", "Rocky"],
+      [/\bjarvis\b/, "jarvis", "Jarvis"],
+      [/\bfriday\b/, "friday", "Friday"],
+      [/\balfred\b/, "alfred", "Alfred"],
+    ];
+    let id: string | null = null, nm = "";
+    for (const [re, v, label] of names) if (re.test(lower)) { id = v; nm = label; break; }
+    const switchVerb = /\b(switch to|change to|switch into|become|turn into|act like|go|be)\b/.test(lower);
+    const modeWord = /\b(persona(lity)?|mode|character|vibe|edition)\b/.test(lower);
+    if (!id || !(switchVerb || modeWord)) return null;
+    return { speak: `Switching to ${nm}.`, ui: { type: "setPersona", personaId: id } };
   },
 };
 const adjustTraits: Skill = {
@@ -411,17 +542,91 @@ const setEmojiPack: Skill = {
     return { speak: "Switched my emoji pack.", ui: { type: "setEmojiPack", packId: id } };
   },
 };
+// ANY color a person might say → the closest vivid color that glows on the eyes,
+// always answered in the "Going Emerald." house style. The 6 canonical accents
+// keep their tuned scheme presets; everything else is applied as a hex through
+// the client's full-spectrum path. Ordered specific→generic so "sky blue" wins
+// over "blue" and "lime green" over "green".
+const COLOR_MAP: [RegExp, "scheme" | "hex", string, string][] = [
+  // ── multi-word / specific first ──
+  [/\bhot ?pink\b/, "hex", "#FF2D8B", "Cerise"],
+  [/\bsky ?blue\b|\bsky\b/, "hex", "#45C4FF", "Sky"],
+  [/\bice ?blue\b/, "scheme", "ice", "Ice"],
+  [/\bsteel ?blue\b/, "scheme", "steel", "Steel"],
+  [/\belectric( blue)?\b/, "hex", "#2F6BFF", "Electric"],
+  [/\b(navy|royal)( blue)?\b/, "hex", "#3D5AFF", "Navy"],
+  [/\blime( green)?\b/, "hex", "#A6FF33", "Lime"],
+  [/\bmint( green)?\b/, "hex", "#52FFC0", "Mint"],
+  [/\b(neon green|chartreuse)\b/, "hex", "#B4FF2E", "Chartreuse"],
+  [/\blemon( yellow)?\b/, "hex", "#FFF04D", "Lemon"],
+  [/\brose( pink)?\b|\brosy\b/, "hex", "#FF5F8F", "Rose"],
+  [/\b(blood red|ruby( red)?)\b/, "hex", "#FF1F5A", "Ruby"],
+  [/\b(bright|true) red\b|\bscarlet\b/, "hex", "#FF3B30", "Scarlet"],
+  // ── pinks / magentas ──
+  [/\bmagenta\b/, "hex", "#FF2EC8", "Magenta"],
+  [/\bfuch?sia\b/, "hex", "#E440FB", "Fuchsia"],
+  [/\bpink(ish)?\b|\bbubblegum\b/, "hex", "#FF6FB0", "Bubblegum"],
+  // ── warms ──
+  [/\bsalmon\b/, "hex", "#FF7A66", "Salmon"],
+  [/\bcoral\b/, "hex", "#FF6A45", "Coral"],
+  [/\bpeach(y)?\b/, "hex", "#FFAE7A", "Peach"],
+  [/\btangerine\b/, "hex", "#FF9F1C", "Tangerine"],
+  [/\borange\b/, "hex", "#FF7A18", "Ember"],
+  [/\bcopper\b/, "hex", "#E07B3C", "Copper"],
+  [/\brust\b/, "hex", "#E05A2B", "Rust"],
+  [/\bbronze\b/, "hex", "#D0862E", "Bronze"],
+  [/\b(tan|sand|beige)\b/, "hex", "#D9A066", "Sand"],
+  // ── yellows / golds ──
+  [/\bgold(en)?\b/, "hex", "#FFCB2E", "Gold"],
+  [/\bhoney\b/, "hex", "#FFB92E", "Honey"],
+  [/\blemon\b/, "hex", "#FFF04D", "Lemon"],
+  // ── greens ──
+  [/\bjade\b/, "hex", "#22E0A0", "Jade"],
+  [/\bteal\b/, "hex", "#14E0C8", "Teal"],
+  [/\bturquoise\b/, "hex", "#24E5D4", "Turquoise"],
+  [/\baqua(marine)?\b/, "hex", "#33F0E0", "Aqua"],
+  // ── cyans / blues ──
+  [/\bcyan\b/, "hex", "#00E0FF", "Cyan"],
+  [/\bcerulean\b/, "hex", "#2BB3FF", "Cerulean"],
+  [/\bazure\b/, "hex", "#2C93FF", "Azure"],
+  [/\bsapphire\b/, "hex", "#305CFF", "Sapphire"],
+  [/\bcornflower\b/, "hex", "#6E8BFF", "Cornflower"],
+  [/\bperiwinkle\b/, "hex", "#8AA0FF", "Periwinkle"],
+  // ── purples ──
+  [/\bindigo\b/, "hex", "#6C63FF", "Indigo"],
+  [/\bviolet\b/, "hex", "#A64DFF", "Violet"],
+  [/\b(purple|amethyst)\b/, "hex", "#B14AFF", "Amethyst"],
+  [/\bgrape\b/, "hex", "#9B4DFF", "Grape"],
+  [/\borchid\b/, "hex", "#E070FF", "Orchid"],
+  [/\blavender\b/, "hex", "#C4A0FF", "Lavender"],
+  [/\blilac\b/, "hex", "#D6A5FF", "Lilac"],
+  [/\bplum\b/, "hex", "#C24DE0", "Plum"],
+  // ── neutrals ──
+  [/\b(white|frost)\b/, "hex", "#EAF2FF", "Frost"],
+  [/\b(platinum|chrome)\b/, "hex", "#D8E2EE", "Platinum"],
+  [/\b(pearl|cream)\b/, "hex", "#EDE8F0", "Pearl"],
+  [/\bsilver\b/, "hex", "#C4D2E0", "Silver"],
+  [/\b(slate|gr[ae]y)\b/, "hex", "#8098B4", "Slate"],
+  // ── the 6 canonical accents (tuned presets, labels Devin already knows) ──
+  [/\bsteel\b/, "scheme", "steel", "Steel"],
+  [/\bice\b/, "scheme", "ice", "Ice"],
+  [/\b(cobalt|blue)\b/, "scheme", "blue", "Cobalt"],
+  [/\b(emerald|green)\b/, "scheme", "green", "Emerald"],
+  [/\b(amber|yellow)\b/, "scheme", "yellow", "Amber"],
+  [/\b(crimson|red)\b/, "scheme", "red", "Crimson"],
+];
 const setColor: Skill = {
   id: "set-accent-color",
   handle({ lower }) {
-    if (!/\b(color|colour|accent|theme color|go (steel|ice|cobalt|blue|emerald|green|amber|yellow|gold|crimson|red))\b/.test(lower)) return null;
-    const map: [RegExp, string, string][] = [
-      [/\bsteel\b/, "steel", "steel"], [/\bice\b/, "ice", "ice"],
-      [/\b(cobalt|blue)\b/, "blue", "cobalt"], [/\b(emerald|green)\b/, "green", "emerald"],
-      [/\b(amber|yellow|gold)\b/, "yellow", "amber"], [/\b(crimson|red)\b/, "red", "crimson"],
-    ];
-    for (const [re, scheme, label] of map) if (re.test(lower)) return { speak: `Going ${label}.`, ui: { type: "setAccentColor", color: scheme } };
-    return null;
+    const hit = COLOR_MAP.find(([re]) => re.test(lower));
+    if (!hit) return null;
+    // A color change needs an ACTION verb — the bare noun "color" isn't enough, so
+    // "my favorite color is green" / "feeling blue" / "green tea" don't recolor.
+    if (!/\b(go|going|turn|make|change|set|switch|paint|glow|do|give me|want|use|colou?r (it|them|the eyes|your eyes|yourself))\b/.test(lower)) return null;
+    if (/\bdo you\b|\b(feel|feeling|felt)\b|\bfavou?rite\b|\bfavorite\b/.test(lower)) return null;   // questions / moods / preferences
+    if (/\bgreen (tea|card|thumb|light|house|with envy)\b|\bred (flag|tape|carpet|herring|eye)\b|\bpink slip\b|\bblue (moon|print|collar|blood)\b|\bblack and white\b|\bwhite (lie|house|noise|flag)\b|\bgold(en)? (rule|hour|state|gate)\b|\bsilver (lining|bullet|screen)\b|\bgr[ae]y area\b/.test(lower)) return null;
+    const [, , value, label] = hit;
+    return { speak: `Going ${label}.`, ui: { type: "setAccentColor", color: value } };
   },
 };
 const switchVoice: Skill = {
@@ -440,14 +645,74 @@ const voiceRate: Skill = {
     return null;
   },
 };
+// Any spoken mood → an eye expression on demand ("show me happy", "go dizzy",
+// "make an angry face"). Ordered specific→generic; each maps a word (or synonym)
+// to a FaceState pose in atlasFaceEngine.
+const MOODS: [RegExp, string][] = [
+  [/\bmind ?blown\b|\bmind ?blowing\b/, "mindblown"],
+  [/\bstar ?struck\b|\bdazzled\b|\bstar eyes\b/, "starstruck"],
+  [/\bhot ?rod\b/, "excited"],
+  [/\bbig smile\b|\bhuge grin\b|\bgrinning\b|\bgrin\b/, "laughing"],
+  [/\bfunny face\b|\bsilly face\b|\bgoofy face\b|\bfunny\b/, "mischievous"],
+  [/\bfrowning\b|\bfrowny\b|\bfrown\b|\bsad face\b/, "sad"],
+  [/\bpouting\b|\bpouty\b|\bpout\b/, "grumpy"],
+  [/\bsmiley\b|\bsmile\b|\bhappy face\b/, "happy"],
+  [/\b(happy|joyful|cheerful|glad|smiling)\b/, "happy"],
+  [/\b(laughing|laugh|giggly|giggling|giggle|hysterical|lol|rofl)\b/, "laughing"],
+  [/\b(proud)\b/, "proud"],
+  [/\b(content|calm|relaxed|chill|serene|zen|peaceful)\b/, "content"],
+  [/\b(cool|smooth|slick|shades)\b/, "cool"],
+  [/\b(excited|hyped|thrilled|pumped|stoked)\b/, "excited"],
+  [/\b(surprised|surprise|whoa|gasp)\b/, "surprised"],
+  [/\b(shocked|shock|stunned)\b/, "shocked"],
+  [/\b(love|smitten|adoring|heart eyes|in love)\b/, "love"],
+  [/\b(wink|winking)\b/, "wink"],
+  [/\b(mischievous|mischief|sly|sneaky|cheeky|playful|silly|goofy|troll)\b/, "mischievous"],
+  [/\b(thinking|think|pondering|ponder|hmm)\b/, "thinking"],
+  [/\b(confused|puzzled|baffled|lost|huh)\b/, "confused"],
+  [/\b(skeptical|doubtful|unsure|not convinced|raised brow|eyebrow)\b/, "skeptical"],
+  [/\b(suspicious|sus|shifty|side eye)\b/, "suspicious"],
+  [/\b(curious|intrigued|interested|inquisitive)\b/, "curious"],
+  [/\b(angry|mad|furious|rage|livid)\b/, "angry"],
+  [/\b(grumpy|cranky|irritable|pouty)\b/, "grumpy"],
+  [/\b(annoyed|irritated|unamused|not amused|meh)\b/, "annoyed"],
+  [/\b(determined|serious|resolute|game face)\b/, "determined"],
+  [/\b(focused|focus|locked in|concentrating)\b/, "focused"],
+  [/\b(scared|afraid|frightened|terrified|nervous|anxious)\b/, "scared"],
+  [/\b(dizzy|woozy|spinning|swirl)\b/, "dizzy"],
+  [/\b(sleepy|tired|drowsy|exhausted|yawn)\b/, "sleepy"],
+  [/\b(bored|boring|unbothered)\b/, "bored"],
+  [/\b(shy|bashful|embarrassed|blushing)\b/, "shy"],
+  [/\b(relieved|relief|phew)\b/, "relieved"],
+  [/\b(crying|cry|sobbing|tearful|weeping|heartbroken)\b/, "crying"],
+  [/\b(sad|down|blue|gloomy|glum|upset|bummed)\b/, "sad"],
+];
+// A fitting eye color per expression — the demo tints the eyes to match the mood
+// (Devin's steer: emotions should change the eyes AND the color).
+const MOOD_COLOR: Record<string, string> = {
+  happy: "#FFC820", laughing: "#FFD24A", proud: "#FFC820", content: "#5EEAD4",
+  cool: "#96B4CD", excited: "#FF9F1C", surprised: "#FFE23D", shocked: "#FFF04D",
+  love: "#FF6FB0", wink: "#FFC820", mischievous: "#B14AFF", starstruck: "#FFE23D",
+  mindblown: "#A64DFF", thinking: "#45C4FF", confused: "#8AA0FF", skeptical: "#C4A0FF",
+  suspicious: "#D6A5FF", curious: "#45C4FF", angry: "#F0324A", grumpy: "#FF6A45",
+  annoyed: "#FF7A18", determined: "#FF3B30", focused: "#00E0FF", scared: "#C4A0FF",
+  dizzy: "#A64DFF", sleepy: "#6E8BFF", bored: "#8098B4", shy: "#FF6FB0",
+  relieved: "#52FFC0", crying: "#45C4FF", sad: "#7E9EC4",
+};
 const demoMood: Skill = {
   id: "demo-mood",
   handle({ lower }) {
-    const m = lower.match(/\b(show me|do|make|give me|look|act|go)\s+(a |your |all )?(happy|sad|angry|excited|surprised|love|wink|starstruck|thinking|confused|suspicious|silly)\b/);
-    if (!m) return null;
-    const map: Record<string, string> = { happy: "happy", sad: "sad", angry: "angry", excited: "excited", surprised: "excited", love: "love", wink: "wink", starstruck: "starstruck", thinking: "thinking", confused: "confused", suspicious: "suspicious", silly: "wink" };
-    const state = map[m[3] ?? ""] ?? "happy";
-    return { speak: "Like this?", ui: { type: "demoFace", state, ms: 2600 } };
+    // Needs a "demo/show" intent so ordinary talk doesn't flip the face, and it
+    // ignores observations about the user ("you look tired", "i'm so happy").
+    const wantsDemo = /\b(show me|do (a|an|your)|make (a|an|your|me)|give me|let me see|let's see|can you (do|show|make|be|smile|frown|pull)|pull (a|an|your)|act|be|go|smile|frown|grin|pout)\b/.test(lower) || /\b(face|expression|eyes|mood)\b/.test(lower);
+    if (!wantsDemo) return null;
+    if (/\byou (look|are|seem|sound|'re)\b|\bi('m| am)\b|\bwe('re| are)\b|\bhow are you\b|\bthat('s| is)\b/.test(lower)) return null;
+    for (const [re, state] of MOODS) {
+      if (re.test(lower)) {
+        return { speak: "Like this?", ui: { type: "demoFace", state, color: MOOD_COLOR[state], ms: 3400 } };
+      }
+    }
+    return null;
   },
 };
 const replayLast: Skill = {
@@ -516,7 +781,7 @@ const joke: Skill = {
     return { speak: "Why did the robot cross the road? It was programmed by a chicken." };
   },
 };
-const whoAreYou = social("who-are-you", /\bwho are you\b|\bwhat'?s your name\b|\bwhat kind of (ai|robot|thing) are you\b/, "I'm your Neura — the face of DeckOS. I run your whole system and keep you company.", 8);
+const whoAreYou = social("who-are-you", /\bwho are you\b|\bwhat'?s your name\b|\bwhat kind of (ai|robot|thing) are you\b/, "I'm your Nobi — the face of DeckOS. I run your whole system and keep you company.", 8);
 const helpSkill: Skill = {
   id: "help",
   handle({ lower }) {
@@ -534,10 +799,32 @@ const greet: Skill = {
   },
 };
 
+// ── Built-in demos (the client runs them — see PetShell) ─────────────────────
+// "hey nobi, give me a quick demo" → the ~90s flashy showcase (Three.js scenes,
+// narration, a tour of the faces). "hey nobi, introduce yourself" → a directed
+// 4-turn get-to-know-you conversation through the live brain that remembers.
+const showcaseDemo: Skill = {
+  id: "showcase-demo",
+  handle({ lower }) {
+    if (/\b(introduce|introduction)\b/.test(lower)) return null;
+    if (!/\b(demo|show ?off|show (me |us )?(what|everything) you (can do|got|do)|do your thing|strut your stuff)\b/.test(lower)) return null;
+    return { speak: "", ui: { type: "showcase" } };
+  },
+};
+const introDemo: Skill = {
+  id: "intro-demo",
+  handle({ lower }) {
+    if (!/\b(introduce yourself|introduction|tell me about yourself|get to know (me|you|each other)|let'?s (meet|get acquainted))\b/.test(lower)) return null;
+    return { speak: "", ui: { type: "introDemo" } };
+  },
+};
+
 // Priority order: most specific first so nothing shadows a narrower skill.
 const SKILLS: Skill[] = [
+  showcaseDemo, introDemo,
   releaseEstop, emergencyStop, spinSkill, wanderSkill, setSpeedSkill, stopSkill,
-  experienceModeSkill, uiModeSkill, openSkill, controlDevice, readSensor, listDevices,
+  experienceModeSkill, uiModeSkill, describeScreenSkill, survivorSkill, videoControlSkill, playVideoSkill,
+  closeSkill, openSkill, controlDevice, readSensor, listDevices,
   driveSkill,
   obstacleCheck, batterySkill, bodyStatus,
   systemStats, uptimeSkill, timeSkill, providersSkill,
@@ -546,6 +833,12 @@ const SKILLS: Skill[] = [
   switchPersona, adjustTraits,
   setFaceTheme, setEmojiPack, setColor, switchVoice, voiceRate, demoMood, replayLast,
   recallSkill, rememberSkill,
+  // The bulk skill packs: presence one-liners, state-changing ACTIONS (verby intents),
+  // endpoint-backed READOUTS, and no-backend FUN. Deliberately placed AFTER the tuned
+  // client skills above (drive/color/mood/memory/personality/appearance) so those keep
+  // winning for their phrasings; ACTIONS sit before READOUTS so "clear notifications"
+  // beats the "any notifications" query. Generic social catch-alls stay last.
+  ...EXTRA_ACTION_SKILLS, ...ACTION_SKILLS, ...READOUT_SKILLS, ...FUN_SKILLS,
   goodMorning, goodNight, thanks, howAreYou, joke, whoAreYou, helpSkill,
   statusSkill, greet,
 ];

@@ -1,0 +1,30 @@
+# Adeept Motor HAT V2 stacked on a Raspberry Pi — DC motors on the Pi's own
+# GPIO H-bridge (direction pins + PWM on the EN pins), servos on the HAT's
+# PCA9685 @ I2C 0x40. Select with ATLAS_PROFILE=adeept-motorhat-v2 (mirrored in
+# code by adeeptProfile() in core/server/src/hal/bodies/adeept.ts).
+id: adeept-motorhat-v2
+name: Adeept Motor HAT V2 (Pi GPIO + PCA9685)
+backend: adeept
+target: Raspberry Pi · Adeept Motor HAT V2 · DC motors + servos
+
+drive:
+  wheelBaseM: 0.15
+  wheelRadiusM: 0.03
+  maxSpeedMps: 0.5
+  invertL: false
+  invertR: false
+
+# Everything below reaches the body as profile.config (string map) — remap the
+# HAT here without touching code. BCM numbering, per Adeept's published map
+# (RaspTank move.py): Motor_A_EN=4, Motor_A_Pin1=14, Motor_A_Pin2=15,
+# Motor_B_EN=17, Motor_B_Pin1=27, Motor_B_Pin2=18.
+config:
+  motor_a_en: "4"      # Motor A (left) PWM enable
+  motor_a_in1: "14"    # H-bridge direction
+  motor_a_in2: "15"
+  motor_b_en: "17"     # Motor B (right) PWM enable
+  motor_b_in1: "27"
+  motor_b_in2: "18"
+  pwm_hz: "1000"       # EN-pin PWM frequency (Adeept uses 1 kHz)
+  i2c_bus: "1"         # /dev/i2c-1
+  i2c_addr: "0x40"     # PCA9685 (servos, 50 Hz)

@@ -52,3 +52,9 @@ Thumbs.db
 .env
 .env.local
 .env.*.local
+
+# build outputs, deploy tarballs, and local logs (never commit)
+*.log
+dist-robot/
+core/server/server-deploy.tgz
+**/mobile-dist/

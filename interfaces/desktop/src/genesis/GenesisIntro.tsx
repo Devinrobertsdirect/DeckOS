@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AtlasFace, type FaceState } from "@/components/faces/AtlasFace";
 import { useAtlasVoice, getVoiceEngine, warmUpVoices } from "@/genesis/useAtlasVoice";
+import { useWake } from "@/hooks/useWake";
 import { buildGenesisScript, type GenesisBeat } from "@/genesis/genesisScript";
 import { PROVIDERS } from "@/genesis/providers";
 import { getUserName, getBotName, markIntroDone } from "@/lib/uiMode";
@@ -155,8 +156,12 @@ export function GenesisIntro({ onComplete }: { onComplete: () => void }) {
     if (!cancelledRef.current) finish();
   }, [speak, finish]);
 
+  // Ref guard alongside the state: wake can arrive from a tap AND a key in the
+  // same tick, and both would see the stale `started` — only one may run.
+  const beganRef = useRef(false);
   const begin = useCallback(async () => {
-    if (started) return;
+    if (started || beganRef.current) return;
+    beganRef.current = true;
     setStarted(true);
     await prepare();
     // wake: eyes open and find you
@@ -164,6 +169,14 @@ export function GenesisIntro({ onComplete }: { onComplete: () => void }) {
     await new Promise((r) => setTimeout(r, 400));
     void runBeats();
   }, [started, prepare, runBeats]);
+
+  // Keyboard wake — a keydown is just as valid a user gesture for audio as the
+  // tap, so keyboard-only (and robot) users aren't stuck at the sleeping face.
+  useWake({
+    asleep: !started,
+    onWake: () => { void begin(); },
+    onWakeAndListen: () => { void begin(); },
+  });
 
   useEffect(() => () => { cancelledRef.current = true; stop(); }, [stop]);
 
@@ -225,7 +238,7 @@ export function GenesisIntro({ onComplete }: { onComplete: () => void }) {
           textTransform: "uppercase", color: "rgba(201,220,240,0.55)",
           animation: "atlasPulse 2.4s ease-in-out infinite",
         }}>
-          tap to wake Neura
+          tap to wake Nobi
         </div>
       )}
 

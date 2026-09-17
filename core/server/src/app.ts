@@ -4,6 +4,7 @@ import pinoHttp from "pino-http";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
+import type { ServerResponse } from "http";
 import router from "./routes/index.js";
 import { logger } from "./lib/logger.js";
 
@@ -36,6 +37,42 @@ app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 app.use("/api", router);
 
+// Cache policy for the built SPAs: Vite fingerprints everything under /assets/
+// (a new build changes the filename), so those files are safe to cache forever —
+// the Pi's Chromium kiosk skips re-downloading/parsing them on every boot.
+// index.html is explicitly no-cache so a fresh deploy is picked up on next load.
+const staticCacheOptions = {
+  setHeaders(res: ServerResponse, filePath: string) {
+    if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    } else if (filePath.endsWith("index.html")) {
+      res.setHeader("Cache-Control", "no-cache");
+    }
+  },
+};
+
+// Serve the installable mobile companion (PWA) at /mobile/. This is the URL the
+// pairing flow hands to a phone; the phone can "Add to Home Screen" and connect
+// back to this brain. Mounted BEFORE the desktop SPA so /mobile/* never falls
+// through to the dashboard's index.html. ELECTRON_MOBILE_DIST overrides location.
+const mobileDist =
+  process.env.ELECTRON_MOBILE_DIST ??
+  [
+    path.resolve(__dirname, "../../../interfaces/mobile/dist/public"), // monorepo build
+    path.resolve(__dirname, "../mobile-dist"),                        // electron package layout
+  ].find((p) => fs.existsSync(path.join(p, "index.html")));
+
+if (mobileDist && fs.existsSync(path.join(mobileDist, "index.html"))) {
+  logger.info({ mobileDist }, "Serving mobile PWA at /mobile/");
+  const mobileIndex = path.join(mobileDist, "index.html");
+  app.use("/mobile", express.static(mobileDist, staticCacheOptions));
+  // SPA fallback for mobile deep-links (GET, non-asset) → mobile index.html.
+  app.use("/mobile", (req, res, next) => {
+    if (req.method !== "GET") return next();
+    res.sendFile(mobileIndex);
+  });
+}
+
 // Serve the built dashboard whenever it exists, so `http://localhost:8080`
 // works with a single process. ELECTRON_FRONTEND_DIST overrides the location.
 const frontendDist =
@@ -48,7 +85,7 @@ const frontendDist =
 if (frontendDist && fs.existsSync(path.join(frontendDist, "index.html"))) {
   logger.info({ frontendDist }, "Serving dashboard static build");
   const indexHtml = path.join(frontendDist, "index.html");
-  app.use(express.static(frontendDist));
+  app.use(express.static(frontendDist, staticCacheOptions));
   // SPA fallback for non-API GETs (Express 5: no bare "*" route strings).
   app.use((req, res, next) => {
     if (req.method !== "GET" || req.path.startsWith("/api")) return next();

@@ -107,6 +107,14 @@ export function useAtlasListening(opts: AtlasListeningOptions) {
   const sendTimerRef = useRef<number | null>(null);
   const runningRef = useRef(false);       // is a recognition instance active
   const wantRef = useRef(false);          // do we want to be listening right now
+  // Broken-backend guard: on the robot's Chromium, Web Speech's constructor
+  // exists but has no recognition service, so each session ends instantly and
+  // restarts — flickering "Listening…". Detect repeated instant, result-less
+  // sessions and stop retrying (the real ears there are the server-side Vosk).
+  const startedAtRef = useRef(0);
+  const gotAudioRef = useRef(false);      // did this session yield any result
+  const quickFailRef = useRef(0);         // consecutive instant, empty sessions
+  const deadRef = useRef(false);          // backend judged non-functional
 
   // Keep the latest callbacks without restarting recognition.
   const onUtteranceRef = useRef(onUtterance);
@@ -154,7 +162,7 @@ export function useAtlasListening(opts: AtlasListeningOptions) {
 
   const startRecognition = useCallback(() => {
     const Ctor = getSRCtor();
-    if (!Ctor || runningRef.current) return;
+    if (!Ctor || runningRef.current || deadRef.current) return;
     const rec = new Ctor();
     recRef.current = rec;
     wantRef.current = true;
@@ -163,7 +171,12 @@ export function useAtlasListening(opts: AtlasListeningOptions) {
     rec.interimResults = true;
     rec.maxAlternatives = 1;
 
-    rec.onstart = () => { runningRef.current = true; setListening(true); };
+    rec.onstart = () => {
+      runningRef.current = true;
+      startedAtRef.current = Date.now();
+      gotAudioRef.current = false;
+      setListening(true);
+    };
 
     rec.onresult = (e) => {
       let interim = "";
@@ -177,6 +190,8 @@ export function useAtlasListening(opts: AtlasListeningOptions) {
           interim += alt.transcript;
         }
       }
+      gotAudioRef.current = true;   // real results → backend is alive
+      quickFailRef.current = 0;
       if (interim && onInterimRef.current) {
         onInterimRef.current((bufferRef.current + " " + interim).trim());
       }
@@ -187,15 +202,29 @@ export function useAtlasListening(opts: AtlasListeningOptions) {
     };
 
     rec.onerror = (ev) => {
+      const err = ev?.error;
       // "no-speech" / "aborted" are normal; just let onend restart us.
-      if (ev?.error === "not-allowed" || ev?.error === "service-not-allowed") {
-        wantRef.current = false; // permission denied — stop trying
+      if (err === "not-allowed") {
+        deadRef.current = true; wantRef.current = false; // permission denied
+      } else if (err === "network" || err === "language-not-supported" || err === "service-not-allowed") {
+        // No speech backend — this is the robot's Chromium (Web Speech reaches
+        // for Google's service and can't). Give up after a couple so the face
+        // never sits on a false "Listening…"; the real ears are server Vosk.
+        if (++quickFailRef.current >= 2) { deadRef.current = true; wantRef.current = false; }
       }
     };
 
     rec.onend = () => {
       runningRef.current = false;
       setListening(false);
+      // Instant, result-less sessions repeated a few times = no speech backend
+      // (robot Chromium). Give up so the face stops flickering "Listening…".
+      const instant = Date.now() - startedAtRef.current < 1200;
+      if (!gotAudioRef.current && instant) {
+        if (++quickFailRef.current >= 4) { deadRef.current = true; wantRef.current = false; return; }
+      } else {
+        quickFailRef.current = 0;
+      }
       // Continuous mode still ends periodically; restart if we still want to listen.
       if (wantRef.current) {
         window.setTimeout(() => { if (wantRef.current && !runningRef.current) safeStart(rec); }, 250);

@@ -1,0 +1,4 @@
+# The Ollama runtime is fetched at build time (npm run fetch-ollama), not committed.
+*
+!.gitignore
+!README.md

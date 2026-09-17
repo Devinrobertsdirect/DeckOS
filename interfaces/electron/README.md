@@ -1,6 +1,6 @@
-# Neura — Desktop App
+# Nobi — Desktop App
 
-Neura — your own neural network, with a face — running locally on your machine.
+Nobi — your own neural network, with a face — running locally on your machine.
 Packaging: `npm run pack:win` / `pack:mac` / `pack:linux` (see `scripts/pack.mjs`);
 icons are generated from the brand by `scripts/make-icon.mjs`.
 

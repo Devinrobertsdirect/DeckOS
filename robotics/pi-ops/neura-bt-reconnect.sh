@@ -24,6 +24,15 @@ HOME="${HOME:-/home/devindungeon}"
 INTERVAL="${NEURA_BT_INTERVAL:-15}"
 SCAN_S="${NEURA_BT_SCAN_S:-5}"
 SCAN_EVERY="${NEURA_BT_SCAN_EVERY:-45}"
+# Boot pairing window (Devin: "built in pairing when it starts up for 120 seconds").
+# For this long after start the robot is openly in pairing mode: discoverable,
+# scanning nearly continuously, retrying every few seconds. A speaker switched
+# on at the same time as the robot pairs itself before anyone thinks about it.
+# After the window it drops back to the low-duty cycle that keeps WiFi healthy.
+BOOT_WINDOW="${NEURA_BT_BOOT_WINDOW:-120}"
+BOOT_INTERVAL="${NEURA_BT_BOOT_INTERVAL:-5}"
+BOOT_SCAN_EVERY="${NEURA_BT_BOOT_SCAN_EVERY:-8}"
+started=$(date +%s)
 last_scan=0
 STATE="$HOME/.atlas/bt-last-audio"
 ROUTE="$HOME/pi-ops/bt-audio-route.mjs"
@@ -48,13 +57,33 @@ audio_macs() {
 }
 is_connected() { bctl info "$1" | grep -q 'Connected: yes'; }
 
-log "up — interval ${INTERVAL}s"
+log "up — pairing window ${BOOT_WINDOW}s (every ${BOOT_INTERVAL}s), then interval ${INTERVAL}s"
 last=""; [ -f "$STATE" ] && last="$(cat "$STATE" 2>/dev/null)"
 prev=""
+in_window=1
+power_fail=0
 
 while :; do
-  # Controller must be powered.
-  bctl show | grep -q 'Powered: yes' || bctl power on >/dev/null
+  # Still inside the boot window? Everything is faster and the robot is discoverable.
+  if [ "$in_window" = 1 ] && [ $(( $(date +%s) - started )) -ge "$BOOT_WINDOW" ]; then
+    in_window=0
+    bctl discoverable off >/dev/null
+    log "pairing window closed — normal cadence (${INTERVAL}s, scan every ${SCAN_EVERY}s)"
+  fi
+  if [ "$in_window" = 1 ]; then cycle="$BOOT_INTERVAL"; scan_every="$BOOT_SCAN_EVERY"; else cycle="$INTERVAL"; scan_every="$SCAN_EVERY"; fi
+
+  # Controller must be powered. If it will not power on, the chip's firmware has
+  # hung (HCI_Reset times out) and only a reboot brings it back — say so loudly
+  # rather than retrying in silence for hours.
+  if ! bctl show | grep -q 'Powered: yes'; then
+    if bctl power on | grep -q 'Changing power on succeeded'; then power_fail=0
+    else
+      power_fail=$((power_fail + 1))
+      [ "$power_fail" = 3 ] && log "BLUETOOTH CONTROLLER WEDGED — power on keeps failing; a reboot is the only fix"
+      sleep "$cycle"; continue
+    fi
+  fi
+  if [ "$in_window" = 1 ]; then bctl discoverable on >/dev/null; bctl pairable on >/dev/null; fi
 
   # Ordered candidates: last-used first (affinity), then any other audio device.
   ordered="$(printf '%s\n%s\n' "$last" "$(audio_macs)" | awk 'NF' | awk '!seen[$0]++')"
@@ -74,7 +103,7 @@ while :; do
   # Nothing on? Go looking. Any speaker/headphones in pairing mode gets paired,
   # trusted and connected — audio-class devices only (Audio Sink / Headset), never
   # a phone or laptop. Runs every cycle while unconnected = "always in pairing".
-  if [ -z "$connected" ] && [ $(( $(date +%s) - last_scan )) -ge "$SCAN_EVERY" ]; then
+  if [ -z "$connected" ] && [ $(( $(date +%s) - last_scan )) -ge "$scan_every" ]; then
     last_scan=$(date +%s)
     bctl --timeout "$SCAN_S" scan on >/dev/null 2>&1 || true
     for mac in $(bctl devices | awk '{print $2}'); do
@@ -109,9 +138,9 @@ while :; do
       last="$connected"
     fi
   elif [ -n "$prev" ]; then
-    log "lost $prev — searching every ${INTERVAL}s, scanning every ${SCAN_EVERY}s"
+    log "lost $prev — searching every ${cycle}s, scanning every ${scan_every}s"
   fi
   prev="$connected"
 
-  sleep "$INTERVAL"
+  sleep "$cycle"
 done

@@ -169,12 +169,15 @@ export function buildDemoScript(bot: string, p: Persona): ShowBeat[] {
       director: `They chose a joke (or said something else). Tell ONE short, clean, genuinely funny joke in character — ideally about robots, science, or being tiny. If they said something unrelated, react to it briefly first. 1-3 sentences. Do NOT ask a question. ${VOICE_RULE}`,
       fallback: { rocky: "No answer. Trick it is.", jarvis: "Silence. A trick, then.", friday: "No answer? Trick it is.", alfred: "No preference. A trick, then." },
     } },
-    // ── finale ───────────────────────────────────────────────────────────────
-    { scene: "confetti", mood: "proud", color: c.warm, direct: true, holdMs: 4800, say: {
-      rocky:  `That is me. I am ${name}. Your friend. Good. Good good good.`,
+    // ── finale: warp, his name assembles from gold and bursts, then confetti ──
+    { scene: "finale", mood: "proud", color: c.warm, direct: true, holdMs: 12000, say: {
+      rocky:  `That is me. I am ${name}. Your friend.`,
       jarvis: `And that, in short, is me. ${name}. At your service. Within reason.`,
       friday: `So yeah. That's me. ${name}. Stick around, it only gets better.`,
       alfred: `And that is me. ${name}. It has been a genuine pleasure. Do come back.`,
+    } },
+    { scene: "confetti", mood: "happy", color: c.happy, direct: true, holdMs: 3400, say: {
+      rocky: "Good. Good good good.", jarvis: "Thank you. You've been lovely.", friday: "Cheers, you lot!", alfred: "Thank you, all. Most kind.",
     } },
     { scene: "out", mood: "happy", color: c.happy, holdMs: 1200 },
   ];

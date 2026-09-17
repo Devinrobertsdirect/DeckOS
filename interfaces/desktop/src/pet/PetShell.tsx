@@ -19,6 +19,7 @@ import { mirrorFace } from "@/lib/hardwareFace";
 import { segmentReply, emojiGlyph, type EmotionSegment } from "@/genesis/emotionDirector";
 import { personaPrompt, getPersona } from "@/genesis/personality";
 import ShowcaseOverlay, { type ShowcaseScene } from "@/pet/ShowcaseOverlay";
+import { sfx, sfxForScene } from "@/pet/showSfx";
 import {
   buildDemoScript, buildPitchScript, meetDirectorNote, meetDetectBeats, guessName, line, asPersona,
   TRICK_MOODS, TRICK_TADA, type AskSpec, type MeetCtx, type Persona,
@@ -256,6 +257,14 @@ export function PetShell({
   useEffect(() => {
     (window as unknown as { __nobiScene?: (s: ShowcaseScene | null) => void }).__nobiScene = (s) => setShowcaseScene(s);
   }, []);
+  // Sound design: every scene change plays its cue (showSfx.ts); looping cues
+  // (the gears' ticking) stop when the scene moves on.
+  useEffect(() => {
+    const stop = sfxForScene(showcaseScene);
+    return () => { stop?.(); };
+  }, [showcaseScene]);
+  /** Stage backdrop for a "meet someone" turn: sparkle to greet, hearts to say goodbye, the orb ring in between. */
+  const meetStage = (m: MeetCtx): ShowcaseScene => (m.wrap ? "hearts" : m.step === 0 ? "sparkle" : "faces");
   /** The face trick: rapid moods under a spinning rainbow ring, then confetti. */
   const runTrick = useCallback(async () => {
     setShowcaseScene("trick");
@@ -334,6 +343,7 @@ export function PetShell({
     const p = asPersona(getPersona().id);
     const script = kind === "demo" ? buildDemoScript(getBotName(), p) : buildPitchScript(getBotName(), p);
     const started = performance.now();
+    sfx.prime();
     setShowcaseScene(script[0]!.scene);
     const voiceId = personaVoiceId();
     const sayDirect = async (text: string) => { if (!text) return; setCaption(stripEmoji(text)); await speak(text, { voiceId }); };
@@ -349,7 +359,7 @@ export function PetShell({
         if (cancelRef.current || performance.now() - started > 180_000) break;
         setShowcaseScene(beat.scene);
         const beatStart = performance.now();
-        if (beat.mood) demoMood(beat.mood, beat.color);
+        if (beat.mood) { demoMood(beat.mood, beat.color); if (beat.mood === "wink" || beat.mood === "love") sfx.boop(); }
         if (beat.trick) await runTrick();
         const text = line(beat.say, p);
         if (text) { if (beat.direct) await sayDirect(text); else await sayQueued(text); }
@@ -419,6 +429,7 @@ export function PetShell({
       // Nobi, not a command for the deterministic skills. "stop" still exits.
       if (meetRef.current && meetRef.current.step > 0 && /\b(stop|cancel|never ?mind|quit|enough)\b/i.test(message)) {
         meetRef.current = null;
+        setShowcaseScene(null);
       }
       const skipAgent = !!meetRef.current && meetRef.current.step > 0;
       if (!skipAgent) {
@@ -502,19 +513,30 @@ export function PetShell({
 
       // The "meet someone" director expires quietly if the conversation stalls;
       // a goodbye (or six turns) makes THIS reply the warm wrap-up.
-      if (meetRef.current && Date.now() - meetRef.current.startedAt > 6 * 60_000) meetRef.current = null;
+      if (meetRef.current && Date.now() - meetRef.current.startedAt > 6 * 60_000) { meetRef.current = null; setShowcaseScene(null); }
       if (meetRef.current && meetRef.current.step > 0) {
         const m = meetRef.current;
         if (m.step >= 6 || /\b(bye|goodbye|see you|gotta go|got to go|later|nice (to |ta )?meet(ing)? you|good ?night)\b/i.test(message)) m.wrap = true;
         if (!m.personName) { const g = guessName(message); if (g) m.personName = g; }
       }
       const personaSent = meetRef.current ? persona + meetDirectorNote(meetRef.current) : persona;
+      // A meet is a stage show too: gears while he thinks, then a backdrop for
+      // the turn (sparkle to greet, orb ring mid-conversation, hearts goodbye).
+      const meetTurn = meetRef.current;
+      if (meetTurn) { sfx.prime(); setShowcaseScene("gears"); }
+      let staged = false;
+      const stageMeet = () => { if (meetTurn && !staged) { staged = true; setShowcaseScene(meetStage(meetTurn)); } };
+      // A meet is its own conversation: the guest gets only the meet's turns
+      // (two per completed step) in a session of its own — not the owner's
+      // earlier chat, which he'd otherwise reference ("same goat story?").
+      const history = meetTurn ? (meetTurn.step > 0 ? ctx.history.slice(-2 * meetTurn.step) : []) : ctx.history;
+      const sessionId = meetTurn ? `meet-${meetTurn.startedAt}` : undefined;
 
       try {
         const res = await fetch("/api/chat/stream", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message, history: ctx.history, facts: ctx.facts, persona: personaSent }),
+          body: JSON.stringify({ message, history, facts: ctx.facts, persona: personaSent, ...(sessionId ? { sessionId } : {}) }),
         });
         if (!res.ok || !res.body) throw new Error(`stream ${res.status}`);
 
@@ -544,6 +566,7 @@ export function PetShell({
             try { obj = JSON.parse(payload); } catch { continue; }
             if (obj.error) throw new Error("stream error");
             if (obj.token) {
+              stageMeet();
               full += obj.token;
               pending += obj.token;
               // Show the words only — any emoji the model emits are stripped here
@@ -570,11 +593,12 @@ export function PetShell({
           const res = await fetch("/api/chat", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ message, history: ctx.history, facts: ctx.facts, persona: personaSent }),
+            body: JSON.stringify({ message, history, facts: ctx.facts, persona: personaSent, ...(sessionId ? { sessionId } : {}) }),
           });
           const data = (await res.json()) as { response?: string };
           full = (data.response ?? "").trim() || SERVER_DOWN_MSG;
           ok = res.ok && full !== SERVER_DOWN_MSG;
+          stageMeet();
           setCaption(stripEmoji(full));
           for (const seg of segmentReply(full)) queueRef.current.push(seg);
           void drainQueue();
@@ -602,6 +626,9 @@ export function PetShell({
           meetRef.current = null;
         }
       }
+      // Between meet turns the orb ring keeps circling while he listens; the
+      // goodbye clears the stage.
+      if (meetTurn) setShowcaseScene(meetRef.current ? "faces" : null);
       setFaceState("idle");
       clearMood();
       setBusy(false);

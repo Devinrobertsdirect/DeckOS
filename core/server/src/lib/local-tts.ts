@@ -28,8 +28,11 @@ function voiceParams(gender?: string | null): { voice: string; pitch: string; sp
       return { voice: "en-us", pitch: "42", speed: "150" };
     case "male":
     default:
-      // Deep, authoritative JARVIS-style (original)
-      return { voice: "en-us", pitch: "28", speed: "148" };
+      // The offline stand-in for Rocky: brighter and a touch higher than the old
+      // JARVIS rumble (Devin: "a little higher and brighter"), with some pace.
+      // ElevenLabs takes over the moment a real key is present — this is the
+      // voice he has when the network is off, so it should still sound awake.
+      return { voice: "en-us+m3", pitch: "44", speed: "160" };
   }
 }
 

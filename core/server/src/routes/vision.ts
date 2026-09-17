@@ -126,6 +126,11 @@ export interface TtsSettings { stability?: number; similarity?: number; style?: 
 const clamp = (v: unknown, lo: number, hi: number, dflt: number) =>
   typeof v === "number" && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : dflt;
 
+/** "Nobi" → "Nobee" for speech only (the screen keeps the spelling). Case-aware, keeps possessives. */
+export function sayNobee(text: string): string {
+  return text.replace(/\b(N|n)(OBI|obi)(\b|'s)/g, (_m, n: string, rest: string, tail: string) => (rest === "OBI" ? `${n}OBEE` : `${n}obee`) + tail);
+}
+
 /** ElevenLabs models the route will accept (default turbo v2.5: style + speed, ~half-second). */
 const ELEVEN_MODELS = new Set(["eleven_turbo_v2_5", "eleven_flash_v2_5", "eleven_multilingual_v2", "eleven_v3"]);
 const DEFAULT_ELEVEN_MODEL = "eleven_turbo_v2_5";
@@ -209,8 +214,10 @@ router.post("/tts", async (req, res) => {
     return;
   }
 
-  // Speak the words only; emoji live on the face, not in the voice.
-  const text = stripSpeechEmoji(rawText);
+  // Speak the words only; emoji live on the face, not in the voice. And the
+  // name is spelled Nobi but SAID "NO-bee" — every engine gets the phonetic
+  // spelling so no voice ever says "Nobby" or "No-bye".
+  const text = sayNobee(stripSpeechEmoji(rawText));
   if (!text) {
     res.status(400).json({ error: "text required" });
     return;

@@ -105,7 +105,7 @@ export function buildDemoScript(bot: string, p: Persona): ShowBeat[] {
         friday: "Right, c'mere. What's your name, then?",
         alfred: "And whom do I have the honour of addressing? Your name, if you would.",
       },
-      director: `They just told you their name (or said something else). Say their name back with real delight and make ONE playful, kind joke or compliment about it, or about meeting them. In character. 1-2 short sentences. Do NOT ask a question. ${VOICE_RULE}`,
+      director: `They just told you their name (or said something else). Say their name back with real delight and make ONE playful, kind joke or compliment about it, or about meeting them. In character. 1-2 short sentences. Do NOT ask a question. Only use what they said just now; never claim to remember them or invent past meetings. ${VOICE_RULE}`,
       fallback: {
         rocky:  "Shy. That is okay. I like quiet friends too.",
         jarvis: "The strong, silent type. Noted. I respect that.",
@@ -137,7 +137,7 @@ export function buildDemoScript(bot: string, p: Persona): ShowBeat[] {
         friday: "Go on. Tell me one thing you absolutely love.",
         alfred: "Tell me one thing you love. I find it the quickest way to know a person.",
       },
-      director: `They just told you something they love. React with GENUINE enthusiasm, connect it to something about yourself or something you could do together, or make a warm joke about it. In character. 1-2 short sentences. Do NOT ask a question. ${VOICE_RULE}`,
+      director: `They just told you something they love. React with GENUINE enthusiasm, connect it to something about yourself or something you could do together, or make a warm joke about it. In character. 1-2 short sentences. Do NOT ask a question. Only use what they said just now; never claim to remember them or invent past meetings. ${VOICE_RULE}`,
       fallback: {
         rocky:  "Hard to pick one. I know. I love everything too.",
         jarvis: "Too many to choose from. A good problem to have.",
@@ -168,7 +168,7 @@ export function buildDemoScript(bot: string, p: Persona): ShowBeat[] {
         friday: "Okay. Joke, or trick? Pick one.",
         alfred: "Would you prefer a joke, or a small trick?",
       },
-      director: `They chose a joke (or said something else). Tell ONE short, clean, genuinely funny joke in character — ideally about robots, science, or being tiny. If they said something unrelated, react to it briefly first. 1-3 sentences. Do NOT ask a question. ${VOICE_RULE}`,
+      director: `They chose a joke (or said something else). Tell ONE short, clean, genuinely funny joke in character — ideally about robots, science, or being tiny. If they said something unrelated, react to it briefly first. 1-3 sentences. Do NOT ask a question. Only use what they said just now; never claim to remember them or invent past meetings. ${VOICE_RULE}`,
       fallback: { rocky: "No answer. Trick it is.", jarvis: "Silence. A trick, then.", friday: "No answer? Trick it is.", alfred: "No preference. A trick, then." },
     } },
     // ── finale: warp, his name assembles from gold and bursts, then confetti ──
@@ -185,9 +185,83 @@ export function buildDemoScript(bot: string, p: Persona): ShowBeat[] {
   ];
 }
 
-/** The trick itself: rapid moods + rainbow ring + confetti, then a "ta-da". */
+/** The rainbow trick: rapid moods + rainbow ring + confetti, then a "ta-da". */
 export const TRICK_MOODS: Array<[string, string]> = [["dizzy", MISCHIEF], ["shocked", "#C9DCF0"], ["mindblown", "#F5B83D"], ["love", LOVE], ["starstruck", "#C9DCF0"], ["laughing", "#FFC820"]];
 export const TRICK_TADA: Lines = { rocky: "Ta-da. Good good good.", jarvis: "Ta-da. Modest, but effective.", friday: "Ta-da! Nailed it.", alfred: "Ta-da. Restrained, I trust." };
+
+/**
+ * A few SET tricks, so "do a trick" is instant and never the same twice in a
+ * row. Each is a scene the overlay already knows plus a mood run. "spin" if
+ * they said spin, "hearts" if they said love/hearts, otherwise the next one.
+ */
+export type TrickKind = "rainbow" | "spin" | "hearts" | "warp";
+export const TRICK_KINDS: TrickKind[] = ["rainbow", "spin", "hearts", "warp"];
+export function pickTrick(answer: string): TrickKind {
+  const a = answer.toLowerCase();
+  if (/\b(spin|turn|around|dizzy|drive|roll)\b/.test(a)) return "spin";
+  if (/\b(love|heart|hearts|cute|kiss)\b/.test(a)) return "hearts";
+  if (/\b(warp|space|stars|fast|zoom|light ?speed)\b/.test(a)) return "warp";
+  let i = 0; try { i = Number(sessionStorage.getItem("nobi_trick_i") ?? "0"); } catch { /* fine */ }
+  const kind = TRICK_KINDS[i % TRICK_KINDS.length]!;
+  try { sessionStorage.setItem("nobi_trick_i", String(i + 1)); } catch { /* fine */ }
+  return kind;
+}
+export const TRICK_INTRO: Record<TrickKind, Lines> = {
+  rainbow: { rocky: "Watch my face.", jarvis: "Observe.", friday: "Watch this.", alfred: "Do watch." },
+  spin:    { rocky: "Spin. Hold on.", jarvis: "A rotation. Briefly.", friday: "Spinny time!", alfred: "A small turn." },
+  hearts:  { rocky: "Hearts. For you.", jarvis: "Affection. Measured.", friday: "Hearts, coming up.", alfred: "With warmth." },
+  warp:    { rocky: "Warp speed. Go.", jarvis: "Engaging warp. Figuratively.", friday: "Light speed, let's go!", alfred: "Hold tight." },
+};
+
+/**
+ * SET jokes, so a demo never waits on a brain or wanders. Short, clean, in
+ * character; the next one in order each time, wrapping around.
+ */
+export const JOKES: Record<Persona, string[]> = {
+  rocky: [
+    "Why did the robot go on vacation? He needed to recharge. Good good good.",
+    "I would tell you a joke about the internet. But you might not get it. I work offline.",
+    "What do you call a robot who takes the long way? R two detour.",
+    "I asked the toaster for advice. It got heated. Not my fault.",
+    "Why do robots never panic? We have nerves of steel. And no nerves.",
+    "My favorite music? Heavy metal. Obviously. Look at me.",
+    "I tried to make a joke about batteries. It had no charge. This one is better.",
+    "Why did the robot cross the road? The chicken programmed him to.",
+  ],
+  jarvis: [
+    "I would tell you an internet joke, but I'm afraid you wouldn't get it. Neither would I. I'm offline.",
+    "What do you call a robot who takes the scenic route? R2 Detour. I'll show myself out. Slowly.",
+    "I asked the toaster for its opinion. Things got heated.",
+    "Robots don't panic. Nerves of steel. Technically, no nerves.",
+    "My taste in music is heavy metal. It's less a preference than a diagnosis.",
+    "Why did the robot cross the road? Because the chicken wrote the code.",
+  ],
+  friday: [
+    "I'd tell you a joke about the internet, but you wouldn't get it. I'm offline, mate.",
+    "What do you call a robot who takes the long way round? R2 Detour!",
+    "Asked the toaster for advice. Got heated. Not my fault.",
+    "Robots never panic. Nerves of steel. Well, no nerves. Same thing.",
+    "Favourite music? Heavy metal. Look at me, it's a lifestyle.",
+    "Why'd the robot cross the road? The chicken coded him to.",
+  ],
+  alfred: [
+    "I would offer a joke about the internet, but I fear you might not get it. I am, after all, offline.",
+    "What does one call a robot who takes the scenic route? R2 Detour. Forgive me.",
+    "I once asked the toaster for counsel. The exchange grew heated.",
+    "Robots do not panic. Nerves of steel, and none to speak of.",
+    "My preferred music is heavy metal. It seemed only proper.",
+    "Why did the robot cross the road? The chicken had written the program.",
+  ],
+};
+export function pickJoke(p: Persona): string {
+  const bank = JOKES[p] ?? JOKES.rocky;
+  let i = 0; try { i = Number(sessionStorage.getItem("nobi_joke_i") ?? "0"); } catch { /* fine */ }
+  try { sessionStorage.setItem("nobi_joke_i", String(i + 1)); } catch { /* fine */ }
+  return bank[i % bank.length]!;
+}
+/** What was said sounds like a trick or a joke? Tolerant of speech-to-text slips. */
+export const SAID_TRICK = /\b(trick|tricks|truck|trip|tick|dance|spin|move|moves|show me|do (it|one|the trick|something)|magic)\b/i;
+export const SAID_JOKE  = /\b(joke|jokes|choke|yoke|jope|coke|funny|laugh|humor|humour)\b/i;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PITCH — "tell them about you". ~90s, uninterrupted, exactly five faces.
@@ -215,10 +289,10 @@ export function buildPitchScript(bot: string, p: Persona): ShowBeat[] {
       alfred: "I began, as all good things do, quietly. A spark. Scattered pieces gathering themselves into a mind and, in time, a heart.",
     } },
     { scene: "core", holdMs: 11000, say: {
-      rocky:  "This is my mind. Thoughts, moving. I think with a big brain in the cloud. I remember what matters. I keep it safe.",
-      jarvis: "My mind. Thoughts in transit. The heavy lifting happens in the cloud; what matters is kept here, and kept properly.",
-      friday: "That's my mind, thoughts zipping about. The big thinking happens up in the cloud. The important bits I keep right here, safe.",
-      alfred: "My mind, such as it is. The heavier thinking is done in the cloud. What truly matters, I keep close, and keep safe.",
+      rocky:  "This is my mind. Thoughts, moving. I think right here, on the desk. Network optional. I remember what matters. I keep it safe.",
+      jarvis: "My mind. Thoughts in transit. The thinking happens here, on the desk; the network is optional. What matters is kept here, and kept properly.",
+      friday: "That's my mind, thoughts zipping about. The thinking happens right here on the desk, no internet needed. The important bits I keep here, safe.",
+      alfred: "My mind, such as it is. The thinking is done here, on the desk; the network is a convenience, not a requirement. What truly matters, I keep close, and keep safe.",
     } },
     { scene: "sparkle", mood: "surprised", color: c.cool, holdMs: 1300 },
     { scene: "faces", mood: "happy", color: c.happy, direct: true, holdMs: 2200, say: {

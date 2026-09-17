@@ -22,7 +22,7 @@ import ShowcaseOverlay, { SHOP_URL, type ShowcaseScene } from "@/pet/ShowcaseOve
 import { sfx, sfxForScene } from "@/pet/showSfx";
 import {
   buildDemoScript, buildPitchScript, buildOrderScript, meetDirectorNote, meetDetectBeats, guessName, line, asPersona,
-  TRICK_MOODS, TRICK_TADA, type AskSpec, type MeetCtx, type Persona,
+  TRICK_MOODS, TRICK_TADA, TRICK_INTRO, pickTrick, pickJoke, SAID_TRICK, SAID_JOKE, type TrickKind, type AskSpec, type MeetCtx, type Persona,
 } from "@/pet/showScripts";
 import { stripEmoji } from "@/lib/stripText";
 import { dockLines } from "@/genesis/dockGreetings";
@@ -269,9 +269,21 @@ export function PetShell({
   /** Stage backdrop for a "meet someone" turn: their name in gold when he greets them (or first learns it), hearts for goodbye, the orb ring in between. */
   const meetStage = (m: MeetCtx, nameNow: boolean): ShowcaseScene => (m.wrap ? "hearts" : nameNow ? "name" : m.step === 0 ? "sparkle" : "faces");
   /** The face trick: rapid moods under a spinning rainbow ring, then confetti. */
-  const runTrick = useCallback(async () => {
-    setShowcaseScene("trick");
-    for (const [m, col] of TRICK_MOODS) { if (cancelRef.current) break; demoMood(m, col); await demoSleep(650); }
+  const runTrick = useCallback(async (kind: TrickKind = "rainbow") => {
+    if (kind === "spin") {           // the little Mark 1 drives a lap and skids, eyes dizzy
+      setShowcaseScene("drive"); demoMood("dizzy", "#C9DCF0"); await demoSleep(2600);
+      demoMood("laughing", "#FFC820"); await demoSleep(900);
+    } else if (kind === "hearts") {  // hearts float up, he melts
+      setShowcaseScene("hearts"); demoMood("love", "#FF6FA5"); await demoSleep(2200);
+      demoMood("starstruck", "#FF6FA5"); await demoSleep(900);
+    } else if (kind === "warp") {    // star streaks, then a sparkle burst
+      setShowcaseScene("warp"); demoMood("shocked", "#C9DCF0"); await demoSleep(1600);
+      demoMood("mindblown", "#F5B83D"); await demoSleep(900);
+      setShowcaseScene("sparkle"); await demoSleep(900);
+    } else {                          // rainbow ring + rapid moods
+      setShowcaseScene("trick");
+      for (const [m, col] of TRICK_MOODS) { if (cancelRef.current) break; demoMood(m, col); await demoSleep(650); }
+    }
     setShowcaseScene("confetti");
     demoMood("starstruck", "#F5B83D");
   }, [demoMood, demoSleep]);
@@ -301,9 +313,21 @@ export function PetShell({
     setCaption(`“${stripEmoji(answer)}”`);
     appendTurn("user", answer);
     ingestUserMessage(answer);
-    if (ask.branch === "joke-or-trick" && /\b(trick|dance|spin|move|face|show|do (it|one|the trick))\b/i.test(answer) && !/\bjoke\b/i.test(answer)) {
-      await runTrick(); await sayDirect(tada); appendTurn("atlas", tada);
-      return;
+    // Joke or trick is decided HERE, from set material — never the brain. A
+    // trick they named (spin, hearts, warp) or the next one; a joke from the
+    // bank. Anything else they said still gets a joke, so the beat never stalls.
+    // A trick is decided here from set material. A joke is IMPROVISED by the
+    // brain (Devin prefers it) — with the bank as the safety net when the brain
+    // is slow, offline, or comes back empty, so the beat never stalls.
+    let wantJoke = false;
+    if (ask.branch === "joke-or-trick") {
+      if (SAID_TRICK.test(answer) && !SAID_JOKE.test(answer)) {
+        const kind = pickTrick(answer);
+        await sayDirect(line(TRICK_INTRO[kind], p));
+        await runTrick(kind); await sayDirect(tada); appendTurn("atlas", tada);
+        return;
+      }
+      wantJoke = true;
     }
     setFaceState("thinking");
     setShowcaseScene("gears");   // visible "thinking" while the brain works
@@ -331,7 +355,7 @@ export function PetShell({
       reply = stripEmoji((data.response ?? "").trim());
     } catch { reply = ""; }
     finally { window.clearTimeout(abortTimer); }
-    if (!reply) reply = line(ask.fallback, p);
+    if (!reply) reply = wantJoke ? pickJoke(p) : line(ask.fallback, p);
     // The model won't always honour "no questions / 35 words": keep whole
     // sentences up to ~40 words and drop trailing questions (nobody can answer).
     const sentences = reply.match(/[^.!?]+[.!?]+["']?|[^.!?]+$/g)?.map((s) => s.trim()).filter(Boolean) ?? [reply];
@@ -339,6 +363,7 @@ export function PetShell({
     const kept: string[] = []; let words = 0;
     for (const s of sentences) { const n = s.split(/\s+/).length; if (kept.length && words + n > 40) break; kept.push(s); words += n; }
     reply = kept.join(" ") || reply;
+    if (wantJoke) { setShowcaseScene("faces"); demoMood("mischievous", "#C9DCF0"); }
     // Their name, in gold above the eyes, while he replies.
     let next: ShowcaseScene = stage;
     if (ask.branch === "name") {

@@ -272,10 +272,41 @@ const CATEGORY_ORDER: CapabilityCategory[] = [
  * Full mode adds each tool's one-line summary — used on the richer non-streaming
  * path where a little extra context is worth it.
  */
+/**
+ * Does this machine actually have a camera? The robot (Nobi One) ships without
+ * one unless the camera-eye upgrade is fitted, and a prompt that lists "look
+ * through your camera" makes him claim eyes he does not have. Checked once.
+ */
+let cameraPresent: boolean | null = null;
+export function hasCamera(): boolean {
+  if (cameraPresent !== null) return cameraPresent;
+  const forced = process.env["NOBI_HAS_CAMERA"];
+  if (forced === "1" || forced === "true") return (cameraPresent = true);
+  if (forced === "0" || forced === "false") return (cameraPresent = false);
+  try {
+    // On desktops the browser asks the OS, so assume yes there. On Linux a
+    // /dev/video* node is NOT enough — the Pi's own ISP and codec show up as
+    // video devices with no camera attached — so read each device's name and
+    // only count the ones that are actually cameras (CSI unicam / USB UVC).
+    if (process.platform !== "linux") return (cameraPresent = true);
+    const fs = require("node:fs") as typeof import("node:fs");
+    const base = "/sys/class/video4linux";
+    cameraPresent = fs.readdirSync(base).some((dev) => {
+      try {
+        const name = fs.readFileSync(`${base}/${dev}/name`, "utf8").toLowerCase();
+        return /unicam|camera|uvc|usb|imx\d|ov\d{4}|arducam|webcam/.test(name) && !/isp|codec|hevc|h264|jpeg|rpivid/.test(name);
+      } catch { return false; }
+    });
+  } catch { cameraPresent = false; }
+  return cameraPresent;
+}
+
 export function capabilitiesPromptBlock(opts?: { compact?: boolean }): string {
   const compact = opts?.compact ?? true;
   const byCat = new Map<CapabilityCategory, DeckCapability[]>();
+  const camera = hasCamera();
   for (const c of DECKOS_CAPABILITIES) {
+    if (c.id === "vision" && !camera) continue;   // never advertise a sense he lacks
     const arr = byCat.get(c.category) ?? [];
     arr.push(c);
     byCat.set(c.category, arr);

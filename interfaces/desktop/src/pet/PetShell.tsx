@@ -19,7 +19,10 @@ import { mirrorFace } from "@/lib/hardwareFace";
 import { segmentReply, emojiGlyph, type EmotionSegment } from "@/genesis/emotionDirector";
 import { personaPrompt, getPersona } from "@/genesis/personality";
 import ShowcaseOverlay, { type ShowcaseScene } from "@/pet/ShowcaseOverlay";
-import { buildShowcaseScript, introDirectorNote } from "@/pet/showcaseScript";
+import {
+  buildDemoScript, buildPitchScript, meetDirectorNote, meetDetectBeats, guessName, line, asPersona,
+  TRICK_MOODS, TRICK_TADA, type AskSpec, type MeetCtx, type Persona,
+} from "@/pet/showScripts";
 import { stripEmoji } from "@/lib/stripText";
 import { dockLines } from "@/genesis/dockGreetings";
 import {
@@ -47,6 +50,15 @@ function toEyeRgb(color: string): string | null {
     return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
   }
   return /^\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}$/.test(c) ? c : null;
+}
+
+/** Per-persona ElevenLabs voice (localStorage `atlas_persona_voices` = {rocky: id, …}); undefined → the default voice. */
+function personaVoiceId(): string | undefined {
+  try {
+    const map = JSON.parse(localStorage.getItem("atlas_persona_voices") || "{}") as Record<string, string>;
+    const id = map[getPersona().id];
+    return id && id.trim() ? id.trim() : undefined;
+  } catch { return undefined; }
 }
 
 function activityFor(state: FaceState): number {
@@ -165,7 +177,7 @@ export function PetShell({
     while (queueRef.current.length && !cancelRef.current) {
       const seg = queueRef.current.shift()!;
       applyMood(seg.style);
-      await speak(seg.text);
+      await speak(seg.text, { voiceId: personaVoiceId() });
     }
     drainingRef.current = false;
   }, [speak]);
@@ -213,17 +225,20 @@ export function PetShell({
     fireCelebRef.current = requestAnimationFrame(tick);
   }, []);
 
-  // ── "Quick demo" showcase — ~90s of Three.js scenes + narration + faces ─────
-  // Triggered by the showcase skill ("hey nobi, give me a quick demo"). Holds
-  // `busy` for the whole run so the mic sidecar stays muted (it would otherwise
-  // transcribe the narration) and normal turns are paused. Narration goes through
+  // ── Built-in shows ──────────────────────────────────────────────────────────
+  // "quick demo" (~2 min, three live questions) and the "tell them about you"
+  // pitch (~90s, uninterrupted) — see showScripts.ts. A show holds `busy` for
+  // its whole run (mic sidecar muted, normal turns paused) and narrates through
   // the same voice pipeline as replies; `direct` beats hold a chosen expression.
-  // Tap the screen to skip; a hard 2-minute cap guarantees it always ends.
+  // ASK beats speak a question, open the ears, catch the answer (voice or typed)
+  // and hand it to the brain with a director note, so the reply is live and in
+  // character. Tap the screen to skip; a hard 3-minute cap guarantees it ends.
   const [showcaseScene, setShowcaseScene] = useState<ShowcaseScene | null>(null);
-  const showcaseRef = useRef(false);
-  // The "introduce yourself" director: a 4-turn guided conversation run by the
-  // real brain. Step + what the user told us ride along in each turn's persona.
-  const introDemoRef = useRef<{ step: number; answers: string[]; startedAt: number } | null>(null);
+  const showRef = useRef(false);
+  /** While a show is waiting on an answer, the next utterance resolves this instead of starting a turn. */
+  const pendingAnswerRef = useRef<((text: string) => void) | null>(null);
+  // "Meet someone": a live conversation steered a turn at a time (showScripts.ts).
+  const meetRef = useRef<(MeetCtx & { startedAt: number }) | null>(null);
   const demoMood = useCallback((state: string, color?: string) => {
     setFaceState(state as FaceState);
     setEyeColor(color ? toEyeRgb(color) : null);
@@ -232,14 +247,70 @@ export function PetShell({
     const end = performance.now() + ms;
     while (performance.now() < end && !cancelRef.current) await new Promise((r) => setTimeout(r, 80));
   }, []);
-  // The moment a showcase ends; voice transcripts that land in the next couple
-  // of seconds are the tail of his own narration, not the user — drop them.
-  const showcaseEndedAtRef = useRef(0);
+  // The moment a show ends; voice transcripts that land in the next couple of
+  // seconds are the tail of his own narration, not the user — drop them.
+  const showEndedAtRef = useRef(0);
   const setEarsMuted = (on: boolean) =>
     fetch("/api/voice/mute", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ on }) }).catch(() => { /* no sidecar here */ });
-  const runShowcase = useCallback(async () => {
-    if (showcaseRef.current) return;
-    showcaseRef.current = true;
+  // Dev/test hook: drive the stage directly (window.__nobiScene("bowl")).
+  useEffect(() => {
+    (window as unknown as { __nobiScene?: (s: ShowcaseScene | null) => void }).__nobiScene = (s) => setShowcaseScene(s);
+  }, []);
+  /** The face trick: rapid moods under a spinning rainbow ring, then confetti. */
+  const runTrick = useCallback(async () => {
+    setShowcaseScene("trick");
+    for (const [m, col] of TRICK_MOODS) { if (cancelRef.current) break; demoMood(m, col); await demoSleep(650); }
+    setShowcaseScene("confetti");
+    demoMood("starstruck", "#F5B83D");
+  }, [demoMood, demoSleep]);
+  /** An ASK beat: question → ears open → answer → live in-character reply. */
+  const askAndRespond = useCallback(async (
+    ask: AskSpec, p: Persona,
+    sayDirect: (t: string) => Promise<void>, sayQueued: (t: string) => Promise<void>,
+  ) => {
+    await sayDirect(line(ask.say, p));
+    setFaceState("listening");
+    await setEarsMuted(false);
+    const answer = await new Promise<string | null>((resolve) => {
+      const done = (v: string | null) => { window.clearTimeout(timer); window.clearInterval(poll); pendingAnswerRef.current = null; resolve(v); };
+      const timer = window.setTimeout(() => done(null), ask.listenMs ?? 14000);
+      const poll = window.setInterval(() => { if (cancelRef.current) done(null); }, 120);
+      pendingAnswerRef.current = (t) => done(t);
+    });
+    await setEarsMuted(true);
+    if (cancelRef.current) return;
+    const tada = line(TRICK_TADA, p);
+    if (!answer) {
+      await sayDirect(line(ask.fallback, p));
+      if (ask.branch === "joke-or-trick") { await runTrick(); await sayDirect(tada); }
+      return;
+    }
+    setLiveHeard("");
+    setCaption(`“${stripEmoji(answer)}”`);
+    appendTurn("user", answer);
+    ingestUserMessage(answer);
+    if (ask.branch === "joke-or-trick" && /\b(trick|dance|spin|move|face|show|do (it|one|the trick))\b/i.test(answer) && !/\bjoke\b/i.test(answer)) {
+      await runTrick(); await sayDirect(tada); appendTurn("atlas", tada);
+      return;
+    }
+    setFaceState("thinking");
+    const ctx = buildContext({ maxTurns: 6 });
+    let reply = "";
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: answer, history: ctx.history, facts: ctx.facts, persona: `${personaPrompt()}\n\n${ask.director}` }),
+      });
+      const data = (await res.json()) as { response?: string };
+      reply = stripEmoji((data.response ?? "").trim());
+    } catch { reply = ""; }
+    if (!reply) reply = line(ask.fallback, p);
+    appendTurn("atlas", reply);
+    await sayQueued(reply);
+  }, [runTrick]);
+  const runShow = useCallback(async (kind: "demo" | "pitch") => {
+    if (showRef.current) return;
+    showRef.current = true;
     cancelRef.current = false;
     queueRef.current = [];
     setBusy(true);
@@ -249,11 +320,14 @@ export function PetShell({
     // mutes, but its fire-and-forget POSTs can land out of order around the
     // deferred hand-off, and an unmuted mic would hear the narration itself.
     await setEarsMuted(true);
-    const script = buildShowcaseScript(getBotName(), getPersona().id === "rocky");
+    const p = asPersona(getPersona().id);
+    const script = kind === "demo" ? buildDemoScript(getBotName(), p) : buildPitchScript(getBotName(), p);
     const started = performance.now();
     setShowcaseScene(script[0]!.scene);
-    const sayDirect = async (text: string) => { setCaption(stripEmoji(text)); await speak(text); };
+    const voiceId = personaVoiceId();
+    const sayDirect = async (text: string) => { if (!text) return; setCaption(stripEmoji(text)); await speak(text, { voiceId }); };
     const sayQueued = async (text: string) => {
+      if (!text) return;
       setCaption(stripEmoji(text));
       for (const seg of segmentReply(text)) queueRef.current.push(seg);
       void drainQueue();
@@ -261,38 +335,44 @@ export function PetShell({
     };
     try {
       for (const beat of script) {
-        if (cancelRef.current || performance.now() - started > 120_000) break;
+        if (cancelRef.current || performance.now() - started > 180_000) break;
         setShowcaseScene(beat.scene);
         const beatStart = performance.now();
         if (beat.mood) demoMood(beat.mood, beat.color);
-        if (beat.say) { if (beat.direct) await sayDirect(beat.say); else await sayQueued(beat.say); }
+        if (beat.trick) await runTrick();
+        const text = line(beat.say, p);
+        if (text) { if (beat.direct) await sayDirect(text); else await sayQueued(text); }
         for (const step of beat.steps ?? []) {
           if (cancelRef.current) break;
           demoMood(step.mood, step.color);
-          if (step.say) await sayDirect(step.say);
+          const st = line(step.say, p);
+          if (st) await sayDirect(st);
           await demoSleep(step.holdMs);
         }
+        if (beat.ask) await askAndRespond(beat.ask, p, sayDirect, sayQueued);
         const remaining = beat.holdMs - (performance.now() - beatStart);
         if (remaining > 0) await demoSleep(remaining);
       }
     } finally {
       setShowcaseScene(null);
       queueRef.current = [];
+      pendingAnswerRef.current = null;
       clearMood();
       setCaption("");
       setFaceState("happy");
       window.setTimeout(() => setFaceState((s) => (s === "happy" ? "idle" : s)), 2500);
       // Let the speaker's tail die out before the ears re-open.
       await demoSleep(1500);
-      showcaseEndedAtRef.current = Date.now();
+      showEndedAtRef.current = Date.now();
       setBusy(false);
-      showcaseRef.current = false;
+      showRef.current = false;
       void setEarsMuted(false);
     }
-  }, [speak, drainQueue, waitForQueue, demoMood, demoSleep]);
-  const skipShowcase = useCallback(() => {
-    if (!showcaseRef.current) return;
+  }, [speak, drainQueue, waitForQueue, demoMood, demoSleep, runTrick, askAndRespond]);
+  const skipShow = useCallback(() => {
+    if (!showRef.current) return;
     cancelRef.current = true;
+    pendingAnswerRef.current = null;
     stop();
   }, [stop]);
 
@@ -300,6 +380,8 @@ export function PetShell({
   const handleSend = useCallback(
     async (raw: string) => {
       const message = raw.trim();
+      // A show is waiting on an answer (typed here, or spoken) — hand it over.
+      if (message && pendingAnswerRef.current) { pendingAnswerRef.current(message); return; }
       if (!message || busyRef.current) return;
 
       cancelRef.current = false;
@@ -322,13 +404,13 @@ export function PetShell({
       // ── Agentic pre-flight: is this a DeckOS ACTION rather than chat? ────────
       // (drive/turn/stop, remember X, open a tool, status). Deterministic + fast,
       // so plain conversation isn't slowed. Falls through to chat on no match.
-      // While the intro director is mid-conversation, the user's answers go
-      // straight to the brain — "yes, remember that" is a reply to Nobi, not a
-      // command for the deterministic skills. "stop" / "never mind" still exits.
-      if (introDemoRef.current && introDemoRef.current.step > 0 && /\b(stop|cancel|never ?mind|quit|enough)\b/i.test(message)) {
-        introDemoRef.current = null;
+      // While the "meet someone" director is mid-conversation, the person's
+      // replies go straight to the brain — "yes, remember that" is a reply to
+      // Nobi, not a command for the deterministic skills. "stop" still exits.
+      if (meetRef.current && meetRef.current.step > 0 && /\b(stop|cancel|never ?mind|quit|enough)\b/i.test(message)) {
+        meetRef.current = null;
       }
-      const skipAgent = !!introDemoRef.current && introDemoRef.current.step > 0;
+      const skipAgent = !!meetRef.current && meetRef.current.step > 0;
       if (!skipAgent) {
       try {
         const ar = await fetch("/api/agent", {
@@ -340,10 +422,13 @@ export function PetShell({
           const decision = (await ar.json()) as { mode: "action" | "chat"; speak?: string; ui?: UiAction };
           if (decision.mode === "action") {
             const ui: UiAction = decision.ui ?? { type: "none" };
-            if (ui.type === "introDemo") {
-              // Arm the 4-turn "introduce yourself" director and fall through to
-              // the chat path below: the brain runs the conversation, we steer it.
-              introDemoRef.current = { step: 0, answers: [], startedAt: Date.now() };
+            if (ui.type === "meet") {
+              // Arm the "meet someone" director and fall through to the chat path
+              // below: the brain runs the conversation, we steer it turn by turn.
+              meetRef.current = {
+                step: 0, answers: [], beatsDone: [], wrap: false, startedAt: Date.now(),
+                ownerName: getUserName().trim(), personName: ui.name, relation: ui.relation,
+              };
             } else {
             // "say that again" re-speaks the previous reply.
             let sayText = decision.speak ?? "";
@@ -375,7 +460,7 @@ export function PetShell({
               showImage: (url, prompt) => setOverlay({ kind: "image", src: url, caption: prompt }),
               openTutorial: () => setOverlay({ kind: "tutorial", src: "/tutorial.html" }),
               closeOverlay: () => setOverlay(null),
-              playShowcase: () => { void runShowcase(); },
+              playShow: (kind) => { void runShow(kind); },
             });
             if (sayText.trim()) {
               ok = true;
@@ -398,11 +483,15 @@ export function PetShell({
       } catch { /* agent unavailable — just talk */ }
       }
 
-      // The intro director expires quietly if the conversation stalls.
-      if (introDemoRef.current && Date.now() - introDemoRef.current.startedAt > 4 * 60_000) introDemoRef.current = null;
-      const personaSent = introDemoRef.current
-        ? persona + introDirectorNote(introDemoRef.current.step, getUserName().trim(), introDemoRef.current.answers)
-        : persona;
+      // The "meet someone" director expires quietly if the conversation stalls;
+      // a goodbye (or six turns) makes THIS reply the warm wrap-up.
+      if (meetRef.current && Date.now() - meetRef.current.startedAt > 6 * 60_000) meetRef.current = null;
+      if (meetRef.current && meetRef.current.step > 0) {
+        const m = meetRef.current;
+        if (m.step >= 6 || /\b(bye|goodbye|see you|gotta go|got to go|later|nice (to |ta )?meet(ing)? you|good ?night)\b/i.test(message)) m.wrap = true;
+        if (!m.personName) { const g = guessName(message); if (g) m.personName = g; }
+      }
+      const personaSent = meetRef.current ? persona + meetDirectorNote(meetRef.current) : persona;
 
       try {
         const res = await fetch("/api/chat/stream", {
@@ -482,20 +571,18 @@ export function PetShell({
       await waitForQueue();
       // Persist the clean words (no emoji) so recalled history stays speakable.
       appendTurn("atlas", stripEmoji(full));
-      // Intro director bookkeeping: the user's replies (turns 2-4) are what he
-      // learned; after the final turn they're kept for real in his memory.
-      const intro = introDemoRef.current;
-      if (intro) {
-        if (intro.step > 0) intro.answers.push(message);
-        intro.step += 1;
-        if (intro.step >= 4) {
-          // Keep what they told him about themselves — not "yes please" / "sure".
-          const affirmation = /^\s*(yes|yeah|yep|yup|sure|ok(ay)?|please|no|nope|nah|thanks?|thank you)\b[\s\w,!.]{0,24}$/i;
-          for (const a of intro.answers) {
-            const t = a.trim();
-            if (t.length > 3 && t.split(/\s+/).length >= 4 && !affirmation.test(t)) addFact(t, "user");
-          }
-          introDemoRef.current = null;
+      // "Meet someone" bookkeeping: what the person said is what he learned;
+      // after the wrap-up turn it's kept for real in his memory.
+      const meet = meetRef.current;
+      if (meet) {
+        if (meet.step > 0) { meet.answers.push(message); meet.beatsDone = meetDetectBeats(message, full, meet); }
+        meet.step += 1;
+        if (meet.wrap) {
+          const who = meet.personName ?? "someone new";
+          const rel = meet.relation ? ` (${meet.ownerName || "my person"}'s ${meet.relation})` : "";
+          const learned = meet.answers.filter((a) => a.split(/\s+/).length >= 3).slice(0, 3).join("; ");
+          addFact(`Met ${who}${rel}${learned ? ` — they said: ${learned}` : ""}`, "user");
+          meetRef.current = null;
         }
       }
       setFaceState("idle");
@@ -588,9 +675,11 @@ export function PetShell({
     if (!voiceHeardEv || voiceHeardEv.timestamp === handledVoiceAt.current) return;
     handledVoiceAt.current = voiceHeardEv.timestamp;
     const text = ((voiceHeardEv.payload ?? {}) as { text?: string }).text ?? "";
-    // A transcript arriving right after the showcase is its own last line echoing
+    // A show is listening for an answer — this is it.
+    if (text.trim() && pendingAnswerRef.current) { pendingAnswerRef.current(text.trim()); return; }
+    // A transcript arriving right after a show is its own last line echoing
     // through the mic — never the user.
-    if (Date.now() - showcaseEndedAtRef.current < 3000) return;
+    if (Date.now() - showEndedAtRef.current < 3000) return;
     if (text.trim()) void handleSend(text);
   }, [voiceHeardEv, handleSend]);
 
@@ -735,7 +824,7 @@ export function PetShell({
         <ContentOverlay kind={overlay.kind} src={overlay.src} caption={overlay.caption} onClose={() => setOverlay(null)} />
       )}
       {showcaseScene && (
-        <ShowcaseOverlay scene={showcaseScene} label={bot.toUpperCase()} onSkip={skipShowcase} />
+        <ShowcaseOverlay scene={showcaseScene} label={bot.toUpperCase()} onSkip={skipShow} />
       )}
       {survivorAnim && (
         <SurvivorOverlay variant={survivorAnim}

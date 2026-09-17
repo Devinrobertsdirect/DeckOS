@@ -37,8 +37,8 @@ export type UiAction =
   | { type: "showImage"; url: string; prompt?: string }
   | { type: "openTutorial" }
   | { type: "closeOverlay" }
-  | { type: "showcase" }
-  | { type: "introDemo" }
+  | { type: "show"; kind: "demo" | "pitch" }
+  | { type: "meet"; name?: string; relation?: string }
   | { type: "replayLast" };
 
 export interface ActionHelpers {
@@ -56,8 +56,8 @@ export interface ActionHelpers {
   openTutorial?: () => void;
   /** Close any full-screen overlay (image / tutorial) — back to the face. */
   closeOverlay?: () => void;
-  /** Run the ~90s flashy "quick demo" showcase (Three.js scenes + narration + faces). */
-  playShowcase?: () => void;
+  /** Run a built-in show: the ~2min "quick demo" or the ~90s "tell them about you" pitch. */
+  playShow?: (kind: "demo" | "pitch") => void;
 }
 
 /** Run a client action. Returns a deferred effect to run after Atlas speaks, or null. */
@@ -97,9 +97,9 @@ export function applyClientAction(ui: UiAction, helpers: ActionHelpers): (() => 
     case "showImage": return () => helpers.showImage?.(ui.url, ui.prompt);
     case "openTutorial": return () => helpers.openTutorial?.();
     case "closeOverlay": return () => helpers.closeOverlay?.();
-    case "showcase": return () => helpers.playShowcase?.();
+    case "show": return () => helpers.playShow?.(ui.kind);
     // handled by the caller (needs chat history / the chat path) / no-op
-    case "introDemo":
+    case "meet":
     case "replayLast":
     case "none":
       return null;

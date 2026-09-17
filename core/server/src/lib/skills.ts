@@ -45,8 +45,8 @@ export type UiAction =
   | { type: "videoControl"; action: "pause" | "resume" | "close" }
   | { type: "survivor"; variant: "torches" | "snuff"; banner: string }
   | { type: "showImage"; url: string; prompt?: string }
-  | { type: "showcase" }
-  | { type: "introDemo" }
+  | { type: "show"; kind: "demo" | "pitch" }
+  | { type: "meet"; name?: string; relation?: string }
   | { type: "openTutorial" }
   | { type: "closeOverlay" }
   | { type: "replayLast" };
@@ -803,25 +803,37 @@ const greet: Skill = {
 // "hey nobi, give me a quick demo" → the ~90s flashy showcase (Three.js scenes,
 // narration, a tour of the faces). "hey nobi, introduce yourself" → a directed
 // 4-turn get-to-know-you conversation through the live brain that remembers.
-const showcaseDemo: Skill = {
-  id: "showcase-demo",
+const RELATIONS = "mom|mum|mother|dad|father|brother|sister|wife|husband|girlfriend|boyfriend|partner|fianc[eé]e?|friend|buddy|best friend|son|daughter|kid|kids|cousin|aunt|auntie|uncle|grandma|grandpa|grandmother|grandfather|nana|papa|boss|coworker|colleague|neighbou?r|teacher|roommate|niece|nephew|family";
+const demoShow: Skill = {
+  id: "demo-show",
   handle({ lower }) {
-    if (/\b(introduce|introduction)\b/.test(lower)) return null;
-    if (!/\b(demo|show ?off|show (me |us )?(what|everything) you (can do|got|do)|do your thing|strut your stuff)\b/.test(lower)) return null;
-    return { speak: "", ui: { type: "showcase" } };
+    if (/\b(introduce|introduction|about (you|yourself)|meet)\b/.test(lower)) return null;
+    if (!/\b(show (us|me|them|everyone|everybody) (a |your |the )?(quick |little |short )?demo|give (us|me|them|everyone) (a |your |the )?(quick |little |short )?demo|(a |the )?quick demo|do (a|your|the) demo|demo time|show ?off|show (us|me|them|everyone) what you (can do|got|do)|do your thing|strut your stuff)\b/.test(lower)) return null;
+    return { speak: "", ui: { type: "show", kind: "demo" } };
   },
 };
-const introDemo: Skill = {
-  id: "intro-demo",
+const meetSomeone: Skill = {
+  id: "meet-someone",
+  handle({ raw, lower }) {
+    if (!/\b(i want you to meet|i'?d like you to meet|come meet|meet (someone|somebody|my|our|a |the |this |these )|say (hi|hello|hey) to|this is my|introduce you to|introducing)\b/.test(lower)) return null;
+    // "meet my mom Sarah" / "say hi to Sarah" / "this is my friend Colin"
+    const rel = lower.match(new RegExp(`\\b(?:my|our) (${RELATIONS})\\b`));
+    const nm = raw.match(/\b(?:meet|to|introducing|this is|(?:mom|mum|mother|dad|father|brother|sister|wife|husband|girlfriend|boyfriend|partner|friend|buddy|son|daughter|cousin|aunt|auntie|uncle|grandma|grandpa|nana|papa|boss|coworker|colleague|neighbou?r|teacher|roommate|niece|nephew),?)\s+([A-Z][a-z]{1,20})\b/);
+    const name = nm?.[1] && !/^(Someone|Somebody|My|Our|This|These|The|Hi|Hello|Hey)$/.test(nm[1]) ? nm[1] : undefined;
+    return { speak: "", ui: { type: "meet", ...(name ? { name } : {}), ...(rel?.[1] ? { relation: rel[1] } : {}) } };
+  },
+};
+const pitchShow: Skill = {
+  id: "pitch-show",
   handle({ lower }) {
-    if (!/\b(introduce yourself|introduction|tell me about yourself|get to know (me|you|each other)|let'?s (meet|get acquainted))\b/.test(lower)) return null;
-    return { speak: "", ui: { type: "introDemo" } };
+    if (!/\b(tell (them|us|me|everyone|everybody|him|her) (all |a bit |a little )?about (you|yourself)|introduce yourself|(give|do) (us |them |me )?(your|the|an|a) (intro|introduction|pitch)|who are you really|your story|about yourself)\b/.test(lower)) return null;
+    return { speak: "", ui: { type: "show", kind: "pitch" } };
   },
 };
 
 // Priority order: most specific first so nothing shadows a narrower skill.
 const SKILLS: Skill[] = [
-  showcaseDemo, introDemo,
+  meetSomeone, pitchShow, demoShow,
   releaseEstop, emergencyStop, spinSkill, wanderSkill, setSpeedSkill, stopSkill,
   experienceModeSkill, uiModeSkill, describeScreenSkill, survivorSkill, videoControlSkill, playVideoSkill,
   closeSkill, openSkill, controlDevice, readSensor, listDevices,

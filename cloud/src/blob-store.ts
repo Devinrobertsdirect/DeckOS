@@ -15,9 +15,21 @@ import type { Store, Account, Session, VaultEntry, Bot, Profile, Unit } from "./
 const MAX_SESSIONS_PER_ACCOUNT = 25;
 
 export class BlobStore implements Store {
-  private s: BlobStoreHandle;
+  private name: string;
   constructor(name = process.env["NOBI_BLOB_STORE"] || "nobi-cloud") {
-    this.s = getStore({ name, consistency: "strong" });
+    this.name = name;
+  }
+  /**
+   * A fresh handle per operation, never a cached one.
+   *
+   * getStore() bakes in a signed Netlify token that expires, while a warm
+   * function container lives far longer — a handle held in a field works for a
+   * while and then fails every request with "Failed to decode token: Token
+   * expired" until the container is recycled. Building it per call is cheap
+   * (it just reads the request's environment) and always current.
+   */
+  private get s(): BlobStoreHandle {
+    return getStore({ name: this.name, consistency: "strong" });
   }
   private async get<T>(key: string): Promise<T | undefined> {
     const v = (await this.s.get(key, { type: "json" })) as T | null;

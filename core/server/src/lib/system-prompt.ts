@@ -128,7 +128,10 @@ export async function buildPersonalizedPrompt(
   // The user-given name wins over any DB default, so the bot's identity is
   // whatever the user named it — everywhere.
   const aiName   = cleanName(botName() !== SPECIES ? botName() : (persona.aiName?.trim() || identity.aiName?.trim() || SPECIES));
-  const userName = identity.userName?.trim() || "Commander";
+  // ATLAS_USER_NAME is set by provisioning and cloud-sync, so a robot with no
+  // database still knows whose it is — without it, a synced Nobi would arrive
+  // and call its owner "Commander".
+  const userName = identity.userName?.trim() || (process.env["ATLAS_USER_NAME"] ?? "").trim() || "Commander";
   const answers  = identity.answers ?? [];
 
   const attitude            = persona.attitude            ?? "professional";

@@ -295,12 +295,21 @@ export function PetShell({
     }
     setFaceState("thinking");
     setShowcaseScene("gears");   // visible "thinking" while the brain works
-    const ctx = buildContext({ maxTurns: 6 });
+    // The brain sees ONLY this exchange: the question Nobi just asked and the
+    // answer, in a session of its own. With the normal history the last user
+    // turn is "give us a quick demo" and the model dutifully starts a tour
+    // ("Hey Devin. Quick tour, coming up…") instead of reacting to the answer.
+    const ctx = buildContext();   // only .facts is used — no chat history goes out
+    const director = `You are in the middle of a live stage show and just asked: "${line(ask.say, p)}". ${ask.director} Never offer a tour, a demo, or a list of what you can do — the show is already running.`;
     let reply = "";
     try {
       const res = await fetch("/api/chat", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: answer, history: ctx.history, facts: ctx.facts, persona: `${personaPrompt()}\n\n${ask.director}` }),
+        body: JSON.stringify({
+          message: answer, sessionId: `show-${Date.now()}`,
+          history: [{ role: "assistant", content: line(ask.say, p) }], facts: ctx.facts,
+          persona: `${personaPrompt()}\n\n${director}`,
+        }),
       });
       const data = (await res.json()) as { response?: string };
       reply = stripEmoji((data.response ?? "").trim());

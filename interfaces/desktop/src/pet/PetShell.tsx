@@ -407,7 +407,6 @@ export function PetShell({
       const ctx = buildContext({ maxTurns: 12 });
       const persona = personaPrompt(); // in-character system instruction (name + traits)
       appendTurn("user", message);
-      ingestUserMessage(message);
 
       let full = "";
       let ok = false;
@@ -493,6 +492,13 @@ export function PetShell({
         }
       } catch { /* agent unavailable — just talk */ }
       }
+
+      // Memory ingestion happens only for CONVERSATION — after the pre-flight, so
+      // commands and show triggers ("tell us about you") never become facts —
+      // and never during a meet: the person talking is the GUEST, and their
+      // "I'm a nurse" must not become a fact about the owner. The meet wrap-up
+      // stores a single "Met <name> …" fact instead.
+      if (!meetRef.current) ingestUserMessage(message);
 
       // The "meet someone" director expires quietly if the conversation stalls;
       // a goodbye (or six turns) makes THIS reply the warm wrap-up.

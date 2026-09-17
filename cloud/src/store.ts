@@ -64,6 +64,8 @@ export type Unit = {
   claimCodeHash?: string;     // sha256 of the code printed with the unit (optional)
   accountId?: string;
   reservedFor?: string;       // email (lowercase) this unit is waiting for — binds on their first sign-in
+  deviceHash?: string;        // sha256 of the robot's own device id, set on first enrolment
+  deviceAt?: number;          // when that robot last pulled
   createdAt: number;
   claimedAt?: number;
   note?: string;
@@ -126,6 +128,8 @@ export interface Store {
   kvGet<T = unknown>(key: string): Promise<T | undefined>;
   kvSet(key: string, value: unknown): Promise<void>;
   kvDel(key: string): Promise<void>;
+  /** Keys under a prefix (the prefix is included in each returned key). */
+  kvKeys(prefix: string): Promise<string[]>;
 }
 
 export class FileStore implements Store {
@@ -332,6 +336,7 @@ export class FileStore implements Store {
   async kvGet<T = unknown>(key: string) { return (this.doc.kv ?? {})[key] as T | undefined; }
   async kvSet(key: string, value: unknown) { (this.doc.kv ??= {})[key] = value; await this.persistNow(); }
   async kvDel(key: string) { if (this.doc.kv) { delete this.doc.kv[key]; await this.persistNow(); } }
+  async kvKeys(prefix: string) { return Object.keys(this.doc.kv ?? {}).filter((k) => k.startsWith(prefix)); }
   async setProfile(accountId: string, data: Record<string, unknown>) {
     const existing = this.doc.profiles.find((p) => p.accountId === accountId);
     if (existing) {

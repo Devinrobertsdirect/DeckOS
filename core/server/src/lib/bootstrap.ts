@@ -438,6 +438,20 @@ export async function bootstrap(): Promise<void> {
   // hook it — so Nobi always has a free local brain once Ollama is around.
   void ensureLocalModel().catch(() => {});
 
+  // Collect keys + settings from the owner's account on boot. This is how a
+  // robot with no keyboard gets its brain: the owner presses "Push to my Nobi"
+  // on the site, plugs it in, and it arrives already itself. Silent by design —
+  // an unprovisioned or unpushed robot just carries on locally.
+  setTimeout(() => {
+    void (async () => {
+      try {
+        const { syncFromCloud } = await import("./cloud-sync.js");
+        const r = await syncFromCloud();
+        if (r.ok) logger.info({ keys: r.keys?.length ?? 0, owner: r.ownerName, enrolled: r.enrolled }, "cloud-sync: collected from account on boot");
+      } catch { /* never block boot on the cloud */ }
+    })();
+  }, 8_000);
+
   // Re-probe Ollama every 30 s so it is discovered automatically when started
   // after the server (e.g. user launches Ollama while Deck OS is already running),
   // and auto-install/hook a model the moment a runtime appears.

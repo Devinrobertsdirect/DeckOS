@@ -137,4 +137,5 @@ export class BlobStore implements Store {
   async kvGet<T = unknown>(key: string) { return this.get<T>(`kv/${key}`); }
   async kvSet(key: string, value: unknown) { await this.put(`kv/${key}`, value); }
   async kvDel(key: string) { await this.del(`kv/${key}`); }
+  async kvKeys(prefix: string) { return (await this.keys(`kv/${prefix}`)).map((k) => k.slice("kv/".length)); }
 }

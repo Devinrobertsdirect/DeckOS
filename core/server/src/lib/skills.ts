@@ -871,12 +871,16 @@ const myAddress: Skill = {
     return { speak: ip ? `My address is ${ip.split(".").join(" dot ")}, port ${PORT}. Or just nobi dot local.` : "I can't see a network address right now." };
   },
 };
-/** "hey nobi, sync apple river stone" — redeem the site's sync code; "sync my account" re-syncs with the stored session. */
+/**
+ * "hey nobi, sync apple river stone" — the said road. Plain "sync my account"
+ * takes the pushed road: no words at all, just my bot number and the owner's
+ * Push (or the device I already enrolled). Both end in the same place.
+ */
 const syncAccount: Skill = {
   id: "sync-account",
   async handle({ lower }) {
     const m = lower.match(/\bsync(?: code| with)?(?: my)?(?: (?:account|nobi|bot|robot|cloud))?[:,]?\s+([a-z]+)[ ,-]+([a-z]+)[ ,-]+([a-z]+)\b/);
-    const plain = /\bsync (my|your|the) (account|cloud|settings|keys|nobi|bot)\b|\bconnect (to )?my (account|cloud)\b/.test(lower);
+    const plain = /\bsync(?: (?:my|your|the))? ?(account|cloud|settings|keys|nobi|bot|up|now)?\b|\bconnect (to )?my (account|cloud)\b|\b(get|pull|grab) (my )?(keys|settings)\b/.test(lower);
     if (!m && !plain) return null;
     const code = m ? `${m[1]} ${m[2]} ${m[3]}` : undefined;
     const r = await syncFromCloud(code);
@@ -889,7 +893,10 @@ const syncAccount: Skill = {
       no_cloud: "I am not connected to a cloud yet. That gets set up when I am provisioned.",
       bad_code: "That code did not work. Get a fresh one from the site and say it again.",
       no_token: "Say the three words from the site: sync, then the words.",
-      expired: "My cloud session expired. Get a fresh code from the site.",
+      not_pushed: "I am not linked to your account yet. Open your account page and press push to my nobi, then tell me to sync again.",
+      no_bot_number: "I do not have a bot number yet, so I cannot find my account. Register me first.",
+      unknown_unit: "My bot number is not registered in the cloud yet.",
+      expired: "My cloud session expired. Press push to my nobi on your account page, then tell me to sync.",
     };
     return { speak: why[r.error ?? ""] ?? "Sync did not work. Check that I am online and try again." };
   },
@@ -949,10 +956,24 @@ const SKILLS: Skill[] = [
   statusSkill, greet,
 ];
 
+/**
+ * It is spelled "Nobi" and it is said "NO-bee" — and speech-to-text writes that
+ * a dozen ways: "no bee", "noby", "nobee", "novi", "knobby", "newbie". Every
+ * trigger below spells it one way, so we rewrite what was HEARD into that one
+ * spelling before any of them run. He answers to the sound, not the spelling.
+ *
+ * Deliberately tight at the edges: "nobody", "no big deal" and "no beer" all
+ * fail the word boundary and pass through untouched.
+ */
+const NAME_HEARD = /\b(?:k?no+[\s-]?b(?:ee|e|ie|y|i)|know[\s-]?bee?|k?n[oa]bb(?:y|ie|ee)|novi|noobie|newbie)\b/g;
+export function normalizeHeardName(text: string): string {
+  return text.replace(NAME_HEARD, "nobi");
+}
+
 /** Try to fulfil a message with a skill. Returns a chat fallback if none apply. */
 export async function runAgent(message: string, facts: string[]): Promise<AgentDecision> {
   const raw = message.trim();
-  const ctx: SkillCtx = { raw, lower: raw.toLowerCase(), facts: facts ?? [] };
+  const ctx: SkillCtx = { raw, lower: normalizeHeardName(raw.toLowerCase()), facts: facts ?? [] };
   for (const skill of SKILLS) {
     try {
       const r = await skill.handle(ctx);

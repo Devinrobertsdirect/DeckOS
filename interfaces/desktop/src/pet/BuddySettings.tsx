@@ -69,7 +69,7 @@ function CloudSync() {
       const r = await fetch(`${base}api/provision/sync`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(withCode ? { code: withCode } : {}) });
       const j = (await r.json()) as { ok: boolean; error?: string; ownerName?: string; keys?: string[] };
       if (j.ok) { setMsg(`Synced${j.ownerName ? ` — hello, ${j.ownerName}` : ""}. ${j.keys?.length ?? 0} key${(j.keys?.length ?? 0) === 1 ? "" : "s"} in. Settings applied.`); setCode(""); void load(); }
-      else setMsg({ no_cloud: "No cloud configured on this Nobi yet.", bad_code: "That code didn't work — get a fresh one from the site.", no_token: "Enter the three words from the site's Sync button.", expired: "Session expired — get a fresh code from the site." }[j.error ?? ""] ?? `Sync failed: ${j.error ?? "unknown"}`);
+      else setMsg({ no_cloud: "No cloud configured on this Nobi yet.", bad_code: "That code didn't work — get a fresh one from the site.", no_token: "Press “Push to my Nobi” on your account page first, then try again.", not_pushed: "Not linked yet. On developmentindustries.org/account press “Push to my Nobi”, then press this again.", no_bot_number: "This Nobi has no bot number yet, so it can't find its account.", unknown_unit: "This bot number isn't registered in the cloud yet.", expired: "Session expired — press “Push to my Nobi” on your account page, then try again." }[j.error ?? ""] ?? `Sync failed: ${j.error ?? "unknown"}`);
     } catch { setMsg("Couldn't reach the brain."); }
     setBusyState(false);
   };
@@ -81,11 +81,9 @@ function CloudSync() {
       </div>
       {hooked && (
         <div className="flex flex-wrap items-center gap-2">
-          {st?.connected && (
-            <button type="button" className={chip(false) + " gap-2"} disabled={busy} onClick={() => void sync()}>
-              <RefreshCw className="h-3.5 w-3.5" /> Sync now
-            </button>
-          )}
+          <button type="button" className={chip(false) + " gap-2"} disabled={busy} onClick={() => void sync()}>
+            <RefreshCw className="h-3.5 w-3.5" /> {st?.connected ? "Sync now" : "Collect from my account"}
+          </button>
           <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="three words from the site, e.g. apple river stone" className="max-w-xs" />
           <button type="button" className={chip(false) + " gap-2"} disabled={busy || code.trim().split(/\s+/).length < 3} onClick={() => void sync(code.trim())}>
             <Cloud className="h-3.5 w-3.5" /> Sync with code
@@ -93,7 +91,7 @@ function CloudSync() {
         </div>
       )}
       {msg && <div className="text-xs text-foreground/70">{msg}</div>}
-      {hooked && <div className="text-xs text-foreground/50">Get a code: developmentindustries.org/talk → Sync my Nobi. Or just say it: “Hey Nobi, sync apple river stone.”</div>}
+      {hooked && <div className="text-xs text-foreground/50">On developmentindustries.org/account press “Push to my Nobi”, then press the button above — nothing to type. Or say it: “Hey Nobi, sync.”</div>}
     </div>
   );
 }

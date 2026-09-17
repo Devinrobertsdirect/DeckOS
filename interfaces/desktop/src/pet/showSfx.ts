@@ -184,7 +184,8 @@ export function sfxForScene(scene: string | null): (() => void) | null {
     case "warp": case "finale": sfx.warp(); return null;
     case "helmet": sfx.helmet(); return null;
     case "trick": sfx.tada(); return null;
-    case "core": case "orbit": sfx.chime(); return null;
+    case "core": case "orbit": case "desk": sfx.chime(); return null;
+    case "name": sfx.sparkle(); return null;
     case "gears": return sfx.gears();
     default: return null;
   }

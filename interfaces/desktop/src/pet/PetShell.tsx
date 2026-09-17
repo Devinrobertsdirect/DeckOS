@@ -235,6 +235,8 @@ export function PetShell({
   // and hand it to the brain with a director note, so the reply is live and in
   // character. Tap the screen to skip; a hard 3-minute cap guarantees it ends.
   const [showcaseScene, setShowcaseScene] = useState<ShowcaseScene | null>(null);
+  /** A guest's (or the demo answerer's) name, for the stage's `name` scene. */
+  const [meetName, setMeetName] = useState("");
   const showRef = useRef(false);
   /** While a show is waiting on an answer, the next utterance resolves this instead of starting a turn. */
   const pendingAnswerRef = useRef<((text: string) => void) | null>(null);
@@ -256,6 +258,7 @@ export function PetShell({
   // Dev/test hook: drive the stage directly (window.__nobiScene("bowl")).
   useEffect(() => {
     (window as unknown as { __nobiScene?: (s: ShowcaseScene | null) => void }).__nobiScene = (s) => setShowcaseScene(s);
+    (window as unknown as { __nobiName?: (n: string) => void }).__nobiName = (n) => setMeetName(n);
   }, []);
   // Sound design: every scene change plays its cue (showSfx.ts); looping cues
   // (the gears' ticking) stop when the scene moves on.
@@ -263,8 +266,8 @@ export function PetShell({
     const stop = sfxForScene(showcaseScene);
     return () => { stop?.(); };
   }, [showcaseScene]);
-  /** Stage backdrop for a "meet someone" turn: sparkle to greet, hearts to say goodbye, the orb ring in between. */
-  const meetStage = (m: MeetCtx): ShowcaseScene => (m.wrap ? "hearts" : m.step === 0 ? "sparkle" : "faces");
+  /** Stage backdrop for a "meet someone" turn: their name in gold when he greets them (or first learns it), hearts for goodbye, the orb ring in between. */
+  const meetStage = (m: MeetCtx, nameNow: boolean): ShowcaseScene => (m.wrap ? "hearts" : nameNow ? "name" : m.step === 0 ? "sparkle" : "faces");
   /** The face trick: rapid moods under a spinning rainbow ring, then confetti. */
   const runTrick = useCallback(async () => {
     setShowcaseScene("trick");
@@ -329,9 +332,17 @@ export function PetShell({
     } catch { reply = ""; }
     finally { window.clearTimeout(abortTimer); }
     if (!reply) reply = line(ask.fallback, p);
-    setShowcaseScene(stage);
+    // Their name, in gold above the eyes, while he replies.
+    let next: ShowcaseScene = stage;
+    if (ask.branch === "name") {
+      const one = answer.trim().match(/^([A-Za-z][a-z]{1,20})[.!]?$/);
+      const g = guessName(answer) ?? (one ? one[1]![0]!.toUpperCase() + one[1]!.slice(1) : undefined);
+      if (g) { setMeetName(g); next = "name"; }
+    }
+    setShowcaseScene(next);
     appendTurn("atlas", reply);
     await sayQueued(reply);
+    if (next === "name") setShowcaseScene(stage);
   }, [runTrick]);
   const runShow = useCallback(async (kind: "demo" | "pitch") => {
     if (showRef.current) return;
@@ -519,18 +530,20 @@ export function PetShell({
       // The "meet someone" director expires quietly if the conversation stalls;
       // a goodbye (or six turns) makes THIS reply the warm wrap-up.
       if (meetRef.current && Date.now() - meetRef.current.startedAt > 6 * 60_000) { meetRef.current = null; setShowcaseScene(null); }
+      let nameNow = false;   // show their name this turn: the greeting, or the turn he first learns it
       if (meetRef.current && meetRef.current.step > 0) {
         const m = meetRef.current;
         if (m.step >= 6 || /\b(bye|goodbye|see you|gotta go|got to go|later|nice (to |ta )?meet(ing)? you|good ?night)\b/i.test(message)) m.wrap = true;
-        if (!m.personName) { const g = guessName(message); if (g) m.personName = g; }
-      }
+        if (!m.personName) { const g = guessName(message); if (g) { m.personName = g; nameNow = true; } }
+      } else if (meetRef.current?.personName) nameNow = true;
+      if (meetRef.current?.personName) setMeetName(meetRef.current.personName);
       const personaSent = meetRef.current ? persona + meetDirectorNote(meetRef.current) : persona;
       // A meet is a stage show too: gears while he thinks, then a backdrop for
-      // the turn (sparkle to greet, orb ring mid-conversation, hearts goodbye).
+      // the turn (their name in gold / sparkle to greet, orb ring mid-conversation, hearts goodbye).
       const meetTurn = meetRef.current;
       if (meetTurn) { sfx.prime(); setShowcaseScene("gears"); }
       let staged = false;
-      const stageMeet = () => { if (meetTurn && !staged) { staged = true; setShowcaseScene(meetStage(meetTurn)); } };
+      const stageMeet = () => { if (meetTurn && !staged) { staged = true; setShowcaseScene(meetStage(meetTurn, nameNow)); } };
       // A meet is its own conversation: the guest gets only the meet's turns
       // (two per completed step) in a session of its own — not the owner's
       // earlier chat, which he'd otherwise reference ("same goat story?").
@@ -633,7 +646,7 @@ export function PetShell({
       }
       // Between meet turns the orb ring keeps circling while he listens; the
       // goodbye clears the stage.
-      if (meetTurn) setShowcaseScene(meetRef.current ? "faces" : null);
+      if (meetTurn) { setShowcaseScene(meetRef.current ? "faces" : null); if (!meetRef.current) setMeetName(""); }
       setFaceState("idle");
       clearMood();
       setBusy(false);
@@ -873,7 +886,7 @@ export function PetShell({
         <ContentOverlay kind={overlay.kind} src={overlay.src} caption={overlay.caption} onClose={() => setOverlay(null)} />
       )}
       {showcaseScene && (
-        <ShowcaseOverlay scene={showcaseScene} label={bot.toUpperCase()} onSkip={skipShow} />
+        <ShowcaseOverlay scene={showcaseScene} label={bot.toUpperCase()} nameTag={meetName} onSkip={skipShow} />
       )}
       {survivorAnim && (
         <SurvivorOverlay variant={survivorAnim}

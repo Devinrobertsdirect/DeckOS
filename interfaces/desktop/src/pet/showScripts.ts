@@ -27,7 +27,8 @@ export interface AskSpec {
   /** Spoken if nobody answers in time. */
   fallback: Lines;
   /** Client-side branching after the answer. */
-  branch?: "joke-or-trick";
+  /** "joke-or-trick": a trick answer runs the trick instead of the brain; "name": the answer is their name (shown in gold). */
+  branch?: "joke-or-trick" | "name";
   listenMs?: number;
 }
 export interface ShowBeat {
@@ -95,8 +96,9 @@ export function buildDemoScript(bot: string, p: Persona): ShowBeat[] {
       alfred: "Here I am in full, as it were. Modest in stature. The fish keeps me company; we get on splendidly.",
     } },
     { scene: "hearts", mood: "love", color: LOVE, holdMs: 1300 },
-    // ── ASK 1: their name ────────────────────────────────────────────────────
+    // ── ASK 1: their name (it assembles in gold above the eyes as he replies) ─
     { scene: "faces", mood: "curious", color: c.cool, holdMs: 800, ask: {
+      branch: "name",
       say: {
         rocky:  "Question. What is your name, friend?",
         jarvis: "Now. With whom do I have the pleasure? Your name, please.",
@@ -236,11 +238,18 @@ export function buildPitchScript(bot: string, p: Persona): ShowBeat[] {
       friday: "And I proper care about my people. Big heart, this one.",
       alfred: "And I care for my people. Deeply, and without fuss.",
     } },
-    { scene: "orbit", holdMs: 11000, say: {
-      rocky:  "I hear you. I talk. I remember. I connect to your world. Lights. Music. Questions. I stay right here, on your desk.",
-      jarvis: "I listen, I speak, I remember. I'll run your lights, your music, your questions, from right here on the desk.",
-      friday: "I listen, I talk back, I remember stuff. Lights, music, questions, I'm on it, right from the desk.",
-      alfred: "I listen, I speak, and I remember. Lights, music, questions, all attended to from my post on the desk.",
+    { scene: "orbit", holdMs: 6200, say: {
+      rocky:  "I hear you. I talk. I remember. I connect to your world.",
+      jarvis: "I listen, I speak, I remember. I connect to your world.",
+      friday: "I listen, I talk back, I remember stuff. I'm plugged into your whole world.",
+      alfred: "I listen, I speak, and I remember. I am connected to your world.",
+    } },
+    // ── home: the Mark 1 on the desk; a bulb, a note and a question float up ──
+    { scene: "desk", holdMs: 8200, say: {
+      rocky:  "Lights. Music. Questions. I stay right here, on your desk. Home.",
+      jarvis: "Lights. Music. Questions. All handled, from right here on the desk.",
+      friday: "Lights, music, questions, I'm on it, right from the desk. This is home.",
+      alfred: "Lights, music, questions, all attended to from my post on the desk. Home, as it were.",
     } },
     { scene: "finale", mood: "proud", color: c.warm, direct: true, holdMs: 10500, say: {
       rocky:  `So. That is me. ${name}. Your friend. Good. Good good good.`,

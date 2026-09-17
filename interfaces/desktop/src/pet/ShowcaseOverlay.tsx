@@ -15,9 +15,12 @@ import type * as THREE from "three";
  *   bowl    the round screen becomes a fishbowl: Nobi's whole mini body (the
  *           Mark 1) bobs inside with bubbles and a small fish friend
  *   drive   the Mark 1 drives in from the left, skids, turns to camera, settles
+ *   desk    the Mark 1 at home on the desk (lamp, mug); a light bulb, a note and
+ *           a question mark float up from his antenna in turn
  * Transparent scenes (the real eyes show through — props around them):
  *   hud     a robotic boot HUD: rotating arc rings, ticks, an orbiting scan dot
  *   gears   "thinking" — meshing gears turn around the eyes while the brain works
+ *   name    a guest's name (the `nameTag` prop) assembles from gold above the eyes
  *   faces   a ring of emotion orbs circles the rim while the eyes tour moods
  *   helmet  a glass space helmet with a rim, highlight streaks and an antenna
  *   lab     a bubbling green test tube slides in beside the face
@@ -35,20 +38,20 @@ import type * as THREE from "three";
  * the overlay stays quietly transparent and the narrated show still plays.
  */
 export type ShowcaseScene =
-  | "boot" | "core" | "orbit" | "warp" | "finale" | "bowl" | "drive"
-  | "faces" | "helmet" | "lab" | "labpop" | "sparkle" | "hearts" | "confetti" | "trick" | "hud" | "gears"
+  | "boot" | "core" | "orbit" | "warp" | "finale" | "bowl" | "drive" | "desk"
+  | "faces" | "helmet" | "lab" | "labpop" | "sparkle" | "hearts" | "confetti" | "trick" | "hud" | "gears" | "name"
   | "out";
 
 export const TRANSPARENT_SCENES: ReadonlySet<ShowcaseScene> = new Set<ShowcaseScene>([
-  "faces", "helmet", "lab", "labpop", "sparkle", "hearts", "confetti", "trick", "hud", "gears", "out",
+  "faces", "helmet", "lab", "labpop", "sparkle", "hearts", "confetti", "trick", "hud", "gears", "name", "out",
 ]);
 
 type ThreeMod = typeof import("three");
-type RigKey = "boot" | "core" | "orbit" | "warp" | "finale" | "bowl" | "drive" | "faces" | "helmet" | "lab" | "sparkle" | "hearts" | "confetti" | "trick" | "hud" | "gears";
+type RigKey = "boot" | "core" | "orbit" | "warp" | "finale" | "bowl" | "drive" | "desk" | "faces" | "helmet" | "lab" | "sparkle" | "hearts" | "confetti" | "trick" | "hud" | "gears" | "name";
 const RIG_FOR: Record<Exclude<ShowcaseScene, "out">, RigKey> = {
-  boot: "boot", core: "core", orbit: "orbit", warp: "warp", finale: "finale", bowl: "bowl", drive: "drive",
+  boot: "boot", core: "core", orbit: "orbit", warp: "warp", finale: "finale", bowl: "bowl", drive: "drive", desk: "desk",
   faces: "faces", helmet: "helmet", lab: "lab", labpop: "lab", sparkle: "sparkle", hearts: "hearts", confetti: "confetti", trick: "trick",
-  hud: "hud", gears: "gears",
+  hud: "hud", gears: "gears", name: "name",
 };
 
 interface Rig {
@@ -277,6 +280,138 @@ function buildOrbit(T: ThreeMod): Rig {
   };
 }
 
+// ── fireworks: bursts blooming around the rim (the trick, and after a finale) ─
+function makeFireworks(T: ThreeMod, every = 0.75) {
+  const group = new T.Group();
+  const K = 6, P = 80;
+  const bursts = Array.from({ length: K }, () => { const p = points(T, P, GOLD, 0.06, 0); group.add(p.pts); return { p, v: new Float32Array(P * 3), born: -10 }; });
+  let next = 0, cursor = 0;
+  return {
+    group,
+    update(t: number, dt: number, active = true) {
+      if (active && t >= next) {
+        next = t + every * rnd(0.7, 1.3);
+        const b = bursts[cursor++ % K]!;
+        const a = rnd(0, Math.PI * 2), r = rnd(0.9, 1.9), cx = Math.cos(a) * r, cy = Math.sin(a) * r;
+        b.born = t; b.p.mat.color.setHSL(rnd(0, 1), 0.9, 0.62);
+        for (let i = 0; i < P; i++) { const d = fib(i, P), sp = rnd(1.2, 2.6); b.v.set([d[0] * sp, d[1] * sp, d[2] * sp * 0.3], i * 3); b.p.pos.set([cx, cy, 0.3], i * 3); }
+        b.p.attr.needsUpdate = true;
+      }
+      for (const b of bursts) {
+        const age = t - b.born;
+        if (age < 0 || age > 1.4) { setBase(b.p.mat, 0); continue; }
+        setBase(b.p.mat, age < 0.1 ? 1 : Math.max(0, 1 - (age - 0.1) / 1.3));
+        b.p.mat.size = 0.05 + 0.05 * Math.max(0, 1 - age);
+        for (let i = 0; i < P; i++) { const k = i * 3; b.p.pos[k] += b.v[k]! * dt; b.p.pos[k + 1] += (b.v[k + 1]! - 1.8 * age) * dt; b.p.pos[k + 2] += b.v[k + 2]! * dt; b.v[k] *= 0.985; b.v[k + 1] *= 0.985; }
+        b.p.attr.needsUpdate = true;
+      }
+    },
+    dispose: () => disposeGroup(group),
+  };
+}
+
+// ── name: a guest's name assembles from gold above the eyes ──────────────────
+function buildName(T: ThreeMod, label: string): Rig {
+  const group = new T.Group();
+  const targets = label ? sampleLabel(label.toUpperCase()) : [];
+  const N = Math.min(1400, targets.length);
+  const SC = 0.62, Y = 1.42;
+  const pts = points(T, Math.max(1, N), GOLD, 0.04, 0);
+  const from = new Float32Array(N * 3);
+  for (let i = 0; i < N; i++) { const a = rnd(0, Math.PI * 2), r = rnd(2.0, 2.6); from.set([Math.cos(a) * r, Math.sin(a) * r, rnd(-0.5, 0.5)], i * 3); pts.pos.set([from[i * 3]!, from[i * 3 + 1]!, from[i * 3 + 2]!], i * 3); }
+  pts.attr.needsUpdate = true;
+  if (N) group.add(pts.pts);
+  const glow = points(T, 1, GOLD, 2.4, N ? 0.3 : 0, radialTexture(T, "245,184,61"), true); glow.pos.set([0, Y, -0.3]); glow.attr.needsUpdate = true; group.add(glow.pts);
+  const TW = 24;
+  const twinkle = points(T, TW, ICE, 0.07, N ? 0.8 : 0);
+  for (let i = 0; i < TW; i++) twinkle.pos.set([rnd(-1.5, 1.5), Y + rnd(-0.45, 0.45), 0.1], i * 3); twinkle.attr.needsUpdate = true; group.add(twinkle.pts);
+  const IN = 1.3;
+  return {
+    group,
+    update(t, dt) {
+      if (!N) return;
+      const k = easeOut(t / IN), wob = t > IN ? 0.01 : 0;
+      setBase(pts.mat, Math.min(1, k * 1.3));
+      for (let i = 0; i < N; i++) { const tg = targets[i]!, b = i * 3, tx = tg[0] * SC, ty = Y + tg[1] * SC; pts.pos[b] = from[b]! + (tx - from[b]!) * k + wob * Math.sin(t * 5 + i); pts.pos[b + 1] = from[b + 1]! + (ty - from[b + 1]!) * k + wob * Math.cos(t * 4 + i * 0.7); pts.pos[b + 2] = from[b + 2]! * (1 - k); }
+      pts.attr.needsUpdate = true;
+      pts.mat.size = 0.04 + 0.008 * Math.sin(t * 6);
+      setBase(twinkle.mat, 0.35 + 0.45 * Math.abs(Math.sin(t * 3)));
+      for (let i = 0; i < TW; i++) { const b = i * 3 + 1; twinkle.pos[b] = twinkle.pos[b]! + dt * 0.15; if (twinkle.pos[b]! > Y + 0.5) twinkle.pos[b] = Y - 0.5; }
+      twinkle.attr.needsUpdate = true;
+    },
+    dispose: () => disposeGroup(group),
+  };
+}
+
+// ── desk: the Mark 1 at home — lamp, mug, and what he does for you floating up ─
+function iconTexture(T: ThreeMod, kind: "bulb" | "note" | "ask"): THREE.Texture {
+  const c = document.createElement("canvas"); c.width = c.height = 96;
+  const g = c.getContext("2d")!;
+  g.strokeStyle = "#f5b83d"; g.fillStyle = "#f5b83d"; g.lineWidth = 6; g.lineCap = "round"; g.lineJoin = "round";
+  if (kind === "bulb") {
+    g.beginPath(); g.arc(48, 40, 24, 0, Math.PI * 2); g.stroke();
+    g.fillRect(36, 66, 24, 8); g.fillRect(40, 78, 16, 6);
+    g.beginPath(); g.moveTo(40, 52); g.lineTo(48, 40); g.lineTo(56, 52); g.stroke();
+  } else {
+    g.font = "900 78px 'Arial Black', Impact, system-ui, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillText(kind === "note" ? "♪" : "?", 48, 52);
+  }
+  const t = new T.CanvasTexture(c); t.needsUpdate = true; return t;
+}
+function buildDesk(T: ThreeMod): Rig {
+  const group = new T.Group();
+  const glowTex = radialTexture(T, "245,184,61");
+  const DESK = -1.05;
+  const slab = new T.Mesh(new T.PlaneGeometry(7, 1.6), flat(T, 0x0e1626, 1)); slab.position.set(0, DESK - 0.8, -0.2);
+  const edge = new T.Line(new T.BufferGeometry().setFromPoints([new T.Vector3(-4, DESK, 0), new T.Vector3(4, DESK, 0)]), new T.LineBasicMaterial({ color: ICE, transparent: true, opacity: 0.8 }));
+  group.add(slab, edge);
+  // lamp: post, arm, shade, and a warm pool of light over him
+  const post = new T.Mesh(new T.CylinderGeometry(0.035, 0.045, 1.9, 10), flat(T, STEEL, 1)); post.position.set(1.55, DESK + 0.95, 0);
+  const arm = new T.Mesh(new T.CylinderGeometry(0.03, 0.03, 1.0, 10), flat(T, STEEL, 1)); arm.position.set(1.1, DESK + 1.85, 0); arm.rotation.z = Math.PI / 2 - 0.35;
+  const shade = new T.Mesh(new T.ConeGeometry(0.34, 0.4, 20, 1, true), flat(T, NAVY, 1, { side: T.DoubleSide })); shade.position.set(0.62, DESK + 1.95, 0); shade.rotation.z = 0.55;
+  const bulb = new T.Mesh(new T.SphereGeometry(0.06, 8, 8), flat(T, GOLD, 1)); bulb.position.set(0.62, DESK + 1.85, 0);
+  const beam = new T.Mesh(new T.PlaneGeometry(2.4, 2.4), new T.MeshBasicMaterial({ map: glowTex, transparent: true, opacity: 0.22, depthWrite: false, blending: T.AdditiveBlending })); beam.position.set(0.1, DESK + 0.9, -0.5);
+  group.add(post, arm, shade, bulb, beam);
+  // a mug, steaming
+  const mug = new T.Group();
+  const cup = new T.Mesh(new T.CylinderGeometry(0.16, 0.14, 0.32, 16), flat(T, ROSE, 1)); cup.position.y = 0.16;
+  const handle = new T.Mesh(new T.TorusGeometry(0.09, 0.03, 8, 16), flat(T, ROSE, 1)); handle.position.set(0.18, 0.16, 0);
+  const steam = points(T, 12, ICE, 0.05, 0.6);
+  for (let i = 0; i < 12; i++) steam.pos.set([rnd(-0.06, 0.06), 0.35 + rnd(0, 0.5), 0.1], i * 3); steam.attr.needsUpdate = true;
+  mug.add(cup, handle, steam.pts); mug.position.set(-1.35, DESK, 0.2); group.add(mug);
+  // the Mark 1, at home
+  const { bot, eyeL, eyeR, loop, loopGlow } = buildMark1(T, radialTexture(T, "201,220,240"));
+  const SC = 1.15; bot.scale.setScalar(SC); bot.position.set(0.05, DESK + 0.34 * SC, 0.1); group.add(bot);
+  // what he does, floating up from his antenna in turn: light, music, a question
+  const kinds: Array<"bulb" | "note" | "ask"> = ["bulb", "note", "ask"];
+  const icons = kinds.map((k) => { const s = new T.Sprite(new T.SpriteMaterial({ map: iconTexture(T, k), transparent: true, opacity: 0, depthWrite: false })); s.scale.setScalar(0.5); group.add(s); return s; });
+  const CYCLE = 7.5, STAGGER = 2.2, LIFE = 3.2;
+  return {
+    group,
+    update(t, dt) {
+      bot.position.y = DESK + 0.34 * SC + 0.03 * Math.sin(t * 1.6);
+      bot.rotation.z = 0.04 * Math.sin(t * 1.3);
+      const blink = (t % 3.3) < 0.15 ? 0.12 : 1; eyeL.scale.y = blink; eyeR.scale.y = blink;
+      loop.rotation.y = 0.5 * Math.sin(t * 2.2);
+      (bulb.material as THREE.MeshBasicMaterial).opacity = 0.85 + 0.15 * Math.sin(t * 9);
+      for (let i = 0; i < 12; i++) { let y = steam.pos[i * 3 + 1]! + 0.25 * dt; steam.pos[i * 3] = steam.pos[i * 3]! + 0.08 * Math.sin(t * 2 + i) * dt; if (y > 0.9) { y = 0.35; steam.pos[i * 3] = rnd(-0.06, 0.06); } steam.pos[i * 3 + 1] = y; }
+      steam.attr.needsUpdate = true;
+      let glow = 0.35;
+      icons.forEach((s, i) => {
+        const age = (((t - 0.8 - i * STAGGER) % CYCLE) + CYCLE) % CYCLE;
+        const on = t > 0.8 + i * STAGGER && age < LIFE;
+        const k = age / LIFE;
+        setBase(s.material, on ? (k < 0.15 ? k / 0.15 : k > 0.75 ? (1 - k) / 0.25 : 1) : 0);
+        s.position.set(bot.position.x + 0.15 + 0.35 * Math.sin(k * 3 + i) + (i - 1) * 0.5 * k, bot.position.y + 1.15 * SC + 1.3 * k, 0.6);
+        s.scale.setScalar(0.42 + 0.18 * Math.sin(k * Math.PI));
+        if (on && k < 0.15) glow = 0.9;
+      });
+      (loopGlow.pts.material as THREE.PointsMaterial).opacity = glow;
+    },
+    dispose: () => disposeGroup(group),
+  };
+}
+
 // ── warp / finale: starfield rush; finale also assembles the name ────────────
 function sampleLabel(label: string): Array<[number, number]> {
   const c = document.createElement("canvas"); c.width = 360; c.height = 130;
@@ -320,11 +455,27 @@ function buildWarp(T: ThreeMod, label: string | null): Rig {
   rocket.add(rbody, rwin, fin1, fin2, flame.pts);
   rocket.position.set(-9, 0, 0);
   group.add(rocket);
+  // planets drift past in the corners (one ringed), never during the name
+  const planets = [VIOLET, MINT].map((col, i) => {
+    const g = new T.Group();
+    g.add(new T.Mesh(new T.IcosahedronGeometry(0.7, 1), flat(T, col, 1)), new T.Mesh(new T.IcosahedronGeometry(0.72, 1), flat(T, ICE, 0.35, { wireframe: true })));
+    if (i === 0) { const ring = new T.Mesh(new T.TorusGeometry(1.15, 0.06, 6, 40), flat(T, GOLD, 0.9)); ring.rotation.x = 1.2; g.add(ring); }
+    g.position.set(0, 0, -30); group.add(g);
+    return { g, x: i ? -2.4 : 2.3, y: i ? 1.6 : -1.5, ph: i * 5.5 + 2 };
+  });
+  const fw = makeFireworks(T, 0.55);
+  group.add(fw.group);
   const IN = 4.5, HOLD = 7.4, BURST = 11.6, GONE = 13.6;
   return {
     group,
     update(t, dt) {
       const speed = 2 + 12 * easeInOut(t / 3.2);
+      planets.forEach((p) => {
+        const c = (t + p.ph) % 11;
+        if (c < 5 && (!label || t < IN - 1)) { const k = Math.pow(c / 5, 1.6); p.g.position.set(p.x * (0.55 + 0.45 * k), p.y * (0.55 + 0.45 * k), -7 + 8.5 * k); p.g.rotation.y += dt * 0.8; p.g.rotation.z += dt * 0.2; }
+        else p.g.position.set(0, 0, -30);
+      });
+      fw.update(t, dt, !!label && t > BURST - 0.2);
       const cyc = t % 6.5;
       if (cyc < 3.2) {
         const k = cyc / 3.2;
@@ -353,7 +504,7 @@ function buildWarp(T: ThreeMod, label: string | null): Rig {
         name.attr.needsUpdate = true;
       }
     },
-    dispose: () => disposeGroup(group),
+    dispose: () => { fw.dispose(); disposeGroup(group); },
   };
 }
 
@@ -497,9 +648,33 @@ function buildBowl(T: ThreeMod): Rig {
   const feye = new T.Mesh(new T.SphereGeometry(0.02, 6, 6), flat(T, NAVY, 1)); feye.position.set(0.06, 0.03, 0.07);
   fish.add(fbody, tail, feye);
   group.add(fish);
+  // a little school trailing the big fish, seaweed swaying, bubbles off his ears
+  const school = Array.from({ length: 5 }, (_, i) => {
+    const f = new T.Group(); const col = i % 2 ? MINT : ICE;
+    const b = new T.Mesh(new T.ConeGeometry(0.045, 0.14, 10), flat(T, col, 1)); b.rotation.z = -Math.PI / 2;
+    const tl = new T.Mesh(new T.ConeGeometry(0.035, 0.06, 3), flat(T, col, 1)); tl.rotation.z = Math.PI / 2; tl.position.x = -0.09;
+    f.add(b, tl); group.add(f);
+    return { f, tl, off: i * 0.55 + 0.6, ph: rnd(0, 6.28) };
+  });
+  const weeds = [-1.9, -1.45, 1.55, 1.95].map((x, i) => {
+    const n = 9, h = 0.12 + i * 0.02;
+    const l = new T.Line(new T.BufferGeometry().setFromPoints(Array.from({ length: n }, (_, k) => new T.Vector3(x, -2.3 + k * h, -0.6))), new T.LineBasicMaterial({ color: MINT, transparent: true, opacity: 0.8 }));
+    group.add(l); return { l, x, n, ph: rnd(0, 6.28) };
+  });
+  const AB = 10;
+  const ab = points(T, AB, ICE, 0.04, 0.8);
+  for (let i = 0; i < AB; i++) ab.pos.set([(i % 2 ? 0.42 : -0.42), 0.3 + i * 0.04, 0.2], i * 3); ab.attr.needsUpdate = true; group.add(ab.pts);
   return {
     group,
     update(t, dt) {
+      school.forEach((s, i) => {
+        const a = t * 0.35 - s.off * 0.18, d = Math.cos(a) >= 0 ? 1 : -1;
+        s.f.position.set(2.4 * Math.sin(a), -1.35 + 0.15 * Math.sin(t * 2.2 - s.off) + 0.25 * Math.sin(s.ph + i), -0.35 - i * 0.05);
+        s.f.scale.x = d; s.tl.rotation.y = 0.5 * Math.sin(t * 9 + s.ph);
+      });
+      weeds.forEach((w) => { const pos = w.l.geometry.getAttribute("position") as THREE.BufferAttribute; for (let k = 0; k < w.n; k++) { const f = k / w.n; pos.setX(k, w.x + 0.36 * f * f * Math.sin(t * 1.4 + w.ph + k * 0.4)); } pos.needsUpdate = true; });
+      for (let i = 0; i < AB; i++) { const b = i * 3; let y = ab.pos[b + 1]! + 0.3 * dt; ab.pos[b] = (i % 2 ? 0.42 : -0.42) + 0.05 * Math.sin(t * 3 + i); if (y > 0.64) y = 0.22; ab.pos[b + 1] = y; }
+      ab.attr.needsUpdate = true;
       for (let i = 0; i < B; i++) { let y = bub.pos[i * 3 + 1]! + bubV[i]! * dt; bub.pos[i * 3] = bub.pos[i * 3]! + 0.15 * Math.sin(t * 2 + i) * dt; if (y > 0.6) { y = -2.3; bub.pos[i * 3] = rnd(-1.8, 1.8); } bub.pos[i * 3 + 1] = y; }
       bub.attr.needsUpdate = true;
       surface.position.y = 0.68 + 0.02 * Math.sin(t * 1.8);
@@ -569,6 +744,14 @@ function buildLab(T: ThreeMod): Rig {
   tube.add(glow, glass, bottom, lip, liquid, lbot, bub.pts);
   tube.rotation.z = -0.35;
   group.add(tube);
+  // a burner under the tube — that's why it bubbles
+  const burner = new T.Group();
+  const bbase = new T.Mesh(new T.CylinderGeometry(0.16, 0.2, 0.08, 16), flat(T, STEEL, 1)); bbase.position.y = -1.3;
+  const bneck = new T.Mesh(new T.CylinderGeometry(0.04, 0.04, 0.26, 10), flat(T, STEEL, 1)); bneck.position.y = -1.14;
+  const fOuter = new T.Mesh(new T.ConeGeometry(0.11, 0.34, 12), flat(T, AMBER, 0.85, { blending: T.AdditiveBlending, depthWrite: false })); fOuter.position.y = -0.86;
+  const fInner = new T.Mesh(new T.ConeGeometry(0.055, 0.2, 10), flat(T, ICE, 0.9, { blending: T.AdditiveBlending, depthWrite: false })); fInner.position.y = -0.93;
+  burner.add(bbase, bneck, fOuter, fInner);
+  group.add(burner);
   const NP = 220;
   const pop = points(T, NP, SLIME, 0.05, 0);
   const pv = new Float32Array(NP * 3);
@@ -582,6 +765,9 @@ function buildLab(T: ThreeMod): Rig {
       tube.position.x = 3.2 + (1.3 - 3.2) * enter;
       tube.position.y = -0.35 + 0.05 * Math.sin(t * 2.2);
       liquid.scale.y = 1 + 0.05 * Math.sin(t * 6);
+      burner.position.x = tube.position.x + 0.2;
+      fOuter.scale.set(1 + 0.15 * Math.sin(t * 23), 1 + 0.2 * Math.sin(t * 17), 1);
+      fInner.scale.y = 1 + 0.25 * Math.sin(t * 29);
       for (let i = 0; i < NB; i++) { let y = bub.pos[i * 3 + 1]! + bv[i]! * dt; if (y > 0.05) y = -0.72; bub.pos[i * 3 + 1] = y; }
       bub.attr.needsUpdate = true;
       const popping = scene === "labpop";
@@ -680,13 +866,16 @@ function buildTrick(T: ThreeMod): Rig {
   const rings = [0, 1, 2].map((k) => { const p = points(T, 60, 0xffffff, 0.09, 1); for (let i = 0; i < 60; i++) { const a = i / 60 * Math.PI * 2; p.pos.set([Math.cos(a) * (1.85 + k * 0.14), Math.sin(a) * (1.85 + k * 0.14), 0], i * 3); } p.attr.needsUpdate = true; group.add(p.pts); return p; });
   const spark = buildSparkle(T);
   group.add(spark.group);
+  const fw = makeFireworks(T, 0.6);
+  group.add(fw.group);
   return {
     group,
     update(t, dt, scene, ts) {
       rings.forEach((r, k) => { r.pts.rotation.z += dt * (2.2 + k * 0.9) * (k % 2 ? -1 : 1); r.mat.color.setHSL((t * 0.35 + k * 0.33) % 1, 0.9, 0.62); });
       spark.update(t, dt, scene, ts);
+      fw.update(t, dt, true);
     },
-    dispose: () => { spark.dispose(); disposeGroup(group); },
+    dispose: () => { spark.dispose(); fw.dispose(); disposeGroup(group); },
   };
 }
 
@@ -758,10 +947,12 @@ function buildGears(T: ThreeMod): Rig {
   };
 }
 
-export default function ShowcaseOverlay({ scene, label, onSkip }: {
+export default function ShowcaseOverlay({ scene, label, nameTag, onSkip }: {
   scene: ShowcaseScene;
   /** The name that assembles from particles in the finale. */
   label: string;
+  /** A guest's name for the `name` scene (rebuilt live when it changes — it's often learned mid-conversation). */
+  nameTag?: string;
   /** Tap anywhere to skip the show. */
   onSkip?: () => void;
 }) {
@@ -769,6 +960,8 @@ export default function ShowcaseOverlay({ scene, label, onSkip }: {
   const sceneRef = useRef<ShowcaseScene>(scene);
   sceneRef.current = scene;
   const labelRef = useRef(label);
+  const nameTagRef = useRef(nameTag ?? "");
+  nameTagRef.current = nameTag ?? "";
   const transparent = TRANSPARENT_SCENES.has(scene);
 
   useEffect(() => {
@@ -796,6 +989,7 @@ export default function ShowcaseOverlay({ scene, label, onSkip }: {
         boot: buildBoot(T), core: buildCore(T), orbit: buildOrbit(T), warp: buildWarp(T, null), finale: buildWarp(T, labelRef.current),
         bowl: buildBowl(T), faces: buildFaces(T), helmet: buildHelmet(T), lab: buildLab(T), sparkle: buildSparkle(T),
         hearts: buildHearts(T), confetti: buildConfetti(T), trick: buildTrick(T), hud: buildHud(T), gears: buildGears(T), drive: buildDrive(T),
+        desk: buildDesk(T), name: buildName(T, nameTagRef.current),
       };
       const keys = Object.keys(rigs) as RigKey[];
       const alpha: Record<string, number> = {};
@@ -806,10 +1000,21 @@ export default function ShowcaseOverlay({ scene, label, onSkip }: {
       const clock = new T.Clock();
       const t0 = performance.now();
       window.addEventListener("resize", fit);
+      // The guest's name usually arrives after mount — rebuild that one rig when it changes.
+      let builtName = nameTagRef.current;
+      const syncName = () => {
+        const nm = nameTagRef.current;
+        if (nm === builtName) return;
+        builtName = nm;
+        world.remove(rigs.name.group); rigs.name.dispose();
+        rigs.name = buildName(T, nm);
+        world.add(rigs.name.group); rigs.name.group.visible = false; alpha.name = 0;
+      };
 
       const loop = (now: number) => {
         if (cancelled) return;
         const dt = Math.min(0.05, clock.getDelta());
+        syncName();
         const s = sceneRef.current;
         if (s !== activeScene) { activeScene = s; sceneStart = now; }
         const want = s === "out" ? null : RIG_FOR[s];

@@ -121,8 +121,21 @@ router.post("/ambient", async (req, res) => {
 });
 
 // ── ElevenLabs TTS helper ─────────────────────────────────────────────────
-async function elevenLabsTts(text: string, voiceId: string, apiKey: string): Promise<Buffer> {
+/** Per-character delivery: how expressive, how close to the clone, how fast. */
+export interface TtsSettings { stability?: number; similarity?: number; style?: number; speed?: number }
+const clamp = (v: unknown, lo: number, hi: number, dflt: number) =>
+  typeof v === "number" && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : dflt;
+
+async function elevenLabsTts(text: string, voiceId: string, apiKey: string, settings?: TtsSettings): Promise<Buffer> {
   const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;
+  // turbo v2.5 honours style + speed (turbo v2 ignores them); same latency class.
+  const voice_settings = {
+    stability: clamp(settings?.stability, 0, 1, 0.45),
+    similarity_boost: clamp(settings?.similarity, 0, 1, 0.80),
+    style: clamp(settings?.style, 0, 1, 0),
+    speed: clamp(settings?.speed, 0.7, 1.2, 1.0),
+    use_speaker_boost: true,
+  };
   const resp = await fetch(url, {
     method: "POST",
     headers: {
@@ -132,8 +145,8 @@ async function elevenLabsTts(text: string, voiceId: string, apiKey: string): Pro
     },
     body: JSON.stringify({
       text: text.slice(0, 5000),
-      model_id: "eleven_turbo_v2",
-      voice_settings: { stability: 0.45, similarity_boost: 0.80 },
+      model_id: "eleven_turbo_v2_5",
+      voice_settings,
     }),
   });
   if (!resp.ok) {
@@ -170,10 +183,12 @@ function stripSpeechEmoji(s: string): string {
 }
 
 router.post("/tts", async (req, res) => {
-  const { text: rawText, voice, gender: bodyGender } = req.body as {
+  const { text: rawText, voice, gender: bodyGender, settings } = req.body as {
     text?: string;
     voice?: string;
     gender?: string;
+    /** Character delivery (stability / similarity / style / speed), from the persona. */
+    settings?: TtsSettings;
   };
 
   if (!rawText || typeof rawText !== "string") {
@@ -258,7 +273,7 @@ router.post("/tts", async (req, res) => {
   if (elKey && provider !== "openai") {
     const voiceId = voice ?? (await getConfig("ELEVENLABS_VOICE_ID").catch(() => null)) ?? "pNInz6obpgDQGcFmaJgB";
     try {
-      const audio = await elevenLabsTts(text, voiceId, elKey);
+      const audio = await elevenLabsTts(text, voiceId, elKey, settings);
       res.json({ audio: audio.toString("base64"), format: "mp3", provider: "elevenlabs" });
       return;
     } catch (err) {

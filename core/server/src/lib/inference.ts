@@ -149,6 +149,13 @@ export function getInferenceState() {
   return inferenceState;
 }
 
+/** Is any real brain answering right now? (cloud not circuit-broken, or a local model.) */
+export function brainOnline(): boolean {
+  const s = inferenceState;
+  const cloudUp = (s.openRouterAvailable || s.claudeAvailable) && Date.now() >= s.claudeUnreachableUntil;
+  return !!(cloudUp || s.ollamaAvailable || s.openWebUIAvailable || s.openclawAvailable);
+}
+
 // ── Dynamic config helpers ───────────────────────────────────────────────────
 export async function getOllamaBaseUrl(): Promise<string> {
   try {
@@ -520,53 +527,76 @@ export async function callOpenRouter(
   messages: Array<{ role: string; content: string }>,
   model: string,
   key: string,
+  timeoutMs = 90_000,
 ): Promise<string> {
   const res = await fetch(OPENROUTER_URL, {
     method: "POST",
     headers: OPENROUTER_HEADERS(key),
     body: JSON.stringify({ model, messages, stream: false }),
-    signal: AbortSignal.timeout(90_000),
+    signal: AbortSignal.timeout(timeoutMs),
   });
   if (!res.ok) throw new Error(`OpenRouter ${res.status}: ${(await res.text().catch(() => res.statusText)).slice(0, 200)}`);
   const data = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
   return data.choices?.[0]?.message?.content ?? "[No response from OpenRouter]";
 }
 
+/**
+ * Streaming OpenRouter call with STALL detection. A spoken companion cannot sit
+ * silent: the first token must land within `firstTokenMs` and the stream may
+ * never go idle longer than `stallMs` (a WiFi hiccup once froze a reply for
+ * 120s — the old single overall timeout). A stall AFTER real content returns
+ * what was said so far (usually a whole sentence); a stall before any content
+ * throws, and the caller retries once non-streaming before any fallback.
+ */
 export async function callOpenRouterStreaming(
   messages: Array<{ role: string; content: string }>,
   model: string,
   key: string,
   onToken: (t: string) => void,
+  opts: { firstTokenMs?: number; stallMs?: number; totalMs?: number } = {},
 ): Promise<string> {
-  const res = await fetch(OPENROUTER_URL, {
-    method: "POST",
-    headers: OPENROUTER_HEADERS(key),
-    body: JSON.stringify({ model, messages, stream: true }),
-    signal: AbortSignal.timeout(120_000),
-  });
-  if (!res.ok) throw new Error(`OpenRouter ${res.status}: ${(await res.text().catch(() => res.statusText)).slice(0, 200)}`);
-  if (!res.body) throw new Error("No body from OpenRouter");
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buf = "";
+  const firstTokenMs = opts.firstTokenMs ?? 15_000, stallMs = opts.stallMs ?? 12_000, totalMs = opts.totalMs ?? 75_000;
+  const ac = new AbortController();
+  let stall = setTimeout(() => ac.abort(new Error("OpenRouter stall: no first token")), firstTokenMs);
+  const total = setTimeout(() => ac.abort(new Error("OpenRouter stream: total timeout")), totalMs);
+  const bump = () => { clearTimeout(stall); stall = setTimeout(() => ac.abort(new Error("OpenRouter stall: stream idle")), stallMs); };
   let full = "";
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buf += decoder.decode(value, { stream: true });
-    const lines = buf.split("\n");
-    buf = lines.pop() ?? "";
-    for (const line of lines) {
-      const t = line.trim();
-      if (!t.startsWith("data:")) continue;
-      const payload = t.slice(5).trim();
-      if (payload === "[DONE]") continue;
-      try {
-        const j = JSON.parse(payload) as { choices?: Array<{ delta?: { content?: string } }> };
-        const tok = j.choices?.[0]?.delta?.content;
-        if (tok) { full += tok; onToken(tok); }
-      } catch { /* keep-alive or partial — ignore */ }
+  try {
+    const res = await fetch(OPENROUTER_URL, {
+      method: "POST",
+      headers: OPENROUTER_HEADERS(key),
+      body: JSON.stringify({ model, messages, stream: true }),
+      signal: ac.signal,
+    });
+    if (!res.ok) throw new Error(`OpenRouter ${res.status}: ${(await res.text().catch(() => res.statusText)).slice(0, 200)}`);
+    if (!res.body) throw new Error("No body from OpenRouter");
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bump();
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split("\n");
+      buf = lines.pop() ?? "";
+      for (const line of lines) {
+        const t = line.trim();
+        if (!t.startsWith("data:")) continue;
+        const payload = t.slice(5).trim();
+        if (payload === "[DONE]") continue;
+        try {
+          const j = JSON.parse(payload) as { choices?: Array<{ delta?: { content?: string } }> };
+          const tok = j.choices?.[0]?.delta?.content;
+          if (tok) { full += tok; onToken(tok); }
+        } catch { /* keep-alive or partial — ignore */ }
+      }
     }
+  } catch (e) {
+    if (full.trim()) return full;           // stalled after saying something real — keep it
+    throw e;
+  } finally {
+    clearTimeout(stall); clearTimeout(total);
   }
   return full || "[No response from OpenRouter]";
 }
@@ -984,9 +1014,27 @@ export async function runInferenceStreaming(
       inferenceState.claudeUnreachableUntil = 0; // cloud reachable again → reset breaker
       done = true;
     } catch (e) {
-      const msg = String((e as Error)?.message || "");
-      if (!msg.includes("Claude API") && !msg.includes("OpenRouter")) inferenceState.claudeUnreachableUntil = Date.now() + 60_000;
-      /* fall through to the local chain below */
+      // One quick NON-streaming retry before leaving the cloud: a single stalled
+      // stream (WiFi hiccup) must not drop him into the rule engine's voice.
+      let retried = false;
+      try {
+        const orKey = await getOpenRouterKey();
+        if (orKey) {
+          const orModel = await getOpenRouterModel();
+          response  = await callOpenRouter(msgs, orModel, orKey, 25_000);
+          onToken(response);
+          modelUsed = `openrouter:${orModel}`;
+          usedTier  = "apex";
+          inferenceState.apexRequests++;
+          inferenceState.claudeUnreachableUntil = 0;
+          done = true; retried = true;
+        }
+      } catch { /* both attempts failed — fall through */ }
+      if (!retried) {
+        const msg = String((e as Error)?.message || "");
+        if (!msg.includes("Claude API") && !msg.includes("OpenRouter")) inferenceState.claudeUnreachableUntil = Date.now() + 60_000;
+        /* fall through to the local chain below */
+      }
     }
   }
 

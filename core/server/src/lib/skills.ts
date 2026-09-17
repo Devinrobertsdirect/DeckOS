@@ -14,7 +14,7 @@
  */
 import os from "node:os";
 import { getBody, getBodyDetection } from "./body.js";
-import { getInferenceState } from "./inference.js";
+import { getInferenceState, brainOnline } from "./inference.js";
 import { getDeviceManager } from "./device-manager.js";
 import { describeScreen } from "./screen-vision.js";
 import { FUN_SKILLS, EXTRA_ACTION_SKILLS } from "./skills-extra.js";
@@ -758,10 +758,15 @@ const statusSkill: Skill = {
 
 // Social pleasantries — kept STRICT (short, standalone) so they never swallow a
 // real question that merely opens with a greeting.
+//
+// They are the OFFLINE voice only. With any brain online the persona answers
+// "how are you" / "who are you" / "hi" / "tell me a joke" in character — a
+// canned "Feeling sharp and glad you're here" out of Rocky's mouth breaks him.
 function social(id: string, re: RegExp, speak: string, maxWords = 6): Skill {
   return {
     id,
     handle({ lower }) {
+      if (brainOnline()) return null;
       if (!re.test(lower)) return null;
       if (/\?/.test(lower) && !/\b(how are you|how'?s it going|who are you|what can you do)\b/.test(lower)) return null;
       if (wordCount(lower) > maxWords) return null;
@@ -776,6 +781,7 @@ const howAreYou = social("how-are-you", /\bhow are you( doing| feeling)?\b|\bhow
 const joke: Skill = {
   id: "joke",
   handle({ lower }) {
+    if (brainOnline()) return null;             // in character, from the brain
     if (!/\b(tell me a joke|say something funny|make me laugh|got a joke)\b/.test(lower)) return null;
     if (/\babout\b/.test(lower)) return null; // "a joke about my code" → let the LLM riff
     return { speak: "Why did the robot cross the road? It was programmed by a chicken." };
@@ -792,6 +798,7 @@ const helpSkill: Skill = {
 const greet: Skill = {
   id: "greet",
   handle({ lower }) {
+    if (brainOnline()) return null;             // in character, from the brain
     if (!/^\s*(hi|hello|hey|yo|hiya|howdy)\b/.test(lower)) return null;
     if (wordCount(lower) > 3) return null;
     if (/\?/.test(lower)) return null;

@@ -10,13 +10,21 @@
 # in, flip the headphones on five minutes later, and it connects on its own.
 #
 # Runs as a systemd service (User=devindungeon, XDG_RUNTIME_DIR set for wpctl).
-# Env: NEURA_BT_INTERVAL (default 15s), NEURA_BT_SCAN_S (discovery burst when nothing is connected, default 8s).
+# Env: NEURA_BT_INTERVAL (default 15s), NEURA_BT_SCAN_S (discovery burst when nothing
+# is connected, default 5s), NEURA_BT_SCAN_EVERY (seconds between bursts, default 45).
+#
+# The discovery burst is kept to a LOW duty cycle on purpose: Bluetooth discovery
+# and WiFi share the Pi's 2.4 GHz radio, and an 8s scan every 15s cycle measured
+# 12-27% WiFi packet loss (SSH sessions dying, cloud brain calls stalling). 5s
+# every 45s (~11%) still catches a speaker in pairing mode within a minute.
 # ─────────────────────────────────────────────────────────────────────────────
 set -u
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/1000}"
 HOME="${HOME:-/home/devindungeon}"
 INTERVAL="${NEURA_BT_INTERVAL:-15}"
-SCAN_S="${NEURA_BT_SCAN_S:-8}"
+SCAN_S="${NEURA_BT_SCAN_S:-5}"
+SCAN_EVERY="${NEURA_BT_SCAN_EVERY:-45}"
+last_scan=0
 STATE="$HOME/.atlas/bt-last-audio"
 ROUTE="$HOME/pi-ops/bt-audio-route.mjs"
 NODE="$(command -v node 2>/dev/null || echo /opt/nodejs/bin/node)"
@@ -63,7 +71,8 @@ while :; do
   # Nothing on? Go looking. Any speaker/headphones in pairing mode gets paired,
   # trusted and connected — audio-class devices only (Audio Sink / Headset), never
   # a phone or laptop. Runs every cycle while unconnected = "always in pairing".
-  if [ -z "$connected" ]; then
+  if [ -z "$connected" ] && [ $(( $(date +%s) - last_scan )) -ge "$SCAN_EVERY" ]; then
+    last_scan=$(date +%s)
     bctl --timeout "$SCAN_S" scan on >/dev/null 2>&1 || true
     for mac in $(bctl devices | awk '{print $2}'); do
       info="$(bctl info "$mac")"

@@ -8,6 +8,7 @@
  */
 import type { Skill } from "./skills.js";
 import { getJson } from "./skills-extra.js";
+import { brainOnline } from "./inference.js";
 
 export const READOUT_SKILLS: Skill[] = [
   {
@@ -183,6 +184,7 @@ export const READOUT_SKILLS: Skill[] = [
     async handle({ raw, lower }) {
       void raw;
       if (!new RegExp("\\bwho are you\\b|what('| i)?s your name|your name\\b|introduce yourself|what should i call you|tell me who you are", "i").test(lower)) return null;
+      if (brainOnline()) return null;   // hand-edit: offline voice only — in character from the brain otherwise
       const d = await getJson("/api/ai/persona");
       if (d == null) return { speak: "I am Nobi, your desk companion." };
       try {

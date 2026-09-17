@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { attachAmplitudeAnalyser } from "@/lib/audioAnalyser";
 import { stripEmoji } from "@/lib/stripText";
+import { getPersona, type TtsStyle } from "@/genesis/personality";
+import { shapeForVoice } from "@/genesis/voiceCadence";
 
 /**
  * Unified voice for Atlas. Two engines, one interface:
@@ -151,6 +153,8 @@ export interface SpeakOptions {
   browserVoiceURI?: string;
   /** Fires ~per word for the browser engine (used to pulse the face). */
   onWord?: (charIndex: number) => void;
+  /** ElevenLabs delivery settings for this utterance (defaults to the persona's). */
+  voiceSettings?: TtsStyle;
 }
 
 interface AtlasVoice {
@@ -222,10 +226,15 @@ export function useAtlasVoice(): AtlasVoice {
   const speakServer = useCallback(
     async (text: string, opts: SpeakOptions) => {
       const voiceId = opts.voiceId ?? localStorage.getItem(VOICE_ID_KEY) ?? undefined;
+      // The character shapes the delivery: its cadence (punctuation) and its
+      // ElevenLabs settings (expressiveness, pace) ride along with the words.
+      const persona = getPersona();
+      const shaped = shapeForVoice(text, persona.id);
+      const settings = opts.voiceSettings ?? persona.tts;
       const res = await fetch("/api/vision/tts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, voice: voiceId }),
+        body: JSON.stringify({ text: shaped, voice: voiceId, ...(settings ? { settings } : {}) }),
       });
       if (!res.ok) {
         // Fall back to the browser voice so we never go silent.

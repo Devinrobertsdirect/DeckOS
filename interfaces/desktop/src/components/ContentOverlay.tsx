@@ -39,29 +39,67 @@ function qrSvg(url: string): string {
  * would defeat the whole point of showing it.
  */
 const PEEK_CSS = `
+/* Act 1 (once): roll in from the left with a little squash on landing, duck behind the card.
+   Act 2 (loops, 16s): peek right and glance at the code; duck; pop out LEFT for the
+   surprise; duck; come back right, hop, go wide-eyed at you, then nod at the code twice
+   and squint happily. Every stop is a spot the card fully covers or fully clears —
+   he is never in front of it. */
 @keyframes nobiRollUp {
-  0%   { transform: translateX(-210px) rotate(-10deg); opacity: 0 }
-  18%  { opacity: 1 }
-  55%  { transform: translateX(-6px) rotate(6deg) }
-  70%  { transform: translateX(2px) rotate(-2deg) }
-  100% { transform: translateX(126px) rotate(0deg) }
+  0%   { transform: translate(-230px, 0) rotate(-14deg); opacity: 0 }
+  14%  { opacity: 1 }
+  46%  { transform: translate(-8px, 0) rotate(7deg) scale(1, 1) }
+  54%  { transform: translate(0, 4px) rotate(0deg) scale(1.08, .9) }
+  62%  { transform: translate(0, 0) rotate(0deg) scale(.97, 1.04) }
+  70%  { transform: translate(0, 0) rotate(0deg) scale(1, 1) }
+  100% { transform: translate(126px, 0) rotate(0deg) }
 }
+@keyframes nobiTour {
+  0%, 17%  { transform: translate(126px, 0) }
+  22%, 28% { transform: translate(0, 0) }
+  34%, 48% { transform: translate(-126px, 0) }
+  54%, 60% { transform: translate(0, 0) }
+  66%      { transform: translate(126px, 0) }
+  70%      { transform: translate(126px, -14px) }
+  73%      { transform: translate(126px, 0) scale(1.06, .94) }
+  76%, 100%{ transform: translate(126px, 0) scale(1, 1) }
+}
+/* lean toward the card from whichever side he is on; a firm nod at 86-92% */
 @keyframes nobiLean {
-  0%, 100% { transform: translateX(0) rotate(0deg) }
-  45%      { transform: translateX(7px) rotate(-4deg) }
+  0%, 5%   { transform: rotate(0deg) }
+  10%, 15% { transform: rotate(-5deg) }
+  17%, 34% { transform: rotate(0deg) }
+  40%, 46% { transform: rotate(5deg) }
+  48%, 82% { transform: rotate(0deg) }
+  86%      { transform: rotate(-7deg) }
+  89%      { transform: rotate(0deg) }
+  92%      { transform: rotate(-7deg) }
+  95%,100% { transform: rotate(0deg) }
 }
-@keyframes nobiGlance {
-  0%, 24%, 100% { transform: translateX(0) }
-  40%, 62%      { transform: translateX(-2.4px) }
+/* eyes: glance at the code (toward it), look at you wide, nod, happy squint */
+@keyframes nobiEyes {
+  0%, 5%   { transform: translate(0, 0) scale(1, 1) }
+  9%, 15%  { transform: translate(-2.6px, 0) scale(1, 1) }
+  17%, 36% { transform: translate(0, 0) scale(1, 1) }
+  40%, 46% { transform: translate(2.6px, 0) scale(1, 1) }
+  48%, 68% { transform: translate(0, 0) scale(1, 1) }
+  70%, 78% { transform: translate(0, -1px) scale(1.12, 1.28) }
+  82%      { transform: translate(0, 0) scale(1, 1) }
+  86%      { transform: translate(-2px, 2px) scale(1, .9) }
+  89%      { transform: translate(0, 0) scale(1, 1) }
+  92%      { transform: translate(-2px, 2px) scale(1, .9) }
+  95%, 99% { transform: translate(0, 1px) scale(1.1, .5) }
+  100%     { transform: translate(0, 0) scale(1, 1) }
 }
-@keyframes nobiBlink { 0%, 92%, 100% { transform: scaleY(1) } 95% { transform: scaleY(.08) } }
-.nobi-travel { animation: nobiRollUp 1.9s cubic-bezier(.22,.9,.3,1.05) both; }
-.nobi-lean   { animation: nobiLean 2.8s 2s ease-in-out infinite; transform-origin: 50% 100%; }
-.nobi-eyes   { animation: nobiGlance 2.8s 2s ease-in-out infinite; }
-.nobi-eyes rect { animation: nobiBlink 5.2s 2s infinite; transform-origin: 50% 50%; transform-box: fill-box; }
+@keyframes nobiBlink { 0%, 93%, 100% { transform: scaleY(1) } 96% { transform: scaleY(.08) } }
+@keyframes nobiSeam { 0%, 100% { opacity: .85 } 50% { opacity: .45 } }
+.nobi-travel { animation: nobiRollUp 2.1s cubic-bezier(.22,.9,.3,1.05) both, nobiTour 16s 2.1s ease-in-out infinite; }
+.nobi-lean   { animation: nobiLean 16s 2.1s ease-in-out infinite; transform-origin: 50% 100%; }
+.nobi-eyes   { animation: nobiEyes 16s 2.1s ease-in-out infinite; transform-origin: 34px 36px; transform-box: view-box; }
+.nobi-eyes rect { animation: nobiBlink 4.7s 2.1s infinite; transform-origin: 50% 50%; transform-box: fill-box; }
+.nobi-seam   { animation: nobiSeam 2.4s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) {
   .nobi-travel { animation: none; transform: translateX(126px) }
-  .nobi-lean, .nobi-eyes, .nobi-eyes rect { animation: none }
+  .nobi-lean, .nobi-eyes, .nobi-eyes rect, .nobi-seam { animation: none }
 }`;
 
 function PeekingNobi({ accent }: { accent: string }) {
@@ -80,7 +118,7 @@ function PeekingNobi({ accent }: { accent: string }) {
             <circle cx="27" cy="64" r="1.5" /><circle cx="31" cy="65.5" r="1.5" /><circle cx="35" cy="66" r="1.5" />
             <circle cx="39" cy="65.5" r="1.5" /><circle cx="43" cy="64" r="1.5" />
           </g>
-          <rect x="10" y="80" width="48" height="4" rx="2" fill={accent} opacity=".85" />
+          <rect className="nobi-seam" x="10" y="80" width="48" height="4" rx="2" fill={accent} opacity=".85" />
         </svg>
       </div>
     </div>

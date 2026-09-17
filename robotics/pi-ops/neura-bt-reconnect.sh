@@ -31,6 +31,9 @@ NODE="$(command -v node 2>/dev/null || echo /opt/nodejs/bin/node)"
 
 log() { printf '[bt-reconnect] %s\n' "$*"; }
 bctl() { bluetoothctl "$@" 2>/dev/null; }
+# connect/pair block for MINUTES on a paired device that is switched off, which
+# stalls the whole loop — cap them so an absent speaker costs seconds, not cycles.
+bctl_try() { timeout "$1" bluetoothctl "${@:2}" 2>/dev/null; }
 
 mkdir -p "$(dirname "$STATE")"
 
@@ -60,7 +63,7 @@ while :; do
   for mac in $ordered; do
     if is_connected "$mac"; then connected="$mac"; break; fi
     bctl trust "$mac" >/dev/null
-    if bctl connect "$mac" | grep -qiE 'Connection successful|Connected: yes'; then
+    if bctl_try 12 connect "$mac" | grep -qiE 'Connection successful|Connected: yes'; then
       log "connected $mac"
       sleep 2
       connected="$mac"
@@ -80,9 +83,9 @@ while :; do
       echo "$info" | grep -qiE 'Audio Sink|Headset|Handsfree|Headphone|Icon: audio' || continue
       name="$(echo "$info" | sed -n 's/^[[:space:]]*Name: //p' | head -1)"
       log "pairing with $name ($mac)"
-      if bctl pair "$mac" | grep -qiE 'Pairing successful|AlreadyExists'; then
+      if bctl_try 25 pair "$mac" | grep -qiE 'Pairing successful|AlreadyExists'; then
         bctl trust "$mac" >/dev/null
-        if bctl connect "$mac" | grep -qiE 'Connection successful|Connected: yes'; then
+        if bctl_try 12 connect "$mac" | grep -qiE 'Connection successful|Connected: yes'; then
           log "connected NEW device $name ($mac)"
           sleep 2
           connected="$mac"
@@ -92,11 +95,21 @@ while :; do
     done
   fi
 
-  # On a NEW connection (or first detection), select HFP + default routing once.
-  if [ -n "$connected" ] && [ "$connected" != "$prev" ]; then
-    "$NODE" "$ROUTE" "$connected" >/dev/null 2>&1 && log "routed $connected (HFP mic + default sink/source)"
-    echo "$connected" > "$STATE"
-    last="$connected"
+  # Route on any (re)connection, not only a new address: a speaker that drops
+  # and comes back keeps its MAC, and a route set up before the drop is gone.
+  # Also re-route whenever PipeWire's default sink is no longer this device —
+  # that is exactly the "connected but Nobi can't hear or speak" state.
+  if [ -n "$connected" ]; then
+    name="$(bctl info "$connected" | sed -n 's/^[[:space:]]*Name: //p' | head -1)"
+    routed=0
+    wpctl status 2>/dev/null | awk '/Sinks:/{f=1} /Sources:/{f=0} f' | grep -F '*' | grep -qF "${name:-bluez}" && routed=1
+    if [ "$connected" != "$prev" ] || [ "$routed" = 0 ]; then
+      "$NODE" "$ROUTE" "$connected" >/dev/null 2>&1 && log "routed $connected ${name:+($name)} (HFP mic + default sink/source)"
+      echo "$connected" > "$STATE"
+      last="$connected"
+    fi
+  elif [ -n "$prev" ]; then
+    log "lost $prev — searching every ${INTERVAL}s, scanning every ${SCAN_EVERY}s"
   fi
   prev="$connected"
 

@@ -15,13 +15,43 @@ import { decryptSecret } from "./crypto.js";
 import { rateLimit } from "./ratelimit.js";
 import { isOwner } from "./sync.js";
 
-const DEFAULT_VOICE = process.env["NEURA_CLOUD_TTS_VOICE"] || "pNInz6obpgDQGcFmaJgB";
+const DEFAULT_VOICE = process.env["NEURA_CLOUD_TTS_VOICE"] || "RhcROc65RG054lfxtUIT" /* Rocky - Storyteller, the voice he ships with */;
 const schema = z.object({ text: z.string().min(1).max(1200), voice: z.string().regex(/^[A-Za-z0-9]{8,40}$/).optional() });
 
 export function ttsRouter(store: Store): Router {
   const r = Router();
   r.use(requireAuth(store));
   r.use(rateLimit({ windowMs: 60_000, max: 30, key: (req) => (req as AuthedRequest).account!.id, name: "tts" }));
+  // GET /v1/tts/voices — the voices on the OWNER's ElevenLabs account, so the
+  // site can show a picker and they can see which one is Rocky before it goes
+  // to the robot. Also says whether the key can actually speak (permissions).
+  r.get("/voices", async (req: AuthedRequest, res: Response) => {
+    const accountId = req.account!.id;
+    if (!isOwner(await store.getProfile(accountId), req.account!.email)) { res.status(403).json({ error: "owners_only" }); return; }
+    const entry = await store.getKey(accountId, "ELEVENLABS_API_KEY");
+    if (!entry) { res.status(412).json({ error: "no_key" }); return; }
+    let key = "";
+    try { key = decryptSecret(entry.ciphertext, `${accountId}:ELEVENLABS_API_KEY`); } catch { res.status(412).json({ error: "no_key" }); return; }
+    const chosenEntry = await store.getKey(accountId, "ELEVENLABS_VOICE_ID");
+    let chosen = DEFAULT_VOICE;
+    try { if (chosenEntry) chosen = decryptSecret(chosenEntry.ciphertext, `${accountId}:ELEVENLABS_VOICE_ID`) || DEFAULT_VOICE; } catch { /* default */ }
+    try {
+      const up = await fetch("https://api.elevenlabs.io/v1/voices", { headers: { "xi-api-key": key }, signal: AbortSignal.timeout(15_000) });
+      const body = (await up.json().catch(() => ({}))) as { voices?: Array<{ voice_id: string; name: string; category?: string; preview_url?: string; labels?: Record<string, string> }>; detail?: { status?: string; message?: string } };
+      if (!up.ok) { res.status(up.status === 401 ? 403 : 502).json({ error: body.detail?.status ?? `elevenlabs_${up.status}`, message: body.detail?.message ?? "" }); return; }
+      const voices = (body.voices ?? []).map((v) => ({ id: v.voice_id, name: v.name, category: v.category ?? "", preview: v.preview_url ?? null, accent: v.labels?.["accent"] ?? null, gender: v.labels?.["gender"] ?? null }));
+      // can this key speak? a one-line probe tells the truth about permissions
+      let canSpeak = true, permission = "";
+      try {
+        const probe = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${chosen}`, { method: "POST", headers: { "xi-api-key": key, "Content-Type": "application/json" }, body: JSON.stringify({ text: "Hi.", model_id: "eleven_turbo_v2_5" }), signal: AbortSignal.timeout(15_000) });
+        if (!probe.ok) { canSpeak = false; const d = (await probe.json().catch(() => ({}))) as { detail?: { status?: string } }; permission = d.detail?.status ?? `elevenlabs_${probe.status}`; }
+      } catch { canSpeak = false; permission = "network"; }
+      res.json({ voices, chosen, recommended: DEFAULT_VOICE, canSpeak, permission });
+    } catch (e) {
+      res.status(502).json({ error: (e as Error).message });
+    }
+  });
+
   r.post("/", async (req: AuthedRequest, res: Response) => {
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ error: "text required" }); return; }

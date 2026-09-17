@@ -769,6 +769,21 @@ export function PetShell({
   // new response logic — exactly how onUtterance and faceInput above reuse handleSend.
   // Dedup on timestamp (like faceInput) so a re-render never re-fires; if one lands
   // mid-turn, handleSend's busyRef guard just drops it (fine — the speaker repeats).
+  // ── Barge-in: the ears heard the user cut in — stop talking, stop the show ──
+  const voiceInterruptEv = useLatestEvent("voice.interrupt");
+  const handledInterruptAt = useRef<string | null>(null);
+  useEffect(() => {
+    if (!voiceInterruptEv || voiceInterruptEv.timestamp === handledInterruptAt.current) return;
+    handledInterruptAt.current = voiceInterruptEv.timestamp;
+    cancelRef.current = true;          // shows, queued sentences, pending asks all check this
+    queueRef.current = [];
+    pendingAnswerRef.current = null;
+    stop();                            // cut the audio that is playing right now
+    setCaption("");
+    setFaceState("listening");
+    void setEarsMuted(false);
+  }, [voiceInterruptEv, stop]);
+
   const voiceHeardEv = useLatestEvent("voice.heard");
   // Provisioning (POST /api/provision, before a unit ships): apply the build
   // profile — owner name, bot name, personality, eye theme — then reload so

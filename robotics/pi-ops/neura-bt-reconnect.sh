@@ -32,7 +32,11 @@ SCAN_EVERY="${NEURA_BT_SCAN_EVERY:-45}"
 BOOT_WINDOW="${NEURA_BT_BOOT_WINDOW:-120}"
 BOOT_INTERVAL="${NEURA_BT_BOOT_INTERVAL:-5}"
 BOOT_SCAN_EVERY="${NEURA_BT_BOOT_SCAN_EVERY:-8}"
+# …and the same fast search for this long after a speaker DROPS (Devin: "if it
+# disconnects it should search for a new connection for the following 60s").
+LOST_WINDOW="${NEURA_BT_LOST_WINDOW:-60}"
 started=$(date +%s)
+window_until=$(( started + BOOT_WINDOW ))
 last_scan=0
 STATE="$HOME/.atlas/bt-last-audio"
 ROUTE="$HOME/pi-ops/bt-audio-route.mjs"
@@ -65,10 +69,10 @@ power_fail=0
 
 while :; do
   # Still inside the boot window? Everything is faster and the robot is discoverable.
-  if [ "$in_window" = 1 ] && [ $(( $(date +%s) - started )) -ge "$BOOT_WINDOW" ]; then
+  if [ "$in_window" = 1 ] && [ $(date +%s) -ge "$window_until" ]; then
     in_window=0
     bctl discoverable off >/dev/null
-    log "pairing window closed — normal cadence (${INTERVAL}s, scan every ${SCAN_EVERY}s)"
+    log "search window closed — normal cadence (${INTERVAL}s, scan every ${SCAN_EVERY}s)"
   fi
   if [ "$in_window" = 1 ]; then cycle="$BOOT_INTERVAL"; scan_every="$BOOT_SCAN_EVERY"; else cycle="$INTERVAL"; scan_every="$SCAN_EVERY"; fi
 
@@ -138,7 +142,9 @@ while :; do
       last="$connected"
     fi
   elif [ -n "$prev" ]; then
-    log "lost $prev — searching every ${cycle}s, scanning every ${scan_every}s"
+    # a drop opens a fresh fast-search window: discoverable, quick retries, scanning
+    window_until=$(( $(date +%s) + LOST_WINDOW )); in_window=1; last_scan=0
+    log "lost $prev — searching hard for ${LOST_WINDOW}s (every ${BOOT_INTERVAL}s, scan every ${BOOT_SCAN_EVERY}s)"
   fi
   prev="$connected"
 

@@ -76,6 +76,13 @@ FRAME_BYTES = FRAME_SAMPLES * 2                      # 640 bytes (s16 mono)
 # ── Brain endpoints ──────────────────────────────────────────────────────────
 BASE = os.environ.get("NEURA_BRAIN", "http://127.0.0.1:8080")
 TRANSCRIBE_URL = BASE + "/api/voice/transcribe"
+INTERRUPT_URL = BASE + "/api/voice/interrupt"
+# Barge-in (Devin: "if I interrupt him he needs to stop"). While Nobi speaks we
+# still watch for a LOUD utterance and, if it contains one of these, cut him off.
+# "nobi" alone is not enough — he says his own name constantly.
+BARGE_IN = os.environ.get("NEURA_BARGE_IN", "1") != "0"
+BARGE_MULT = float(os.environ.get("NEURA_BARGE_MULT", "2.2"))
+INTERRUPT_RE = re.compile(r"\b(stop|wait|hold on|hang on|hold up|pause|quiet|shut up|enough|okay okay|ok ok|hey (nobi|nobee|noby|nobby|noble|nova|novi|no bee|robot)|nobi stop|shush|excuse me)\b")
 HEARD_URL = BASE + "/api/voice/heard"
 STATE_URL = BASE + "/api/voice/state"
 
@@ -379,6 +386,7 @@ def main() -> int:
     floor = START_RMS            # adaptive ambient-noise floor
     armed_until = 0.0
     muted = False                # is Nobi speaking right now?
+    barge_run, barge_silence, barge_buf = 0, 0, bytearray()
     last_mute_poll = 0.0
     last_target_check = 0.0
 
@@ -425,7 +433,35 @@ def main() -> int:
             muted = m
 
         if muted:
-            # Hold VAD idle so we never capture (or transcribe) Nobi's own voice.
+            # Nobi is talking. Keep ONE ear open, for interruptions only: a much
+            # higher energy bar (his own playback bleeds into the mic quietly; a
+            # person cutting in is loud), transcribed on-device so his own voice
+            # never spends a Scribe credit, and only a short list of words count.
+            if not BARGE_IN:
+                speaking, utter, speech_run, silence_run = False, bytearray(), 0, 0
+                preroll.clear()
+                continue
+            rms = frame_rms(data)
+            if rms >= max(START_RMS * BARGE_MULT, floor * VAD_MULT * BARGE_MULT):
+                barge_run += 1
+                barge_buf += data
+            elif barge_run:
+                barge_silence += 1
+                barge_buf += data
+            if barge_run >= 4 and barge_silence >= 12:          # ~a word or two, then a beat of quiet
+                clip = bytes(barge_buf)
+                barge_run, barge_silence, barge_buf = 0, 0, bytearray()
+                heard = transcribe_local(clip).lower()
+                if heard and INTERRUPT_RE.search(heard):
+                    log(f"barge-in: {heard!r} — interrupting")
+                    try: requests.post(INTERRUPT_URL, json={"text": heard}, timeout=2)
+                    except requests.RequestException: pass
+                    muted = False
+                    armed_until = now + ARM_SECONDS
+                elif heard:
+                    log(f"(while talking, ignored) {heard!r}")
+            elif barge_silence > 30:
+                barge_run, barge_silence, barge_buf = 0, 0, bytearray()
             speaking, utter, speech_run, silence_run = False, bytearray(), 0, 0
             preroll.clear()
             continue

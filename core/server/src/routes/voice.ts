@@ -85,6 +85,17 @@ router.post("/voice/heard", (req, res) => {
   res.json({ ok: true, accepted: true });
 });
 
+// POST /api/voice/interrupt — the ears heard the user cut in while Nobi was
+// talking ("stop", "wait", "hey Nobi"). Loopback only. The face drops whatever
+// it is saying or showing the instant this lands.
+router.post("/voice/interrupt", (req, res) => {
+  if (!isLoopback(req)) { res.status(403).json({ error: "local only" }); return; }
+  const text = typeof req.body?.text === "string" ? req.body.text.trim().slice(0, 200) : "";
+  state.muted = false;   // whatever he was saying is over; hear the room again now
+  broadcast({ type: "voice.interrupt", source: "voice", payload: { text }, timestamp: new Date().toISOString() });
+  res.json({ ok: true });
+});
+
 // POST /api/voice/mute — { on }. Loopback only. The PetShell raises this when a
 // turn/TTS starts and lowers it when the queue drains, so incoming utterances are
 // dropped for as long as Nobi is talking.

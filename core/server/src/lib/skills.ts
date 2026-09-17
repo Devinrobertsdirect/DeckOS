@@ -819,6 +819,8 @@ const demoShow: Skill = {
   id: "demo-show",
   handle({ lower }) {
     if (/\b(introduce|introduction|about (you|yourself)|meet)\b/.test(lower)) return null;
+    // Devin: "DEMO should always make him demo" — the word alone is the command.
+    if (/\bdemo(s|nstration)?\b/.test(lower) && !/\b(no|not|don'?t|stop|cancel|end|skip) (the )?demo/.test(lower)) return { speak: "", ui: { type: "show", kind: "demo" } };
     if (!/\b(show (us|me|them|everyone|everybody) (a |your |the )?(quick |little |short )?demo|give (us|me|them|everyone) (a |your |the )?(quick |little |short )?demo|(a |the )?quick demo|do (a|your|the) demo|demo time|show ?off|show (us|me|them|everyone) what you (can do|got|do)|do your thing|strut your stuff)\b/.test(lower)) return null;
     return { speak: "", ui: { type: "show", kind: "demo" } };
   },

@@ -472,8 +472,9 @@ function buildWarp(T: ThreeMod, label: string | null): Rig {
       const speed = 2 + 12 * easeInOut(t / 3.2);
       planets.forEach((p) => {
         const c = (t + p.ph) % 11;
-        if (c < 5 && (!label || t < IN - 1)) { const k = Math.pow(c / 5, 1.6); p.g.position.set(p.x * (0.55 + 0.45 * k), p.y * (0.55 + 0.45 * k), -7 + 8.5 * k); p.g.rotation.y += dt * 0.8; p.g.rotation.z += dt * 0.2; }
-        else p.g.position.set(0, 0, -30);
+        const fly = c < 5 && (!label || t < IN - 1);
+        p.g.visible = fly;
+        if (fly) { const k = Math.pow(c / 5, 1.6); p.g.position.set(p.x * (0.55 + 0.45 * k), p.y * (0.55 + 0.45 * k), -7 + 8.5 * k); p.g.rotation.y += dt * 0.8; p.g.rotation.z += dt * 0.2; }
       });
       fw.update(t, dt, !!label && t > BURST - 0.2);
       const cyc = t % 6.5;

@@ -312,7 +312,7 @@ export function PetShell({
     // turn is "give us a quick demo" and the model dutifully starts a tour
     // ("Hey Devin. Quick tour, coming up…") instead of reacting to the answer.
     const ctx = buildContext();   // only .facts is used — no chat history goes out
-    const director = `You are in the middle of a live stage show and just asked: "${line(ask.say, p)}". ${ask.director} Never offer a tour, a demo, or a list of what you can do — the show is already running.`;
+    const director = `You are in the middle of a live stage show and just asked: "${line(ask.say, p)}". ${ask.director} Hard rules: at most 35 words; end on a STATEMENT — the show moves on the instant you finish and nobody can answer, so no questions at all (not even "Question."); never offer a tour, a demo, or a list of what you can do.`;
     let reply = "";
     // A slow brain must not stall a live show: 15s and he falls back to the
     // scripted line for this beat.
@@ -332,6 +332,13 @@ export function PetShell({
     } catch { reply = ""; }
     finally { window.clearTimeout(abortTimer); }
     if (!reply) reply = line(ask.fallback, p);
+    // The model won't always honour "no questions / 35 words": keep whole
+    // sentences up to ~40 words and drop trailing questions (nobody can answer).
+    const sentences = reply.match(/[^.!?]+[.!?]+["']?|[^.!?]+$/g)?.map((s) => s.trim()).filter(Boolean) ?? [reply];
+    while (sentences.length > 1 && (/\?$/.test(sentences[sentences.length - 1]!) || /^question[.!]?$/i.test(sentences[sentences.length - 1]!))) sentences.pop();
+    const kept: string[] = []; let words = 0;
+    for (const s of sentences) { const n = s.split(/\s+/).length; if (kept.length && words + n > 40) break; kept.push(s); words += n; }
+    reply = kept.join(" ") || reply;
     // Their name, in gold above the eyes, while he replies.
     let next: ShowcaseScene = stage;
     if (ask.branch === "name") {

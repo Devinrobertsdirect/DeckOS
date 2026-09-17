@@ -20,6 +20,7 @@ import { describeScreen } from "./screen-vision.js";
 import { FUN_SKILLS, EXTRA_ACTION_SKILLS } from "./skills-extra.js";
 import { READOUT_SKILLS } from "./skills-readouts.js";
 import { ACTION_SKILLS } from "./skills-actions.js";
+import { getOrCreatePairingCode } from "./pairing.js";
 
 // ── Client action contract (executed by PetShell) ────────────────────────────
 export type UiAction =
@@ -48,6 +49,7 @@ export type UiAction =
   | { type: "show"; kind: "demo" | "pitch" }
   | { type: "meet"; name?: string; relation?: string }
   | { type: "openTutorial" }
+  | { type: "showLink"; title: string; url: string; code?: string; hint?: string }
   | { type: "closeOverlay" }
   | { type: "replayLast" };
 
@@ -839,8 +841,47 @@ const pitchShow: Skill = {
 };
 
 // Priority order: most specific first so nothing shadows a narrower skill.
+// ── Phone + shop: a QR card on the face ──────────────────────────────────────
+/** First non-internal IPv4 (the number to type when .local doesn't resolve). */
+function lanIp(): string | null {
+  for (const list of Object.values(os.networkInterfaces())) for (const n of list ?? []) if (n.family === "IPv4" && !n.internal) return n.address;
+  return null;
+}
+const PORT = Number(process.env["PORT"] ?? 8080);
+const phoneLink: Skill = {
+  id: "phone-link",
+  async handle({ lower }) {
+    if (!/\b(phone (link|app|code)|show (me )?(your|the) (phone|pairing)|pair(ing)? (my |the )?phone|connect (my |the )?phone|mobile (app|link)|companion app|qr code)\b/.test(lower)) return null;
+    const code = await getOrCreatePairingCode();
+    const ip = lanIp();
+    const url = `http://${os.hostname()}.local:${PORT}/mobile/?code=${encodeURIComponent(code)}`;
+    return {
+      speak: `Scan this with your phone. The code is ${code.split("").join(" ")}.`,
+      ui: { type: "showLink", title: "Nobi on your phone", url, code, hint: ip ? `Same Wi-Fi. If .local won't open: ${ip}:${PORT}/mobile` : "Same Wi-Fi as me." },
+    };
+  },
+};
+const myAddress: Skill = {
+  id: "my-address",
+  handle({ lower }) {
+    if (!/\b(what'?s|what is|tell me) your (address|ip|ip address|url)\b|\byour ip\b/.test(lower)) return null;
+    const ip = lanIp();
+    return { speak: ip ? `My address is ${ip.split(".").join(" dot ")}, port ${PORT}. Or just nobi dot local.` : "I can't see a network address right now." };
+  },
+};
+const SHOP_URL = "https://developmentindustries.org/build";
+const shopSkill: Skill = {
+  id: "shop",
+  handle({ lower }) {
+    if (!/\b(design|build|order|customi[sz]e|configure|reserve) (a |my |your |another )?(nobi|robot|bot)\b|\b(the |your )?(shop|store)\b|\bnobi (shop|store)\b/.test(lower)) return null;
+    if (/\b(demo|show us|show me what)\b/.test(lower)) return null;
+    if (/\b(skills?|plugin|app|extension)s? (shop|store)\b/.test(lower)) return null;   // the in-app skills store is its own skill
+    return { speak: "Design your own. Scan this, pick a shell, eyes, a name. Every combination composes.", ui: { type: "showLink", title: "Design your Nobi", url: SHOP_URL, hint: "developmentindustries.org/build" } };
+  },
+};
+
 const SKILLS: Skill[] = [
-  meetSomeone, pitchShow, demoShow,
+  meetSomeone, pitchShow, demoShow, phoneLink, myAddress, shopSkill,
   releaseEstop, emergencyStop, spinSkill, wanderSkill, setSpeedSkill, stopSkill,
   experienceModeSkill, uiModeSkill, describeScreenSkill, survivorSkill, videoControlSkill, playVideoSkill,
   closeSkill, openSkill, controlDevice, readSensor, listDevices,

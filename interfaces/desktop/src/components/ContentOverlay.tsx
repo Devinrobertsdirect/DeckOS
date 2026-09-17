@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import qrcode from "qrcode-generator";
 
 /**
  * ContentOverlay — a full-screen layer over the face for rich content the voice
@@ -8,15 +9,47 @@ import { useState } from "react";
  * command both dismiss it.
  */
 export interface ContentOverlayProps {
-  kind: "image" | "tutorial";
+  /** "link": a QR card (phone pairing, the shop) — `src` is the URL, `caption` the title. */
+  kind: "image" | "tutorial" | "link";
   src: string;
   caption?: string;
+  /** link only: a pairing code to show under the QR. */
+  code?: string;
+  /** link only: one short line of guidance. */
+  hint?: string;
   onClose: () => void;
 }
 
-export function ContentOverlay({ kind, src, caption, onClose }: ContentOverlayProps) {
+/** QR as an SVG path (zero-dependency encoder; fits the round screen at ~200px). */
+function qrSvg(url: string): string {
+  try {
+    const qr = qrcode(0, "M");
+    qr.addData(url);
+    qr.make();
+    return qr.createSvgTag({ cellSize: 4, margin: 0, scalable: true });
+  } catch { return ""; }
+}
+
+export function ContentOverlay({ kind, src, caption, code, hint, onClose }: ContentOverlayProps) {
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
+  const svg = useMemo(() => (kind === "link" ? qrSvg(src) : ""), [kind, src]);
+
+  if (kind === "link") {
+    return (
+      <div onClick={onClose} role="presentation" style={{ position: "fixed", inset: 0, zIndex: 40, background: "#05070f", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, textAlign: "center", maxWidth: 360 }}>
+          <div style={{ color: "#c9dcf0", fontSize: 13, letterSpacing: ".14em", textTransform: "uppercase", fontWeight: 600 }}>{caption ?? "Scan me"}</div>
+          <div style={{ width: 196, height: 196, background: "#fff", borderRadius: 18, padding: 12, boxShadow: "0 0 0 6px rgba(201,220,240,.12), 0 20px 60px rgba(0,0,0,.6)" }}
+            dangerouslySetInnerHTML={{ __html: svg.replace("<svg", '<svg style="width:100%;height:100%;display:block"') }} />
+          {code && <div style={{ color: "#f5b83d", fontFamily: "ui-monospace,Menlo,Consolas,monospace", fontSize: 26, letterSpacing: ".28em", fontWeight: 700, marginTop: 2 }}>{code}</div>}
+          <div style={{ color: "#eaf1ff", fontSize: 13, wordBreak: "break-all", opacity: .9 }}>{src.replace(/^https?:\/\//, "").replace(/\?.*$/, "")}</div>
+          {hint && <div style={{ color: "#9fb2d6", fontSize: 12 }}>{hint}</div>}
+        </div>
+        <button aria-label="Close" onClick={onClose} style={closeBtn}>×</button>
+      </div>
+    );
+  }
 
   return (
     <div

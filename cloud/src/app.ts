@@ -18,6 +18,7 @@ import { FileStore, type Store } from "./store.js";
 import { authRouter } from "./auth.js";
 import { vaultRouter } from "./vault.js";
 import { profileRouter } from "./profile.js";
+import { reserveRouter, adminRouter } from "./reserve.js";
 import { brainRouter } from "./brain.js";
 import { botsRouter, RelayHub } from "./relay.js";
 import { vaultKeyConfigured } from "./crypto.js";
@@ -34,7 +35,8 @@ export function createApp(store: Store = new FileStore()): {
   // Behind Replit's / a cloud proxy, so req.ip reflects the client, not the proxy.
   app.set("trust proxy", 1);
   app.use(cors());
-  app.use(express.json({ limit: "1mb" }));
+  // Keep the raw body: the Stripe webhook signature is computed over the exact bytes.
+  app.use(express.json({ limit: "1mb", verify: (req, _res, buf) => { (req as express.Request & { rawBody?: Buffer }).rawBody = buf; } }));
 
   // IP throttle on the unauthenticated auth surface: blunts credential stuffing,
   // signup/enumeration floods, and the scrypt-DoS vector.
@@ -72,6 +74,8 @@ export function createApp(store: Store = new FileStore()): {
   app.use("/v1/auth", authLimiter, authRouter(store));
   app.use("/v1/keys", vaultRouter(store));
   app.use("/v1/profile", profileRouter(store));
+  app.use("/v1/reserve", reserveRouter(store));
+  app.use("/v1/admin", adminRouter(store));
   app.use("/v1/chat", brainRouter(store));
   app.use("/v1/bots", botsRouter(store, hub));
 

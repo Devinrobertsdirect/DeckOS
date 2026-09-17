@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { X, User, KeyRound, Sparkles, Volume2, Eye, Smile, Palette, Cpu, Brain, Check, Trash2, Wifi, Activity } from "lucide-react";
+import { X, User, KeyRound, Sparkles, Volume2, Eye, Smile, Palette, Cpu, Brain, Check, Trash2, Wifi, Activity, ShoppingBag, Smartphone } from "lucide-react";
 import { ConnectivityPanel } from "@/pet/ConnectivityPanel";
 import { DiagPanel } from "@/components/DiagPanel";
 import { AtlasFace, FACE_THEMES, EMOJI_PACKS, useFaceTheme, saveFaceTheme, useEmojiPack } from "@/components/faces/AtlasFace";
@@ -52,7 +52,13 @@ function chip(active: boolean) {
     (active ? "border-primary/70 bg-primary/10 ring-1 ring-primary" : "border-primary/12 bg-primary/[0.03] hover:border-primary/40");
 }
 
-export function BuddySettings({ onClose }: { onClose: () => void }) {
+const SHOP_URL = "https://developmentindustries.org/build";
+
+export function BuddySettings({ onClose, onShowLink }: {
+  onClose: () => void;
+  /** Show a QR card on the face (robot mode has no browser to open a link in). */
+  onShowLink?: (title: string, url: string, code?: string, hint?: string) => void;
+}) {
   const voice = useAtlasVoice();
   const mem = useAtlasMemory();
   const theme = useFaceTheme();
@@ -122,6 +128,27 @@ export function BuddySettings({ onClose }: { onClose: () => void }) {
 
       <div className="mx-auto max-w-3xl space-y-10 px-5 py-8 sm:px-8">
         {/* ── Names ─────────────────────────────────────────────────────── */}
+        <Section icon={<ShoppingBag className="h-4 w-4" />} title="Shop" subtitle="Design a Nobi: shell, faceplate, eyes, accessories, a name. Every combination composes.">
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className={chip(false) + " gap-2"}
+              onClick={() => { if (onShowLink) onShowLink("Design your Nobi", SHOP_URL, undefined, "developmentindustries.org/build"); else window.open(SHOP_URL, "_blank", "noopener"); }}>
+              <ShoppingBag className="h-3.5 w-3.5" /> Design a Nobi
+            </button>
+            <button type="button" className={chip(false) + " gap-2"}
+              onClick={async () => {
+                try {
+                  const r = await fetch(`${import.meta.env.BASE_URL}api/pairing/code`);
+                  const { code } = (await r.json()) as { code: string };
+                  const url = `${window.location.origin}/mobile/?code=${encodeURIComponent(code)}`;
+                  if (onShowLink) onShowLink("Nobi on your phone", url, code, "Same Wi-Fi as me.");
+                  else window.open(url, "_blank", "noopener");
+                } catch { /* offline */ }
+              }}>
+              <Smartphone className="h-3.5 w-3.5" /> Phone link
+            </button>
+          </div>
+        </Section>
+
         <Section icon={<User className="h-4 w-4" />} title="You & your bot" subtitle="Names carry through everywhere the bot speaks.">
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block">

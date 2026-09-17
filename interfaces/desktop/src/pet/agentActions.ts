@@ -36,6 +36,7 @@ export type UiAction =
   | { type: "survivor"; variant: "torches" | "snuff"; banner?: string }
   | { type: "showImage"; url: string; prompt?: string }
   | { type: "openTutorial" }
+  | { type: "showLink"; title: string; url: string; code?: string; hint?: string }
   | { type: "closeOverlay" }
   | { type: "show"; kind: "demo" | "pitch" }
   | { type: "meet"; name?: string; relation?: string }
@@ -54,6 +55,8 @@ export interface ActionHelpers {
   showImage?: (url: string, prompt?: string) => void;
   /** Open the animated tutorial walkthrough over the face. */
   openTutorial?: () => void;
+  /** Show a QR card for a URL (phone pairing, the shop). */
+  showLink?: (title: string, url: string, code?: string, hint?: string) => void;
   /** Close any full-screen overlay (image / tutorial) — back to the face. */
   closeOverlay?: () => void;
   /** Run a built-in show: the ~2min "quick demo" or the ~90s "tell them about you" pitch. */
@@ -96,6 +99,7 @@ export function applyClientAction(ui: UiAction, helpers: ActionHelpers): (() => 
     case "survivor": return () => helpers.playSurvivor?.(ui.variant, ui.banner);
     case "showImage": return () => helpers.showImage?.(ui.url, ui.prompt);
     case "openTutorial": return () => helpers.openTutorial?.();
+    case "showLink": return () => helpers.showLink?.(ui.title, ui.url, ui.code, ui.hint);
     case "closeOverlay": return () => helpers.closeOverlay?.();
     case "show": return () => helpers.playShow?.(ui.kind);
     // handled by the caller (needs chat history / the chat path) / no-op

@@ -14,7 +14,7 @@ import type * as THREE from "three";
  *   finale  warp, then the bot's name assembles from gold particles and bursts
  *   bowl    the round screen becomes a fishbowl: Nobi's whole mini body (the
  *           Mark 1) bobs inside with bubbles and a small fish friend
- *   drive   the Mark 1 drives in from the left, skids, turns to camera, settles
+ *   drive   the Mark 1 glides in from the left, skids, turns to camera, settles
  *   desk    the Mark 1 at home on the desk (lamp, mug); a light bulb, a note and
  *           a question mark float up from his antenna in turn
  * Transparent scenes (the real eyes show through — props around them):
@@ -537,11 +537,12 @@ function buildMark1(T: ThreeMod, glowTex: THREE.Texture): Mark1 {
   const base = new T.Mesh(new T.CylinderGeometry(0.29, 0.36, 0.13, 28), flat(T, BASE, 1)); base.position.y = -0.045;
   const baseInk = hull(new T.CylinderGeometry(0.29, 0.36, 0.13, 28), 1.06); baseInk.position.y = -0.045;
   const stripe = new T.Mesh(new T.TorusGeometry(0.3, 0.016, 8, 40), flat(T, STRIPE, 1)); stripe.position.y = 0.03; stripe.rotation.x = Math.PI / 2;
+  // V1 has no wheels: it sits on a soft rubber foot (the `wheel` group name is
+  // kept so the bowl/drive rigs still animate it — as a subtle wobble, not a spin).
   const wheel = new T.Group();
-  const tyre = new T.Mesh(new T.CylinderGeometry(0.14, 0.14, 0.09, 24), flat(T, INK, 1)); tyre.rotation.z = Math.PI / 2;
-  const hub = new T.Mesh(new T.CylinderGeometry(0.05, 0.05, 0.095, 16), flat(T, PAPER, 1)); hub.rotation.z = Math.PI / 2;
-  const spoke = new T.Mesh(new T.BoxGeometry(0.096, 0.24, 0.02), flat(T, PAPER, 1));
-  wheel.add(tyre, hub, spoke); wheel.position.y = -0.2;
+  const foot = new T.Mesh(new T.CylinderGeometry(0.3, 0.33, 0.07, 28), flat(T, INK, 1));
+  wheel.add(foot); wheel.position.y = -0.14;
+  loop.visible = false; loopGlow.pts.visible = false;   // V1 has no antenna (kept for the rigs that animate it)
   bot.add(shellInk, shell, face, faceRim, eyeL, eyeR, eyeGlow.pts, loop, loopGlow.pts, earL, earR, dots, baseInk, base, stripe, wheel);
   return { bot, wheel, eyeL, eyeR, loop, loopGlow };
 }
@@ -588,7 +589,7 @@ function buildDrive(T: ThreeMod): Rig {
       const k = clamp01(t / DRIVE);
       const x = -5 + 5 * easeOutBack(k);
       bot.position.x = x;
-      if (t < DRIVE) { wheel.rotation.x += dt * 22; }
+      wheel.rotation.z = t < DRIVE ? 0.04 * Math.sin(t * 30) : 0;      // glides in (no wheels on a V1)
       const sl = t < 0.15 ? t / 0.15 : t < DRIVE * 0.8 ? 1 : Math.max(0, 1 - (t - DRIVE * 0.8) / (DRIVE * 0.2));
       lineMat.opacity = 0.9 * sl;
       speedLines.forEach((l, i) => { l.position.x = x - 0.55 - i * 0.2; });
@@ -682,7 +683,7 @@ function buildBowl(T: ThreeMod): Rig {
       bot.position.y = -0.45 + 0.07 * Math.sin(t * 1.5);
       bot.rotation.y = 0.32 * Math.sin(t * 0.6);
       bot.rotation.z = 0.06 * Math.sin(t * 1.5 + 0.8);               // happy little rock
-      wheel.rotation.x += dt * 2.4;                                    // paddling in the water
+      wheel.rotation.z = 0.05 * Math.sin(t * 2.4);                     // a little wobble in the water
       const blink = (t % 3.4) < 0.16 ? 0.12 : 1;
       eyeL.scale.y = blink; eyeR.scale.y = blink;
       loop.rotation.y = 0.5 * Math.sin(t * 2.2);

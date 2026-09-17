@@ -98,6 +98,8 @@ export interface Store {
 
   getProfile(accountId: string): Promise<Record<string, unknown> | undefined>;
   setProfile(accountId: string, data: Record<string, unknown>): Promise<void>;
+  /** Every stored profile (fulfilment: list saved build profiles). */
+  listProfiles(): Promise<Profile[]>;
 }
 
 export class FileStore implements Store {
@@ -271,6 +273,9 @@ export class FileStore implements Store {
 
   async getProfile(accountId: string) {
     return this.doc.profiles.find((p) => p.accountId === accountId)?.data;
+  }
+  async listProfiles() {
+    return [...this.doc.profiles];
   }
   async setProfile(accountId: string, data: Record<string, unknown>) {
     const existing = this.doc.profiles.find((p) => p.accountId === accountId);

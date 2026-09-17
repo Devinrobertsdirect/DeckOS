@@ -232,6 +232,18 @@ function PairingGate({ onPaired }: { onPaired: () => void }) {
   const [code, setCode] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
+  // The QR the bot shows ("hey Nobi, show me your phone link") carries the code
+  // as ?code=… — validate it automatically so pairing is one scan.
+  useEffect(() => {
+    const fromUrl = new URLSearchParams(window.location.search).get("code");
+    if (!fromUrl) return;
+    const trimmed = fromUrl.trim().toUpperCase();
+    setCode(trimmed);
+    fetch(`${API_BASE}/pairing/validate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: trimmed }) })
+      .then((r) => r.json() as Promise<{ valid: boolean }>)
+      .then(({ valid }) => { if (valid) { localStorage.setItem(PAIRING_KEY, trimmed); localStorage.removeItem(SESSION_ID_KEY); history.replaceState(null, "", window.location.pathname); onPaired(); } })
+      .catch(() => undefined);
+  }, [onPaired]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();

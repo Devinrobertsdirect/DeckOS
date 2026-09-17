@@ -7,17 +7,17 @@ import { FaceCaption } from "@/pet/FaceCaption";
 import { YouTubeOverlay, type VideoHandle } from "@/components/YouTubeOverlay";
 import { ContentOverlay } from "@/components/ContentOverlay";
 import SurvivorOverlay from "@/components/SurvivorOverlay";
-import { AtlasFace, type FaceState } from "@/components/faces/AtlasFace";
+import { AtlasFace, saveFaceTheme, type FaceState } from "@/components/faces/AtlasFace";
 import { useAtlasVoice, nudgeVoiceRate, setVoiceEngine } from "@/genesis/useAtlasVoice";
 import { useLatestEvent } from "@/contexts/WebSocketContext";
 import { useAtlasListening } from "@/genesis/useAtlasListening";
 import { useWake } from "@/hooks/useWake";
 import { getInputMode, setInputMode, acquireMic } from "@/genesis/micAccess";
-import { getUserName, getBotName, setExperienceMode } from "@/lib/uiMode";
+import { getUserName, getBotName, setUserName, setBotName, setExperienceMode } from "@/lib/uiMode";
 import { applyClientAction, type UiAction } from "@/pet/agentActions";
 import { mirrorFace } from "@/lib/hardwareFace";
 import { segmentReply, emojiGlyph, type EmotionSegment } from "@/genesis/emotionDirector";
-import { personaPrompt, getPersona } from "@/genesis/personality";
+import { personaPrompt, getPersona, setPersona } from "@/genesis/personality";
 import ShowcaseOverlay, { type ShowcaseScene } from "@/pet/ShowcaseOverlay";
 import { sfx, sfxForScene } from "@/pet/showSfx";
 import {
@@ -127,7 +127,7 @@ export function PetShell({
   const [brain, setBrain] = useState<{ label: string; model: string; online: boolean } | null>(null);
   // Voice-summoned YouTube layer over the face ("robot play …" / "… close video").
   const [videoQuery, setVideoQuery] = useState<string | null>(null);
-  const [overlay, setOverlay] = useState<{ kind: "image" | "tutorial"; src: string; caption?: string } | null>(null);
+  const [overlay, setOverlay] = useState<{ kind: "image" | "tutorial" | "link"; src: string; caption?: string; code?: string; hint?: string } | null>(null);
   const videoRef = useRef<VideoHandle | null>(null);
   // Survivor billboard ("have you seen survivor" / "the tribe has spoken") —
   // visual-only: no speech, the overlay mounts immediately and the eyes shuffle
@@ -503,6 +503,7 @@ export function PetShell({
               },
               showImage: (url, prompt) => setOverlay({ kind: "image", src: url, caption: prompt }),
               openTutorial: () => setOverlay({ kind: "tutorial", src: "/tutorial.html" }),
+              showLink: (title, url, code, hint) => setOverlay({ kind: "link", src: url, caption: title, code, hint }),
               closeOverlay: () => setOverlay(null),
               playShow: (kind) => { void runShow(kind); },
             });
@@ -739,6 +740,21 @@ export function PetShell({
   // Dedup on timestamp (like faceInput) so a re-render never re-fires; if one lands
   // mid-turn, handleSend's busyRef guard just drops it (fine — the speaker repeats).
   const voiceHeardEv = useLatestEvent("voice.heard");
+  // Provisioning (POST /api/provision, before a unit ships): apply the build
+  // profile — owner name, bot name, personality, eye theme — then reload so
+  // every surface picks it up and the first greeting is to the owner by name.
+  const provisionEv = useLatestEvent("provision.apply");
+  useEffect(() => {
+    if (!provisionEv) return;
+    const p = (provisionEv.payload ?? {}) as { botName?: string; ownerName?: string; personaId?: string; eyeTheme?: string };
+    try {
+      if (p.ownerName) setUserName(p.ownerName);
+      if (p.botName) setBotName(p.botName);
+      if (p.personaId) setPersona(p.personaId);
+      if (p.eyeTheme) saveFaceTheme(p.eyeTheme);
+    } catch { /* storage unavailable */ }
+    window.setTimeout(() => window.location.reload(), 600);
+  }, [provisionEv]);
   const handledVoiceAt = useRef<string>("");
   useEffect(() => {
     if (!voiceHeardEv || voiceHeardEv.timestamp === handledVoiceAt.current) return;
@@ -890,7 +906,7 @@ export function PetShell({
         <YouTubeOverlay ref={videoRef} query={videoQuery} onClose={() => setVideoQuery(null)} />
       )}
       {overlay && (
-        <ContentOverlay kind={overlay.kind} src={overlay.src} caption={overlay.caption} onClose={() => setOverlay(null)} />
+        <ContentOverlay kind={overlay.kind} src={overlay.src} caption={overlay.caption} code={overlay.code} hint={overlay.hint} onClose={() => setOverlay(null)} />
       )}
       {showcaseScene && (
         <ShowcaseOverlay scene={showcaseScene} label={bot.toUpperCase()} nameTag={meetName} onSkip={skipShow} />
@@ -1027,7 +1043,7 @@ export function PetShell({
         />
       )}
 
-      {settingsOpen && <BuddySettings onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && <BuddySettings onClose={() => setSettingsOpen(false)} onShowLink={robotMode ? (title, url, code, hint) => { setSettingsOpen(false); setOverlay({ kind: "link", src: url, caption: title, code, hint }); } : undefined} />}
 
       {/* history + memory panel */}
       {panelOpen && (

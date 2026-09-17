@@ -22,8 +22,11 @@ set -u
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/1000}"
 HOME="${HOME:-/home/devindungeon}"
 INTERVAL="${NEURA_BT_INTERVAL:-15}"
-SCAN_S="${NEURA_BT_SCAN_S:-5}"
-SCAN_EVERY="${NEURA_BT_SCAN_EVERY:-45}"
+SCAN_S="${NEURA_BT_SCAN_S:-4}"
+SCAN_EVERY="${NEURA_BT_SCAN_EVERY:-60}"
+# WARNING learned on 2026-09-17: the Pi 4's BT+WiFi combo chip hangs outright
+# (HCI_Reset/inquiry time out; only a reboot recovers) when inquiry scans are
+# fired too often. Retries are cheap; SCANS are what must stay rare and short.
 # Boot pairing window (Devin: "built in pairing when it starts up for 120 seconds").
 # For this long after start the robot is openly in pairing mode: discoverable,
 # scanning nearly continuously, retrying every few seconds. A speaker switched
@@ -31,7 +34,7 @@ SCAN_EVERY="${NEURA_BT_SCAN_EVERY:-45}"
 # After the window it drops back to the low-duty cycle that keeps WiFi healthy.
 BOOT_WINDOW="${NEURA_BT_BOOT_WINDOW:-120}"
 BOOT_INTERVAL="${NEURA_BT_BOOT_INTERVAL:-5}"
-BOOT_SCAN_EVERY="${NEURA_BT_BOOT_SCAN_EVERY:-8}"
+BOOT_SCAN_EVERY="${NEURA_BT_BOOT_SCAN_EVERY:-20}"
 # …and the same fast search for this long after a speaker DROPS (Devin: "if it
 # disconnects it should search for a new connection for the following 60s").
 LOST_WINDOW="${NEURA_BT_LOST_WINDOW:-60}"

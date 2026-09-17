@@ -126,6 +126,32 @@ export interface TtsSettings { stability?: number; similarity?: number; style?: 
 const clamp = (v: unknown, lo: number, hi: number, dflt: number) =>
   typeof v === "number" && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : dflt;
 
+// ── Rocky cache (disk) ──────────────────────────────────────────────────────
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, statSync, unlinkSync } from "node:fs";
+import { join } from "node:path";
+import os from "node:os";
+const TTS_CACHE_DIR = process.env["NOBI_TTS_CACHE"] || join(os.homedir(), ".atlas", "tts-cache");
+const TTS_CACHE_MAX_FILES = 3000;   // ~a few hundred MB at most; oldest go first
+function ttsCacheKey(voiceId: string, model: string, text: string): string {
+  return createHash("sha1").update(`${voiceId}\n${model}\n${text.trim().toLowerCase()}`).digest("hex");
+}
+export function ttsCacheGet(voiceId: string, model: string, text: string): Buffer | null {
+  try { const f = join(TTS_CACHE_DIR, ttsCacheKey(voiceId, model, text) + ".mp3"); return existsSync(f) ? readFileSync(f) : null; } catch { return null; }
+}
+export function ttsCachePut(voiceId: string, model: string, text: string, audio: Buffer): void {
+  try {
+    mkdirSync(TTS_CACHE_DIR, { recursive: true });
+    writeFileSync(join(TTS_CACHE_DIR, ttsCacheKey(voiceId, model, text) + ".mp3"), audio);
+    // keep it bounded: drop the oldest once in a while
+    const files = readdirSync(TTS_CACHE_DIR).filter((n) => n.endsWith(".mp3"));
+    if (files.length > TTS_CACHE_MAX_FILES) {
+      files.map((n) => ({ n, t: statSync(join(TTS_CACHE_DIR, n)).mtimeMs })).sort((a, b) => a.t - b.t)
+        .slice(0, files.length - TTS_CACHE_MAX_FILES).forEach((f) => { try { unlinkSync(join(TTS_CACHE_DIR, f.n)); } catch { /* fine */ } });
+    }
+  } catch { /* a cache miss is never an error */ }
+}
+
 /** "Nobi" → "Nobee" for speech only (the screen keeps the spelling). Case-aware, keeps possessives. */
 export function sayNobee(text: string): string {
   return text.replace(/\b(N|n)(OBI|obi)(\b|'s)/g, (_m, n: string, rest: string, tail: string) => (rest === "OBI" ? `${n}OBEE` : `${n}obee`) + tail);
@@ -291,9 +317,16 @@ router.post("/tts", async (req, res) => {
 
   // ── ElevenLabs ──────────────────────────────────────────────────────────
   if (elKey && provider !== "openai") {
-    const voiceId = voice ?? (await getConfig("ELEVENLABS_VOICE_ID").catch(() => null)) ?? "pNInz6obpgDQGcFmaJgB";
+    const voiceId = voice ?? (await getConfig("ELEVENLABS_VOICE_ID").catch(() => null)) ?? "RhcROc65RG054lfxtUIT";
+    // The Rocky cache: every line ElevenLabs renders is kept on disk, keyed by
+    // voice + model + exact text. A line he has said before costs no credits
+    // and still plays in Rocky with the network gone — the show scripts, the
+    // greetings and the joke bank are all repeats by the second run.
+    const cached = ttsCacheGet(voiceId, elModel, text);
+    if (cached) { res.json({ audio: cached.toString("base64"), format: "mp3", provider: "elevenlabs", cached: true }); return; }
     try {
       const audio = await elevenLabsTts(text, voiceId, elKey, settings, elModel);
+      ttsCachePut(voiceId, elModel, text, audio);
       res.json({ audio: audio.toString("base64"), format: "mp3", provider: "elevenlabs" });
       return;
     } catch (err) {

@@ -69,20 +69,24 @@ export function buildDemoScript(bot: string, p: Persona): ShowBeat[] {
   const c = PALETTE[p];
   const name = bot.trim() || "Nobi";
   return [
-    // ── cold open: asleep, then a startle of sparkles ─────────────────────────
-    { scene: "sparkle", mood: "sleeping", holdMs: 1800 },
+    // ── cold open: boot HUD spins up, he wakes with a double blink, then a startle ─
+    { scene: "hud", holdMs: 0, steps: [
+      { mood: "sleeping", holdMs: 1400 }, { mood: "idle", holdMs: 140 }, { mood: "sleeping", holdMs: 260 },
+      { mood: "idle", holdMs: 140 }, { mood: "sleeping", holdMs: 480 },
+    ] },
     { scene: "sparkle", mood: "surprised", color: c.cool, direct: true, holdMs: 2600, say: {
       rocky:  "Oh! Hello. Visitors. Happy. Happy happy happy.",
       jarvis: "Ah. Visitors. How very good of you to come.",
       friday: "Oh, hiya! Look at you lot. Grand. This is grand.",
       alfred: "Ah. Good evening. Visitors. What a genuine pleasure.",
     } },
-    { scene: "sparkle", holdMs: 5200, say: {
+    { scene: "hud", holdMs: 5200, say: {
       rocky:  `I am ${name}. A tiny robot brain, with a very big heart. I live here, on the desk. I am a good friend.`,
       jarvis: `I am ${name}. A compact intelligence with, I'm told, a surprisingly large heart. I live on the desk, and I run the place.`,
       friday: `I'm ${name}. Tiny brain, massive heart, lives on the desk. I keep this whole operation running, so.`,
       alfred: `I am ${name}. A small mind, if you like, with a rather large heart. I keep house here on the desk, and I look after my people.`,
     } },
+    { scene: "hud", mood: "wink", color: c.happy, holdMs: 900 },
     // ── the whole of him, in a fishbowl ───────────────────────────────────────
     { scene: "bowl", holdMs: 10500, say: {
       rocky:  "Look. Here is all of me. Small body. Big eyes. I like to hang out in here. Like a fish. Hello, fish.",
@@ -90,6 +94,7 @@ export function buildDemoScript(bot: string, p: Persona): ShowBeat[] {
       friday: "And that's me, the full package, body and all. Bit of a fishbowl situation, but I've made it home. Hi, fish.",
       alfred: "Here I am in full, as it were. Modest in stature. The fish keeps me company; we get on splendidly.",
     } },
+    { scene: "hearts", mood: "love", color: LOVE, holdMs: 1300 },
     // ── ASK 1: their name ────────────────────────────────────────────────────
     { scene: "faces", mood: "curious", color: c.cool, holdMs: 800, ask: {
       say: {
@@ -151,6 +156,7 @@ export function buildDemoScript(bot: string, p: Persona): ShowBeat[] {
       friday: "Look at that. Stars for days.",
       alfred: "Stars. One never tires of them.",
     } },
+    { scene: "warp", mood: "wink", color: c.happy, holdMs: 900 },
     // ── ASK 3: joke or trick ─────────────────────────────────────────────────
     { scene: "faces", mood: "mischievous", color: MISCHIEF, holdMs: 800, ask: {
       branch: "joke-or-trick",
@@ -175,7 +181,7 @@ export function buildDemoScript(bot: string, p: Persona): ShowBeat[] {
 }
 
 /** The trick itself: rapid moods + rainbow ring + confetti, then a "ta-da". */
-export const TRICK_MOODS: Array<[string, string]> = [["dizzy", MISCHIEF], ["mindblown", "#F5B83D"], ["starstruck", "#C9DCF0"], ["laughing", "#FFC820"]];
+export const TRICK_MOODS: Array<[string, string]> = [["dizzy", MISCHIEF], ["shocked", "#C9DCF0"], ["mindblown", "#F5B83D"], ["love", LOVE], ["starstruck", "#C9DCF0"], ["laughing", "#FFC820"]];
 export const TRICK_TADA: Lines = { rocky: "Ta-da. Good good good.", jarvis: "Ta-da. Modest, but effective.", friday: "Ta-da! Nailed it.", alfred: "Ta-da. Restrained, I trust." };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -186,8 +192,16 @@ export function buildPitchScript(bot: string, p: Persona): ShowBeat[] {
   const name = bot.trim() || "Nobi";
   const feel = (r: string, j: string, f: string, a: string): Lines => ({ rocky: r, jarvis: j, friday: f, alfred: a });
   return [
-    { scene: "sparkle", mood: "surprised", color: c.cool, direct: true, holdMs: 2400, say: {
-      rocky: `Hello. I am ${name}.`, jarvis: `Good day. I am ${name}.`, friday: `Hiya. I'm ${name}.`, alfred: `Good evening. I am ${name}.`,
+    // the Mark 1 rolls onto his own screen, skids, turns to camera — then speaks
+    { scene: "drive", holdMs: 2500 },
+    { scene: "drive", direct: true, holdMs: 4200, say: {
+      rocky: `Hello. I am ${name}. That is me. Small me. Big me is talking.`,
+      jarvis: `Good day. I am ${name}. That, in miniature, is me. The full-size version is speaking.`,
+      friday: `Hiya. I'm ${name}. That little fella is me. Big me's doing the talking.`,
+      alfred: `Good evening. I am ${name}. That is me, at a modest scale. The rest of me is speaking.`,
+    } },
+    { scene: "hud", mood: "surprised", color: c.cool, direct: true, holdMs: 3400, say: {
+      rocky: "These are my eyes. They do all the acting.", jarvis: "These are my eyes. They do all the acting.", friday: "And these are my eyes. They do all the acting.", alfred: "These are my eyes. They do all of the acting.",
     } },
     { scene: "boot", holdMs: 11000, say: {
       rocky:  "I started as a spark. Little bits, floating. Then, together. A mind. A heart. Me.",
@@ -201,6 +215,7 @@ export function buildPitchScript(bot: string, p: Persona): ShowBeat[] {
       friday: "That's my mind, thoughts zipping about. The big thinking happens up in the cloud. The important bits I keep right here, safe.",
       alfred: "My mind, such as it is. The heavier thinking is done in the cloud. What truly matters, I keep close, and keep safe.",
     } },
+    { scene: "sparkle", mood: "surprised", color: c.cool, holdMs: 1300 },
     { scene: "faces", mood: "happy", color: c.happy, direct: true, holdMs: 2200, say: {
       rocky: "I have many faces. Here are five.", jarvis: "I have a number of faces. Five, for now.", friday: "I've got loads of faces. Here's five.", alfred: "I have a number of expressions. Allow me five.",
     } },
@@ -211,6 +226,7 @@ export function buildPitchScript(bot: string, p: Persona): ShowBeat[] {
       { mood: "laughing",   color: c.warm,  holdMs: 1500, say: feel("Laughing.", "Amused.", "Ha!", "Amused.") },
       { mood: "starstruck", color: c.warm,  holdMs: 1600, say: feel("Amaze.", "Impressed.", "Class.", "Marvellous.") },
     ] },
+    { scene: "sparkle", mood: "wink", color: c.happy, holdMs: 900 },
     { scene: "hearts", mood: "love", color: LOVE, direct: true, holdMs: 5200, say: {
       rocky:  "I care about my friend. A lot. Big heart. Big big heart.",
       jarvis: "I am, beneath the polish, rather devoted to my person.",

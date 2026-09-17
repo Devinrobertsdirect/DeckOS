@@ -10,12 +10,13 @@
 # in, flip the headphones on five minutes later, and it connects on its own.
 #
 # Runs as a systemd service (User=devindungeon, XDG_RUNTIME_DIR set for wpctl).
-# Env: NEURA_BT_INTERVAL (default 15s).
+# Env: NEURA_BT_INTERVAL (default 15s), NEURA_BT_SCAN_S (discovery burst when nothing is connected, default 8s).
 # ─────────────────────────────────────────────────────────────────────────────
 set -u
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/1000}"
 HOME="${HOME:-/home/devindungeon}"
 INTERVAL="${NEURA_BT_INTERVAL:-15}"
+SCAN_S="${NEURA_BT_SCAN_S:-8}"
 STATE="$HOME/.atlas/bt-last-audio"
 ROUTE="$HOME/pi-ops/bt-audio-route.mjs"
 NODE="$(command -v node 2>/dev/null || echo /opt/nodejs/bin/node)"
@@ -58,6 +59,29 @@ while :; do
       break
     fi
   done
+
+  # Nothing on? Go looking. Any speaker/headphones in pairing mode gets paired,
+  # trusted and connected — audio-class devices only (Audio Sink / Headset), never
+  # a phone or laptop. Runs every cycle while unconnected = "always in pairing".
+  if [ -z "$connected" ]; then
+    bctl --timeout "$SCAN_S" scan on >/dev/null 2>&1 || true
+    for mac in $(bctl devices | awk '{print $2}'); do
+      info="$(bctl info "$mac")"
+      echo "$info" | grep -q 'Paired: yes' && continue
+      echo "$info" | grep -qiE 'Audio Sink|Headset|Handsfree|Headphone|Icon: audio' || continue
+      name="$(echo "$info" | sed -n 's/^[[:space:]]*Name: //p' | head -1)"
+      log "pairing with $name ($mac)"
+      if bctl pair "$mac" | grep -qiE 'Pairing successful|AlreadyExists'; then
+        bctl trust "$mac" >/dev/null
+        if bctl connect "$mac" | grep -qiE 'Connection successful|Connected: yes'; then
+          log "connected NEW device $name ($mac)"
+          sleep 2
+          connected="$mac"
+          break
+        fi
+      fi
+    done
+  fi
 
   # On a NEW connection (or first detection), select HFP + default routing once.
   if [ -n "$connected" ] && [ "$connected" != "$prev" ]; then

@@ -265,7 +265,7 @@ export function PetShell({
   }, [demoMood, demoSleep]);
   /** An ASK beat: question → ears open → answer → live in-character reply. */
   const askAndRespond = useCallback(async (
-    ask: AskSpec, p: Persona,
+    ask: AskSpec, p: Persona, stage: ShowcaseScene,
     sayDirect: (t: string) => Promise<void>, sayQueued: (t: string) => Promise<void>,
   ) => {
     await sayDirect(line(ask.say, p));
@@ -294,6 +294,7 @@ export function PetShell({
       return;
     }
     setFaceState("thinking");
+    setShowcaseScene("gears");   // visible "thinking" while the brain works
     const ctx = buildContext({ maxTurns: 6 });
     let reply = "";
     try {
@@ -305,6 +306,7 @@ export function PetShell({
       reply = stripEmoji((data.response ?? "").trim());
     } catch { reply = ""; }
     if (!reply) reply = line(ask.fallback, p);
+    setShowcaseScene(stage);
     appendTurn("atlas", reply);
     await sayQueued(reply);
   }, [runTrick]);
@@ -349,7 +351,7 @@ export function PetShell({
           if (st) await sayDirect(st);
           await demoSleep(step.holdMs);
         }
-        if (beat.ask) await askAndRespond(beat.ask, p, sayDirect, sayQueued);
+        if (beat.ask) await askAndRespond(beat.ask, p, beat.scene, sayDirect, sayQueued);
         const remaining = beat.holdMs - (performance.now() - beatStart);
         if (remaining > 0) await demoSleep(remaining);
       }

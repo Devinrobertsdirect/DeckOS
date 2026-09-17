@@ -12,9 +12,12 @@ import type * as THREE from "three";
  *   orbit   a low-poly planet with three satellites on tilted orbits
  *   warp    a starfield rushing past
  *   finale  warp, then the bot's name assembles from gold particles and bursts
- *   bowl    the round screen becomes a fishbowl: Nobi's whole mini body hangs
- *           out inside, waving, with bubbles and a small fish friend
+ *   bowl    the round screen becomes a fishbowl: Nobi's whole mini body (the
+ *           Mark 1) bobs inside with bubbles and a small fish friend
+ *   drive   the Mark 1 drives in from the left, skids, turns to camera, settles
  * Transparent scenes (the real eyes show through — props around them):
+ *   hud     a robotic boot HUD: rotating arc rings, ticks, an orbiting scan dot
+ *   gears   "thinking" — meshing gears turn around the eyes while the brain works
  *   faces   a ring of emotion orbs circles the rim while the eyes tour moods
  *   helmet  a glass space helmet with a rim, highlight streaks and an antenna
  *   lab     a bubbling green test tube slides in beside the face
@@ -32,19 +35,20 @@ import type * as THREE from "three";
  * the overlay stays quietly transparent and the narrated show still plays.
  */
 export type ShowcaseScene =
-  | "boot" | "core" | "orbit" | "warp" | "finale" | "bowl"
-  | "faces" | "helmet" | "lab" | "labpop" | "sparkle" | "hearts" | "confetti" | "trick"
+  | "boot" | "core" | "orbit" | "warp" | "finale" | "bowl" | "drive"
+  | "faces" | "helmet" | "lab" | "labpop" | "sparkle" | "hearts" | "confetti" | "trick" | "hud" | "gears"
   | "out";
 
 export const TRANSPARENT_SCENES: ReadonlySet<ShowcaseScene> = new Set<ShowcaseScene>([
-  "faces", "helmet", "lab", "labpop", "sparkle", "hearts", "confetti", "trick", "out",
+  "faces", "helmet", "lab", "labpop", "sparkle", "hearts", "confetti", "trick", "hud", "gears", "out",
 ]);
 
 type ThreeMod = typeof import("three");
-type RigKey = "boot" | "core" | "orbit" | "warp" | "finale" | "bowl" | "faces" | "helmet" | "lab" | "sparkle" | "hearts" | "confetti" | "trick";
+type RigKey = "boot" | "core" | "orbit" | "warp" | "finale" | "bowl" | "drive" | "faces" | "helmet" | "lab" | "sparkle" | "hearts" | "confetti" | "trick" | "hud" | "gears";
 const RIG_FOR: Record<Exclude<ShowcaseScene, "out">, RigKey> = {
-  boot: "boot", core: "core", orbit: "orbit", warp: "warp", finale: "finale", bowl: "bowl",
+  boot: "boot", core: "core", orbit: "orbit", warp: "warp", finale: "finale", bowl: "bowl", drive: "drive",
   faces: "faces", helmet: "helmet", lab: "lab", labpop: "lab", sparkle: "sparkle", hearts: "hearts", confetti: "confetti", trick: "trick",
+  hud: "hud", gears: "gears",
 };
 
 interface Rig {
@@ -305,11 +309,30 @@ function buildWarp(T: ThreeMod, label: string | null): Rig {
   }
   name.attr.needsUpdate = true;
   if (N) group.add(name.pts);
+  // a little rocket crosses the stars every few seconds (cute, robotic)
+  const rocket = new T.Group();
+  const rbody = new T.Mesh(new T.ConeGeometry(0.09, 0.42, 12), flat(T, ICE, 1)); rbody.rotation.z = -Math.PI / 2;
+  const rwin = new T.Mesh(new T.SphereGeometry(0.035, 8, 8), flat(T, STEEL, 1)); rwin.position.set(0.02, 0, 0.08);
+  const finGeo = new T.ConeGeometry(0.06, 0.14, 3);
+  const fin1 = new T.Mesh(finGeo, flat(T, AMBER, 1)); fin1.position.set(-0.16, 0.08, 0); fin1.rotation.z = 0.4;
+  const fin2 = new T.Mesh(finGeo, flat(T, AMBER, 1)); fin2.position.set(-0.16, -0.08, 0); fin2.rotation.z = Math.PI - 0.4;
+  const flame = points(T, 30, AMBER, 0.06, 0.95);
+  rocket.add(rbody, rwin, fin1, fin2, flame.pts);
+  rocket.position.set(-9, 0, 0);
+  group.add(rocket);
   const IN = 4.5, HOLD = 7.4, BURST = 11.6, GONE = 13.6;
   return {
     group,
     update(t, dt) {
       const speed = 2 + 12 * easeInOut(t / 3.2);
+      const cyc = t % 6.5;
+      if (cyc < 3.2) {
+        const k = cyc / 3.2;
+        rocket.position.set(-3.6 + 7.2 * k, -1.7 + 3.2 * k + 0.12 * Math.sin(t * 6), 0.8);
+        rocket.rotation.z = 0.42;
+        for (let i = 0; i < 30; i++) { const b = i * 3; flame.pos[b] = -0.22 - i * 0.03 + rnd(-0.02, 0.02); flame.pos[b + 1] = rnd(-0.05, 0.05) * (1 + i * 0.08); flame.pos[b + 2] = 0; }
+        flame.attr.needsUpdate = true;
+      } else { rocket.position.set(-9, 0, 0); }
       warp.mat.opacity = 0.9 * (label ? 1 - easeInOut((t - 7.5) / 2) : 1);
       for (let i = 0; i < W; i++) { let z = warp.pos[i * 3 + 2]! + speed * dt; if (z > 3) z -= 16; warp.pos[i * 3 + 2] = z; }
       warp.attr.needsUpdate = true;
@@ -334,6 +357,116 @@ function buildWarp(T: ThreeMod, label: string | null): Rig {
   };
 }
 
+// ── the Mark 1 — Nobi's body as drawn on the workshop page ───────────────────
+// One continuous white curve, smoked-glass face, antenna loop, charcoal base
+// with the gold stripe, five speaker dots, one wheel. Toon ink outlines come
+// from an inverted back-face hull behind each shell piece. Faces +z.
+interface Mark1 { bot: THREE.Group; wheel: THREE.Group; eyeL: THREE.Mesh; eyeR: THREE.Mesh; loop: THREE.Mesh; loopGlow: ReturnType<typeof points> }
+function buildMark1(T: ThreeMod, glowTex: THREE.Texture): Mark1 {
+  const INK = 0x101d2e, PAPER = 0xf7f5f0, GLASS = 0x1e2a38, BASE = 0x1c2634, STRIPE = 0xe0a64b;
+  const hull = (geo: THREE.BufferGeometry, s: number): THREE.Mesh => { const m = new T.Mesh(geo, new T.MeshBasicMaterial({ color: INK, side: T.BackSide })); m.scale.setScalar(s); return m; };
+  const bot = new T.Group();
+  const shellGeo = new T.CapsuleGeometry(0.3, 0.62, 6, 24);
+  const shell = new T.Mesh(shellGeo, flat(T, PAPER, 1)); shell.position.y = 0.42;
+  const shellInk = hull(shellGeo, 1.07); shellInk.position.y = 0.42;
+  const face = new T.Mesh(new T.CircleGeometry(0.2, 32), flat(T, GLASS, 1)); face.position.set(0, 0.55, 0.305);
+  const faceRim = new T.Mesh(new T.RingGeometry(0.2, 0.215, 32), flat(T, INK, 1)); faceRim.position.set(0, 0.55, 0.306);
+  const eyeGeo = new T.CapsuleGeometry(0.035, 0.07, 4, 8);
+  const eyeL = new T.Mesh(eyeGeo, flat(T, ICE, 1)); eyeL.position.set(-0.07, 0.56, 0.315);
+  const eyeR = new T.Mesh(eyeGeo, flat(T, ICE, 1)); eyeR.position.set(0.07, 0.56, 0.315);
+  const eyeGlow = points(T, 2, ICE, 0.42, 0.55, glowTex, true); eyeGlow.pos.set([-0.07, 0.56, 0.36, 0.07, 0.56, 0.36]); eyeGlow.attr.needsUpdate = true;
+  const loop = new T.Mesh(new T.TorusGeometry(0.045, 0.012, 8, 20), flat(T, INK, 1)); loop.position.y = 1.08;
+  const loopGlow = points(T, 1, GOLD, 0.3, 0.7, glowTex, true); loopGlow.pos.set([0, 1.08, 0.02]); loopGlow.attr.needsUpdate = true;
+  const earGeo = new T.SphereGeometry(0.075, 12, 10);
+  const earL = new T.Mesh(earGeo, flat(T, GLASS, 1)); earL.position.set(-0.3, 0.55, 0); earL.scale.set(0.5, 1, 0.8);
+  const earR = new T.Mesh(earGeo, flat(T, GLASS, 1)); earR.position.set(0.3, 0.55, 0); earR.scale.set(0.5, 1, 0.8);
+  const dots = new T.Group();
+  for (let i = 0; i < 5; i++) { const d = new T.Mesh(new T.SphereGeometry(0.012, 6, 6), flat(T, INK, 1)); const a = (i - 2) * 0.32; d.position.set(Math.sin(a) * 0.2, 0.22 - Math.abs(i - 2) * 0.012, Math.cos(a) * 0.3); dots.add(d); }
+  const base = new T.Mesh(new T.CylinderGeometry(0.29, 0.36, 0.13, 28), flat(T, BASE, 1)); base.position.y = -0.045;
+  const baseInk = hull(new T.CylinderGeometry(0.29, 0.36, 0.13, 28), 1.06); baseInk.position.y = -0.045;
+  const stripe = new T.Mesh(new T.TorusGeometry(0.3, 0.016, 8, 40), flat(T, STRIPE, 1)); stripe.position.y = 0.03; stripe.rotation.x = Math.PI / 2;
+  const wheel = new T.Group();
+  const tyre = new T.Mesh(new T.CylinderGeometry(0.14, 0.14, 0.09, 24), flat(T, INK, 1)); tyre.rotation.z = Math.PI / 2;
+  const hub = new T.Mesh(new T.CylinderGeometry(0.05, 0.05, 0.095, 16), flat(T, PAPER, 1)); hub.rotation.z = Math.PI / 2;
+  const spoke = new T.Mesh(new T.BoxGeometry(0.096, 0.24, 0.02), flat(T, PAPER, 1));
+  wheel.add(tyre, hub, spoke); wheel.position.y = -0.2;
+  bot.add(shellInk, shell, face, faceRim, eyeL, eyeR, eyeGlow.pts, loop, loopGlow.pts, earL, earR, dots, baseInk, base, stripe, wheel);
+  return { bot, wheel, eyeL, eyeR, loop, loopGlow };
+}
+
+// ── drive: the Mark 1 rolls in from the left, skids, turns to camera, settles ─
+// (the workshop page's signature move: speed lines, skid mark, dust puffs)
+function buildDrive(T: ThreeMod): Rig {
+  const group = new T.Group();
+  const glowTex = radialTexture(T, "201,220,240");
+  const GROUND = -1.05;
+  const ground = new T.Line(new T.BufferGeometry().setFromPoints([new T.Vector3(-4, GROUND, 0), new T.Vector3(4, GROUND, 0)]), new T.LineBasicMaterial({ color: ICE, transparent: true, opacity: 0.85 }));
+  const tickPts: THREE.Vector3[] = [];
+  for (let i = -8; i <= 8; i++) tickPts.push(new T.Vector3(i * 0.45, GROUND - 0.06, 0), new T.Vector3(i * 0.45, GROUND - (i % 4 === 0 ? 0.18 : 0.11), 0));
+  const ticks = new T.LineSegments(new T.BufferGeometry().setFromPoints(tickPts), new T.LineBasicMaterial({ color: STEEL, transparent: true, opacity: 0.7 }));
+  group.add(ground, ticks);
+  const m1 = buildMark1(T, glowTex);
+  const { bot, wheel, eyeL, eyeR, loop, loopGlow } = m1;
+  const SCALE = 1.45;
+  bot.scale.setScalar(SCALE);
+  const REST_Y = GROUND + 0.34 * SCALE;
+  bot.position.set(-5, REST_Y, 0);
+  bot.rotation.y = Math.PI / 2;                                  // side view while driving
+  group.add(bot);
+  const lineMat = new T.LineBasicMaterial({ color: ICE, transparent: true, opacity: 0 });
+  const speedLines: THREE.Line[] = [];
+  for (let i = 0; i < 3; i++) {
+    const y = REST_Y + 0.35 + i * 0.28, len = 0.7 - i * 0.12;
+    const l = new T.Line(new T.BufferGeometry().setFromPoints([new T.Vector3(-len, y, 0.2), new T.Vector3(0, y, 0.2)]), lineMat);
+    speedLines.push(l); group.add(l);
+  }
+  const skid = new T.Mesh(new T.PlaneGeometry(1.5, 0.06), flat(T, ICE, 0));
+  skid.position.set(-0.75, GROUND + 0.03, -0.1);
+  group.add(skid);
+  const dust: THREE.Mesh[] = [];
+  for (let i = 0; i < 3; i++) { const d = new T.Mesh(new T.SphereGeometry(0.11, 8, 8), flat(T, ICE, 0)); d.position.set(0.5, GROUND + 0.1, 0.3); dust.push(d); group.add(d); }
+  const glow = new T.Mesh(new T.PlaneGeometry(3.2, 3.2), new T.MeshBasicMaterial({ map: glowTex, transparent: true, opacity: 0.18, depthWrite: false, blending: T.AdditiveBlending }));
+  glow.position.set(0, REST_Y + 0.5, -1);
+  group.add(glow);
+  const DRIVE = 1.35, TURN0 = 1.45, TURN1 = 1.8, SETTLE0 = 1.85, SETTLE1 = 2.35;
+  return {
+    group,
+    update(t, dt) {
+      // drive in with a small overshoot, wheel spinning, speed lines trailing
+      const k = clamp01(t / DRIVE);
+      const x = -5 + 5 * easeOutBack(k);
+      bot.position.x = x;
+      if (t < DRIVE) { wheel.rotation.x += dt * 22; }
+      const sl = t < 0.15 ? t / 0.15 : t < DRIVE * 0.8 ? 1 : Math.max(0, 1 - (t - DRIVE * 0.8) / (DRIVE * 0.2));
+      lineMat.opacity = 0.9 * sl;
+      speedLines.forEach((l, i) => { l.position.x = x - 0.55 - i * 0.2; });
+      // skid + dust as it stops
+      const sk = clamp01((t - DRIVE + 0.1) / 0.5);
+      skid.scale.x = 0.2 + 0.8 * easeOut(sk); skid.position.x = x - 0.75 * skid.scale.x;
+      (skid.material as THREE.MeshBasicMaterial).opacity = t > DRIVE - 0.1 ? 0.55 * easeOut(sk) : 0;
+      dust.forEach((d, i) => {
+        const p = clamp01((t - DRIVE + 0.05 - i * 0.08) / 0.8);
+        const on = t > DRIVE - 0.05 + i * 0.08 && p < 1;
+        (d.material as THREE.MeshBasicMaterial).opacity = on ? 0.5 * (1 - p) : 0;
+        d.position.set(x - 0.55 + 0.7 * p + i * 0.1, GROUND + 0.1 + 0.6 * p, 0.3); d.scale.setScalar(0.6 + 1.3 * p);
+      });
+      // turn to camera, then settle with a little bounce
+      const turn = easeInOut((t - TURN0) / (TURN1 - TURN0));
+      bot.rotation.y = Math.PI / 2 * (1 - turn);
+      let y = REST_Y;
+      if (t >= SETTLE0 && t < SETTLE1) { const s = (t - SETTLE0) / (SETTLE1 - SETTLE0); y += s < 0.35 ? -0.18 * Math.sin((s / 0.35) * Math.PI) : 0.05 * Math.sin(((s - 0.35) / 0.65) * Math.PI); }
+      else if (t >= SETTLE1) { y += 0.03 * Math.sin((t - SETTLE1) * 1.6); bot.rotation.z = 0.05 * Math.sin((t - SETTLE1) * 1.3); }
+      bot.position.y = y;
+      // life: blink, antenna wiggle + pulse
+      const blink = t > SETTLE1 && ((t - SETTLE1) % 3.1) < 0.16 ? 0.12 : 1;
+      eyeL.scale.y = blink; eyeR.scale.y = blink;
+      loop.rotation.y = 0.5 * Math.sin(t * 2.2);
+      (loopGlow.pts.material as THREE.PointsMaterial).opacity = 0.35 + 0.35 * Math.sin(t * 5);
+    },
+    dispose: () => disposeGroup(group),
+  };
+}
+
 // ── bowl: Nobi's whole mini body hanging out in a fishbowl ──────────────────
 function buildBowl(T: ThreeMod): Rig {
   const group = new T.Group();
@@ -353,36 +486,9 @@ function buildBowl(T: ThreeMod): Rig {
   for (let i = 0; i < B; i++) { bub.pos.set([rnd(-1.8, 1.8), rnd(-2.2, 0.6), rnd(-0.5, 0.5)], i * 3); bubV[i] = rnd(0.25, 0.7); }
   bub.attr.needsUpdate = true;
   group.add(bub.pts);
-  // mini Nobi — flat toy colours, eyes sitting proud of the head so they glow
-  const bot = new T.Group();
-  const head = new T.Mesh(new T.SphereGeometry(0.34, 20, 16), flat(T, 0x243a55, 1));
-  head.position.y = 0.52;
-  const headRim = new T.Mesh(new T.TorusGeometry(0.31, 0.022, 8, 40), flat(T, STEEL, 1));
-  headRim.position.y = 0.22; headRim.rotation.x = Math.PI / 2;
-  const eyeGeo = new T.CapsuleGeometry(0.06, 0.12, 4, 8);
-  const eyeL = new T.Mesh(eyeGeo, flat(T, ICE, 1)); eyeL.position.set(-0.12, 0.56, 0.37);
-  const eyeR = new T.Mesh(eyeGeo, flat(T, ICE, 1)); eyeR.position.set(0.12, 0.56, 0.37);
-  const eyeGlow = points(T, 2, ICE, 0.5, 0.6, glowTex, true); eyeGlow.pos.set([-0.12, 0.56, 0.42, 0.12, 0.56, 0.42]); eyeGlow.attr.needsUpdate = true;
-  const body = new T.Mesh(new T.BoxGeometry(0.52, 0.5, 0.36), flat(T, 0x2c4566, 1));
-  body.position.y = -0.1;
-  const bodyEdge = new T.LineSegments(new T.EdgesGeometry(body.geometry), new T.LineBasicMaterial({ color: STEEL, transparent: true, opacity: 0.8 }));
-  bodyEdge.position.copy(body.position);
-  const chest = new T.Mesh(new T.SphereGeometry(0.055, 10, 10), flat(T, AMBER, 1)); chest.position.set(0, -0.02, 0.19);
-  const armGeo = new T.CylinderGeometry(0.045, 0.045, 0.38, 10); armGeo.translate(0, -0.19, 0);
-  const armL = new T.Mesh(armGeo, flat(T, STEEL, 1)); armL.position.set(-0.32, 0.1, 0);
-  const armR = new T.Mesh(armGeo, flat(T, STEEL, 1)); armR.position.set(0.32, 0.1, 0);
-  const handGeo = new T.SphereGeometry(0.065, 10, 10);
-  const handL = new T.Mesh(handGeo, flat(T, ICE, 1)); handL.position.set(0, -0.4, 0); armL.add(handL);
-  const handR = new T.Mesh(handGeo, flat(T, ICE, 1)); handR.position.set(0, -0.4, 0); armR.add(handR);
-  const wheelGeo = new T.TorusGeometry(0.11, 0.045, 8, 20);
-  const wheelL = new T.Mesh(wheelGeo, flat(T, 0x0f1a26, 1)); wheelL.position.set(-0.18, -0.42, 0); wheelL.rotation.y = Math.PI / 2;
-  const wheelR = new T.Mesh(wheelGeo, flat(T, 0x0f1a26, 1)); wheelR.position.set(0.18, -0.42, 0); wheelR.rotation.y = Math.PI / 2;
-  const axle = new T.Mesh(new T.BoxGeometry(0.42, 0.06, 0.1), flat(T, STEEL, 1)); axle.position.y = -0.42;
-  const stem = new T.Mesh(new T.CylinderGeometry(0.018, 0.018, 0.22, 8), flat(T, STEEL, 1)); stem.position.set(0.14, 0.95, 0); stem.rotation.z = -0.25;
-  const bulb = new T.Mesh(new T.SphereGeometry(0.05, 10, 10), flat(T, AMBER, 1)); bulb.position.set(0.17, 1.07, 0);
-  bot.add(head, headRim, eyeL, eyeR, eyeGlow.pts, body, bodyEdge, chest, armL, armR, wheelL, wheelR, axle, stem, bulb);
-  bot.position.set(0, -0.35, 0);
-  bot.scale.setScalar(1.35);
+  const { bot, wheel, eyeL, eyeR, loop, loopGlow } = buildMark1(T, glowTex);
+  bot.position.set(0, -0.45, 0);
+  bot.scale.setScalar(1.3);
   group.add(bot);
   // a little fish friend
   const fish = new T.Group();
@@ -397,13 +503,14 @@ function buildBowl(T: ThreeMod): Rig {
       for (let i = 0; i < B; i++) { let y = bub.pos[i * 3 + 1]! + bubV[i]! * dt; bub.pos[i * 3] = bub.pos[i * 3]! + 0.15 * Math.sin(t * 2 + i) * dt; if (y > 0.6) { y = -2.3; bub.pos[i * 3] = rnd(-1.8, 1.8); } bub.pos[i * 3 + 1] = y; }
       bub.attr.needsUpdate = true;
       surface.position.y = 0.68 + 0.02 * Math.sin(t * 1.8);
-      bot.position.y = -0.35 + 0.07 * Math.sin(t * 1.5);
-      bot.rotation.y = 0.28 * Math.sin(t * 0.6);
-      armR.rotation.z = -0.4 + 0.45 * Math.sin(t * 4.2);            // waving
-      armL.rotation.z = 0.25 + 0.06 * Math.sin(t * 1.5 + 1);
+      bot.position.y = -0.45 + 0.07 * Math.sin(t * 1.5);
+      bot.rotation.y = 0.32 * Math.sin(t * 0.6);
+      bot.rotation.z = 0.06 * Math.sin(t * 1.5 + 0.8);               // happy little rock
+      wheel.rotation.x += dt * 2.4;                                    // paddling in the water
       const blink = (t % 3.4) < 0.16 ? 0.12 : 1;
       eyeL.scale.y = blink; eyeR.scale.y = blink;
-      bulb.material.opacity = 0.6 + 0.4 * Math.sin(t * 5);
+      loop.rotation.y = 0.5 * Math.sin(t * 2.2);
+      (loopGlow.pts.material as THREE.PointsMaterial).opacity = 0.35 + 0.35 * Math.sin(t * 5);
       const fx = 2.4 * Math.sin(t * 0.35), dirn = Math.cos(t * 0.35) >= 0 ? 1 : -1;
       fish.position.set(fx, -1.35 + 0.15 * Math.sin(t * 2.2), -0.3);
       fish.scale.x = dirn; tail.rotation.y = 0.5 * Math.sin(t * 9);
@@ -583,6 +690,74 @@ function buildTrick(T: ThreeMod): Rig {
   };
 }
 
+// ── hud: a robotic boot HUD — rotating arc rings, ticks, an orbiting scan dot ─
+function arcLine(T: ThreeMod, r: number, a0: number, a1: number, color: number, opacity: number): THREE.Line {
+  const n = 40;
+  const pts = Array.from({ length: n + 1 }, (_, i) => { const a = a0 + (a1 - a0) * (i / n); return new T.Vector3(Math.cos(a) * r, Math.sin(a) * r, 0); });
+  return new T.Line(new T.BufferGeometry().setFromPoints(pts), new T.LineBasicMaterial({ color, transparent: true, opacity }));
+}
+function buildHud(T: ThreeMod): Rig {
+  const group = new T.Group();
+  const rings: Array<{ g: THREE.Group; speed: number }> = [];
+  const specs: Array<[number, number, number, number]> = [[1.42, 3, 0.9, 0.35], [1.66, 4, 0.65, -0.22], [1.9, 6, 0.4, 0.14]];
+  specs.forEach(([r, arcs, span, speed], i) => {
+    const g = new T.Group();
+    for (let k = 0; k < arcs; k++) { const a0 = (k / arcs) * Math.PI * 2; g.add(arcLine(T, r, a0, a0 + span, i === 1 ? STEEL : ICE, 0.85)); }
+    group.add(g); rings.push({ g, speed });
+  });
+  const tickPts: THREE.Vector3[] = [];
+  for (let i = 0; i < 48; i++) { const a = (i / 48) * Math.PI * 2, r0 = i % 4 === 0 ? 1.98 : 2.02; tickPts.push(new T.Vector3(Math.cos(a) * r0, Math.sin(a) * r0, 0), new T.Vector3(Math.cos(a) * 2.08, Math.sin(a) * 2.08, 0)); }
+  const ticks = new T.LineSegments(new T.BufferGeometry().setFromPoints(tickPts), new T.LineBasicMaterial({ color: STEEL, transparent: true, opacity: 0.7 }));
+  group.add(ticks);
+  const dot = new T.Mesh(new T.SphereGeometry(0.06, 8, 8), flat(T, GOLD, 1));
+  const dotGlow = points(T, 1, GOLD, 0.5, 0.7, radialTexture(T, "245,184,61"), true);
+  group.add(dot, dotGlow.pts);
+  const spark = buildSparkle(T);
+  group.add(spark.group);
+  return {
+    group,
+    update(t, dt, scene, ts) {
+      rings.forEach((r) => { r.g.rotation.z += dt * r.speed; });
+      ticks.rotation.z -= dt * 0.05;
+      const a = t * 1.6;
+      dot.position.set(Math.cos(a) * 1.9, Math.sin(a) * 1.9, 0.05);
+      dotGlow.pos.set([dot.position.x, dot.position.y, 0.06]); dotGlow.attr.needsUpdate = true;
+      group.scale.setScalar(Math.max(0.001, easeOutBack(t / 0.9)));
+      spark.update(t, dt, scene, ts);
+    },
+    dispose: () => { spark.dispose(); disposeGroup(group); },
+  };
+}
+
+// ── gears: "thinking" — meshing gear rings turning around the eyes ───────────
+function gear(T: ThreeMod, r: number, teeth: number, color: number): THREE.Group {
+  const g = new T.Group();
+  g.add(new T.Mesh(new T.TorusGeometry(r, 0.035, 8, 64), flat(T, color, 0.95)));
+  const toothGeo = new T.BoxGeometry(0.11, 0.09, 0.06);
+  for (let i = 0; i < teeth; i++) { const a = (i / teeth) * Math.PI * 2; const m = new T.Mesh(toothGeo, flat(T, color, 0.95)); m.position.set(Math.cos(a) * (r + 0.07), Math.sin(a) * (r + 0.07), 0); m.rotation.z = a; g.add(m); }
+  const spokes: THREE.Vector3[] = [];
+  for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; spokes.push(new T.Vector3(Math.cos(a) * r * 0.25, Math.sin(a) * r * 0.25, 0), new T.Vector3(Math.cos(a) * r, Math.sin(a) * r, 0)); }
+  g.add(new T.LineSegments(new T.BufferGeometry().setFromPoints(spokes), new T.LineBasicMaterial({ color, transparent: true, opacity: 0.6 })));
+  g.add(new T.Mesh(new T.TorusGeometry(r * 0.25, 0.03, 8, 32), flat(T, color, 0.9)));
+  return g;
+}
+function buildGears(T: ThreeMod): Rig {
+  const group = new T.Group();
+  const big = gear(T, 1.62, 22, STEEL); big.position.z = -0.2;
+  const small1 = gear(T, 0.34, 8, ICE); small1.position.set(-1.55, 1.35, 0.2);
+  const small2 = gear(T, 0.42, 9, GOLD); small2.position.set(1.6, -1.3, 0.2);
+  const small3 = gear(T, 0.26, 7, ICE); small3.position.set(1.45, 1.5, 0.2);
+  group.add(big, small1, small2, small3);
+  return {
+    group,
+    update(t, dt) {
+      big.rotation.z += dt * 0.45; small1.rotation.z -= dt * 2.1; small2.rotation.z -= dt * 1.7; small3.rotation.z += dt * 2.6;
+      group.scale.setScalar(Math.max(0.001, easeOutBack(t / 0.7)));
+    },
+    dispose: () => disposeGroup(group),
+  };
+}
+
 export default function ShowcaseOverlay({ scene, label, onSkip }: {
   scene: ShowcaseScene;
   /** The name that assembles from particles in the finale. */
@@ -620,7 +795,7 @@ export default function ShowcaseOverlay({ scene, label, onSkip }: {
       const rigs: Record<RigKey, Rig> = {
         boot: buildBoot(T), core: buildCore(T), orbit: buildOrbit(T), warp: buildWarp(T, null), finale: buildWarp(T, labelRef.current),
         bowl: buildBowl(T), faces: buildFaces(T), helmet: buildHelmet(T), lab: buildLab(T), sparkle: buildSparkle(T),
-        hearts: buildHearts(T), confetti: buildConfetti(T), trick: buildTrick(T),
+        hearts: buildHearts(T), confetti: buildConfetti(T), trick: buildTrick(T), hud: buildHud(T), gears: buildGears(T), drive: buildDrive(T),
       };
       const keys = Object.keys(rigs) as RigKey[];
       const alpha: Record<string, number> = {};

@@ -52,6 +52,7 @@
 import array
 import base64
 import io
+import difflib
 import json
 import os
 import re
@@ -98,17 +99,42 @@ ARM_SECONDS = float(os.environ.get("NEURA_ARM_SECONDS", "12"))
 # user can answer without saying her name again (Devin's steer: 7s after speech).
 ARM_AFTER_REPLY = float(os.environ.get("NEURA_ARM_AFTER_S", "7"))
 MUTE_POLL_MS = int(os.environ.get("NEURA_MUTE_POLL_MS", "200"))
-# Scribe hears "Nobi" cleanly, but keep the forgiving mishear variants it tends
-# to produce for an unfamiliar proper noun ("Nobby", "Noby", "no bee") + "robot".
-_DEFAULT_WAKE = (
-    "nobi,nobby,noby,nobie,nobe,knobby,no bee,no be,"
-    "hey nobi,hey nobby,hey noby,ok nobi,okay nobi,"
-    "robot,hey robot,ok robot"
-)
+# ── His name ─────────────────────────────────────────────────────────────────
+# Spelled NOBI. Said "NO-bee". Nobody's speech-to-text agrees on how to write
+# that, so the name is an ARRAY, not a string — every spelling a transcriber
+# reaches for when it hears /ˈnoʊbi/ and has no such word in its vocabulary.
+# Devin's rule: he answers to the SOUND. Add to this list freely; the cost of a
+# rare false wake is nothing next to a robot that ignores its own name.
+NAME_VARIANTS = [
+    # the name itself, and the ways it gets spelled
+    "nobi", "nobee", "nobey", "nobie", "noby", "nobby", "nobe", "nobi's",
+    # heard as two words
+    "no bee", "no be", "no bi", "know be", "know bee", "gnome be",
+    # real words a transcriber substitutes for the unfamiliar one
+    "noble", "nova", "novi", "novee", "novy", "noobie", "newbie", "knobby",
+    "no v", "now be", "snow be", "note be",
+    # what it calls itself if all else fails
+    "robot",
+]
+# Said to get his attention. The prefix is optional — "nobi, what time is it"
+# and "hey nobi what time is it" both work, so we never enumerate the prefixes.
 WAKE_WORDS = [w.strip().lower() for w in
-              os.environ.get("NEURA_WAKE_WORDS", _DEFAULT_WAKE).split(",") if w.strip()]
-WAKE_WORDS.sort(key=len, reverse=True)   # longest first so "hey nobi" beats "nobi"
+              os.environ.get("NEURA_WAKE_WORDS", ",".join(NAME_VARIANTS)).split(",") if w.strip()]
+WAKE_WORDS.sort(key=len, reverse=True)   # longest first so "no bee" beats "no be"
 _WAKE_RE = [re.compile(r"\b" + re.escape(w) + r"\b") for w in WAKE_WORDS]
+
+# A few renderings are too close to ordinary speech to trust on their own
+# ("no we", "no me"), so they only count when the offline model produced the
+# transcript — it mangles the name, and it is only listening because the good
+# transcriber is down.
+_LOOSE_WAKE = "know we,no we,no me,no fee,now we,no baby,nobody home"
+LOOSE_WORDS = [w.strip().lower() for w in
+               os.environ.get("NEURA_LOOSE_WAKE", _LOOSE_WAKE).split(",") if w.strip()]
+LOOSE_WORDS.sort(key=len, reverse=True)
+_LOOSE_RE = [re.compile(r"\b" + re.escape(w) + r"\b") for w in LOOSE_WORDS]
+# "hey/ok <something>" at the very start is almost always an attempt at his name
+_ADDRESS_RE = re.compile(r"^\s*(?:hey|hay|ok|okay|yo|hi|hello)\s+(?:there\s+)?([a-z]+(?:\s+[a-z]+)?)\b")
+_NAME_SHAPES = ("nobi", "nobee", "noby", "nobby", "nobie")
 
 # ── Offline fallback (lazy Vosk) ─────────────────────────────────────────────
 FALLBACK = os.environ.get("NEURA_STT_FALLBACK", "1") != "0"
@@ -245,6 +271,20 @@ def transcribe_remote(pcm: bytes):
     if r.status_code == 503:
         return None, "no-key"
     if not r.ok:
+        detail = ""
+        try:
+            body = r.json()
+            raw = str(body.get("error") or body)
+            if "invalid_api_key" in raw or "api_key_id_used_as_api_key" in raw:
+                detail = " [the ELEVENLABS_API_KEY is not a key — real ones start with sk_. " \
+                         "Paste the key itself on the account page and sync.]"
+            elif "quota" in raw.lower() or "insufficient" in raw.lower():
+                detail = " [ElevenLabs quota exhausted]"
+        except ValueError:
+            pass
+        if detail and not getattr(transcribe_remote, "_warned", False):
+            log(f"scribe unusable{detail}")
+            transcribe_remote._warned = True
         return None, f"http-{r.status_code}"
     try:
         return (r.json().get("transcript") or "").strip(), None
@@ -274,18 +314,46 @@ def transcribe_local(pcm: bytes) -> str:
         return ""
 
 
-def match_wake(text: str):
-    """(matched, remainder). Strips up to & including the wake word so
-    'neura what's the time' → (True, "what's the time'); bare 'neura' → (True, "")."""
+def _similar(a: str, b: str) -> float:
+    return difflib.SequenceMatcher(None, a, b).ratio()
+
+
+def match_wake(text: str, loose: bool = False):
+    """(matched, remainder, how). Strips up to & including the wake word so
+    'nobi what's the time' → (True, "what's the time"); bare 'nobi' → (True, "").
+
+    `loose` widens the net for transcripts that came from the offline model,
+    which mangles the name; Scribe transcripts stay strict so ordinary
+    conversation never wakes him by accident.
+    """
     low = text.lower()
     best = None
     for rx in _WAKE_RE:
         m = rx.search(low)
         if m and (best is None or m.start() < best.start()):
             best = m
-    if best is None:
-        return False, text.strip()
-    return True, text[best.end():].strip(" ,.!?-")
+    if best is not None:
+        return True, text[best.end():].strip(" ,.!?-"), "wake"
+    if not loose:
+        return False, text.strip(), None
+
+    for rx in _LOOSE_RE:
+        m = rx.search(low)
+        if m and (best is None or m.start() < best.start()):
+            best = m
+    if best is not None:
+        return True, text[best.end():].strip(" ,.!?-"), "loose"
+
+    # "Hey <something that sounds like Nobi>" — catches a mishearing we have
+    # never seen before, without opening the door to every stray sentence.
+    m = _ADDRESS_RE.match(low)
+    if m:
+        heard = m.group(1)
+        squashed = heard.replace(" ", "")
+        if any(_similar(squashed, shape) >= 0.62 or _similar(heard.split()[0], shape) >= 0.7
+               for shape in _NAME_SHAPES):
+            return True, text[m.end():].strip(" ,.!?-"), "sounds-like"
+    return False, text.strip(), None
 
 
 def forward(text: str) -> None:
@@ -397,11 +465,13 @@ def main() -> int:
 
         # (We never capture while muted, so this buffer is always the user's voice.)
         text, err = transcribe_remote(pcm)
+        from_local = False
         if err:
             local = transcribe_local(pcm)
             if local:
                 log(f"(scribe {err}) local→ {local!r}")
                 text = local
+                from_local = True
             else:
                 log(f"(scribe {err}; no local transcript) dropped {dur_ms:.0f}ms clip")
                 continue
@@ -409,10 +479,12 @@ def main() -> int:
             continue
 
         armed = now < armed_until
-        matched, remainder = match_wake(text)
+        matched, remainder, how = match_wake(text, loose=from_local)
         if REQUIRE_WAKE and not matched and not armed:
             log(f"(ignored, no wake): {text!r}")
             continue
+        if matched and how != "wake":
+            log(f"({how} wake) {text!r}")
 
         if matched:
             armed_until = now + ARM_SECONDS

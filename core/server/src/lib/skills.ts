@@ -923,6 +923,31 @@ const orderShow: Skill = {
   },
 };
 const SHOP_URL = "https://developmentindustries.org/build";
+/** Where people find Nobi. Override per unit with NOBI_QR_URL (e.g. a dealer or event link). */
+const SITE_URL = "https://developmentindustries.org";
+
+/**
+ * "Nobi, QR code" — put the code on my face so you can scan it.
+ *
+ * Deliberately broad: a QR is the one thing a robot with no keyboard can hand
+ * you, so almost any way of asking for it, or for where to find him, lands here.
+ */
+const qrSkill: Skill = {
+  id: "qr-code",
+  async handle({ lower }) {
+    const asksQr = /\bq\.?\s?r\.?\s?(code|codes)?\b|\bqr\b|\bcue are\b|\bcue r\b/.test(lower);
+    const asksWhere = /\bwhere (can|do|would) (i|we|someone) (find|get|buy|see|order) (you|one|a nobi|nobi)\b|\bwhere are you (from|sold)\b|\bhow (can|do) (i|we) find you\b|\bwhat'?s your (website|site|web site|url|link|address online)\b|\byour website\b|\bfind you online\b|\bsend me (the |your )?link\b|\bshow me (the |your )?(website|site|link)\b/.test(lower);
+    if (!asksQr && !asksWhere) return null;
+    // "show me the phone qr" is still the pairing code, not the shop — let phoneLink have it
+    if (/\b(phone|pair|pairing|mobile|companion app)\b/.test(lower)) return null;
+    const url = (await getConfig("NOBI_QR_URL").catch(() => null)) || SITE_URL;
+    return {
+      speak: "Here you go. Scan this and it takes you straight to me.",
+      // the card already prints the address under the code — use the line for the name
+      ui: { type: "showLink", title: "Find Nobi", url, hint: "Network Optional Bot Intelligence" },
+    };
+  },
+};
 const shopSkill: Skill = {
   id: "shop",
   handle({ lower }) {
@@ -934,7 +959,7 @@ const shopSkill: Skill = {
 };
 
 const SKILLS: Skill[] = [
-  meetSomeone, pitchShow, demoShow, orderShow, syncAccount, botNumberSkill, phoneLink, myAddress, shopSkill,
+  meetSomeone, pitchShow, demoShow, orderShow, syncAccount, botNumberSkill, qrSkill, phoneLink, myAddress, shopSkill,
   releaseEstop, emergencyStop, spinSkill, wanderSkill, setSpeedSkill, stopSkill,
   experienceModeSkill, uiModeSkill, describeScreenSkill, survivorSkill, videoControlSkill, playVideoSkill,
   closeSkill, openSkill, controlDevice, readSensor, listDevices,

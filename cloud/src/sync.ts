@@ -29,7 +29,7 @@ export function isAdminEmail(email: string | undefined): boolean {
 }
 
 /** A reservation counts once the card is on file, a deposit is paid, or the build is paid. */
-export const RESERVED_STATUSES = new Set(["reserved", "card_on_file", "paid"]);
+export const RESERVED_STATUSES = new Set(["reserved", "card_on_file", "invoiced", "paid"]);
 export function isReserved(profile: Record<string, unknown> | undefined): boolean {
   const r = profile?.["reservation"] as { status?: string } | undefined;
   return RESERVED_STATUSES.has(r?.status ?? "");
@@ -136,12 +136,13 @@ export function adminEntitleRouter(store: Store): Router {
     const b = (req.body ?? {}) as { botNumber?: string; claimCode?: string; email?: string; note?: string };
     const botNumber = b.botNumber ? String(b.botNumber).replace(/\D+/g, "").padStart(7, "0") : await store.nextBotNumber();
     if (await store.getUnit(botNumber)) { res.status(409).json({ error: "unit exists", botNumber }); return; }
-    const account = b.email ? await store.getAccountByEmail(b.email.toLowerCase()) : undefined;
-    if (b.email && !account) { res.status(404).json({ error: "no such account" }); return; }
+    const email = b.email ? String(b.email).trim().toLowerCase() : "";
+    const account = email ? await store.getAccountByEmail(email) : undefined;
     const claimCode = b.claimCode ? String(b.claimCode).trim().toUpperCase() : undefined;
-    await store.createUnit({ botNumber, claimCodeHash: claimCode ? sha256(claimCode) : undefined, accountId: account?.id, createdAt: Date.now(), claimedAt: account ? Date.now() : undefined, note: b.note });
+    // no account yet → the unit waits for that email (binds on their first sign-in)
+    await store.createUnit({ botNumber, claimCodeHash: claimCode ? sha256(claimCode) : undefined, accountId: account?.id, reservedFor: email && !account ? email : undefined, createdAt: Date.now(), claimedAt: account ? Date.now() : undefined, note: b.note });
     if (account) { const current = (await store.getProfile(account.id)) ?? {}; await store.setProfile(account.id, { ...current, entitled: true, botNumber }); }
-    res.json({ ok: true, botNumber, claimCode: claimCode ?? null, boundTo: account?.email ?? null });
+    res.json({ ok: true, botNumber, claimCode: claimCode ?? null, boundTo: account?.email ?? null, reservedFor: email && !account ? email : null });
   });
   // POST /v1/admin/units/assign { botNumber, email | null } — (re)bind or release a unit.
   r.post("/units/assign", async (req: Request, res: Response) => {
@@ -155,11 +156,11 @@ export function adminEntitleRouter(store: Store): Router {
       const prev = (await store.getProfile(unit.accountId)) ?? {};
       if (prev["botNumber"] === botNumber) { const { botNumber: _b, ...rest } = prev; await store.setProfile(unit.accountId, { ...rest, entitled: isReserved(rest) ? rest["entitled"] : false }); }
     }
-    const account = b.email ? await store.getAccountByEmail(String(b.email).toLowerCase()) : undefined;
-    if (b.email && !account) { res.status(404).json({ error: "no such account" }); return; }
-    await store.updateUnit(botNumber, { accountId: account?.id, claimedAt: account ? Date.now() : undefined });
+    const email = b.email ? String(b.email).trim().toLowerCase() : "";
+    const account = email ? await store.getAccountByEmail(email) : undefined;
+    await store.updateUnit(botNumber, { accountId: account?.id, reservedFor: email && !account ? email : undefined, claimedAt: account ? Date.now() : undefined });
     if (account) { const cur = (await store.getProfile(account.id)) ?? {}; await store.setProfile(account.id, { ...cur, entitled: true, botNumber }); }
-    res.json({ ok: true, botNumber, owner: account?.email ?? null });
+    res.json({ ok: true, botNumber, owner: account?.email ?? null, reservedFor: email && !account ? email : null });
   });
   // GET /v1/admin/accounts — who has signed up (no secrets).
   r.get("/accounts", async (req: Request, res: Response) => {
@@ -173,7 +174,7 @@ export function adminEntitleRouter(store: Store): Router {
     if (!(await admin(req, res))) return;
     const units = await store.listUnits();
     const rows = [];
-    for (const u of units) { const a = u.accountId ? await store.getAccountById(u.accountId) : undefined; rows.push({ botNumber: u.botNumber, owner: a?.email ?? null, hasClaimCode: !!u.claimCodeHash, createdAt: u.createdAt, claimedAt: u.claimedAt ?? null, note: u.note ?? null }); }
+    for (const u of units) { const a = u.accountId ? await store.getAccountById(u.accountId) : undefined; rows.push({ botNumber: u.botNumber, owner: a?.email ?? null, reservedFor: u.reservedFor ?? null, hasClaimCode: !!u.claimCodeHash, createdAt: u.createdAt, claimedAt: u.claimedAt ?? null, note: u.note ?? null }); }
     res.json({ units: rows });
   });
   r.post("/entitle", async (req: Request, res: Response) => {

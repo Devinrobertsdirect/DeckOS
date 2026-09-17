@@ -63,6 +63,7 @@ export type Unit = {
   botNumber: string;          // zero-padded, e.g. "0000042"
   claimCodeHash?: string;     // sha256 of the code printed with the unit (optional)
   accountId?: string;
+  reservedFor?: string;       // email (lowercase) this unit is waiting for — binds on their first sign-in
   createdAt: number;
   claimedAt?: number;
   note?: string;

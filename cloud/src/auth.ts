@@ -13,6 +13,7 @@
  * response time can't be used to enumerate which emails have accounts.
  */
 import { isAdminEmail } from "./sync.js";
+import { bindPreassigned, lookupEmail } from "./preassign.js";
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { z } from "zod";
 import type { Store, Account } from "./store.js";
@@ -139,8 +140,16 @@ export function authRouter(store: Store): Router {
       createdAt: Date.now(),
     };
     await store.createAccount(account);
+    const pre = await bindPreassigned(store, account);
     const token = await issueSession(store, account.id);
-    res.status(201).json({ token, user: publicUser(account) });
+    res.status(201).json({ token, user: publicUser(account), admin: pre.admin, botNumber: pre.botNumber });
+  });
+
+  // POST /v1/auth/lookup { email } → do we already know this person (pre-assigned unit / admin)?
+  r.post("/lookup", async (req: Request, res: Response) => {
+    const email = typeof req.body?.email === "string" ? req.body.email.trim() : "";
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || email.length > 254) { res.status(400).json({ error: "email required" }); return; }
+    res.json(await lookupEmail(store, email));
   });
 
   r.post("/login", async (req: Request, res: Response) => {
@@ -158,8 +167,9 @@ export function authRouter(store: Store): Router {
       res.status(401).json({ error: "incorrect email or password" });
       return;
     }
+    const pre = await bindPreassigned(store, account);
     const token = await issueSession(store, account.id);
-    res.json({ token, user: publicUser(account) });
+    res.json({ token, user: publicUser(account), admin: pre.admin, botNumber: pre.botNumber });
   });
 
   r.post("/google", async (req: Request, res: Response) => {
@@ -207,7 +217,8 @@ export function authRouter(store: Store): Router {
   });
 
   r.get("/me", requireAuth(store), async (req: AuthedRequest, res: Response) => {
-    res.json({ admin: isAdminEmail(req.account!.email), user: publicUser(req.account!) });
+    const profile = (await store.getProfile(req.account!.id)) ?? {};
+    res.json({ admin: isAdminEmail(req.account!.email), user: publicUser(req.account!), botNumber: (profile["botNumber"] as string | undefined) ?? null });
   });
 
   return r;

@@ -55,6 +55,7 @@ export async function syncFromCloud(code?: string): Promise<SyncResult> {
     const personaId = mind ? (MIND_TO_PERSONA[mind] ?? undefined) : undefined;
     const eyeTheme = typeof p["eyeTheme"] === "string" ? (p["eyeTheme"] as string) : undefined;
     if (botName) await setConfig("ATLAS_BOT_NAME", botName);
+    if (typeof p["botNumber"] === "string" && /^\d{1,7}$/.test(p["botNumber"] as string)) await setConfig("NOBI_BOT_NUMBER", (p["botNumber"] as string).padStart(7, "0"));
     await setConfig("NOBI_BUILD_PROFILE", JSON.stringify({ botName, ownerName, personaId, eyeTheme, at: new Date().toISOString(), build: bp, source: "cloud-sync", email: data.email }));
     broadcast({ type: "provision.apply", source: "cloud-sync", payload: { botName, ownerName, personaId, eyeTheme }, timestamp: new Date().toISOString() });
     return { ok: true, ownerName, botName, keys: applied, email: data.email };

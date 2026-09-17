@@ -48,7 +48,7 @@ export function syncRouter(store: Store): Router {
     const profile = (await store.getProfile(req.account!.id)) ?? {};
     const keys = (await store.listKeys(req.account!.id)).map((k) => k.name);
     const reservation = profile["reservation"] as { status?: string } | undefined;
-    res.json({ owner: isOwner(profile), reserved: reservation?.status === "reserved", entitled: profile["entitled"] === true, keys });
+    res.json({ owner: isOwner(profile), reserved: reservation?.status === "reserved", entitled: profile["entitled"] === true, botNumber: profile["botNumber"] ?? null, keys });
   });
 
   // POST /v1/sync/code (auth) → { code: "apple river stone", expiresAt }
@@ -76,6 +76,27 @@ export function syncRouter(store: Store): Router {
     res.json({ token, email: account?.email, displayName: account?.displayName });
   });
 
+  // POST /v1/units/claim { botNumber, claimCode? } (auth) — "already have one": bind a
+  // registered unit to this account. A unit with a claim code needs it; one without
+  // is claimable by number alone (the admin decides per unit). Owned units can't move.
+  r.post("/units/claim", requireAuth(store), async (req: AuthedRequest, res: Response) => {
+    const raw = String((req.body as { botNumber?: string })?.botNumber ?? "").replace(/\D+/g, "");
+    if (!raw) { res.status(400).json({ error: "botNumber required" }); return; }
+    const botNumber = raw.padStart(7, "0");
+    const unit = await store.getUnit(botNumber);
+    if (!unit) { res.status(404).json({ error: "unknown_unit", message: "We don't know that bot number. Check the card that came with your Nobi." }); return; }
+    if (unit.accountId && unit.accountId !== req.account!.id) { res.status(409).json({ error: "claimed", message: "That Nobi already belongs to another account." }); return; }
+    if (unit.claimCodeHash) {
+      const code = String((req.body as { claimCode?: string })?.claimCode ?? "").trim().toUpperCase();
+      const a = Buffer.from(sha256(code)), b = Buffer.from(unit.claimCodeHash);
+      if (!code || a.length !== b.length || !timingSafeEqual(a, b)) { res.status(403).json({ error: "bad_claim_code", message: "The claim code doesn't match that bot number." }); return; }
+    }
+    await store.updateUnit(botNumber, { accountId: req.account!.id, claimedAt: unit.claimedAt ?? Date.now() });
+    const current = (await store.getProfile(req.account!.id)) ?? {};
+    await store.setProfile(req.account!.id, { ...current, entitled: true, botNumber });
+    res.json({ ok: true, botNumber });
+  });
+
   // GET /v1/sync (auth) → profile + decrypted keys (the account's own; robot import)
   r.get("/sync", requireAuth(store), async (req: AuthedRequest, res: Response) => {
     res.json(await syncPayload(store, req.account!.id));
@@ -84,9 +105,37 @@ export function syncRouter(store: Store): Router {
   return r;
 }
 
-/** POST /v1/admin/entitle { email, entitled } — grant/revoke owner access by hand. */
+/** POST /v1/admin/entitle { email, entitled } — grant/revoke owner access by hand.
+ *  POST /v1/admin/units { botNumber?, claimCode?, email?, note? } — register a unit
+ *  (next serial if omitted); with an email it's bound + entitled at once.
+ *  GET  /v1/admin/units — the registry. */
 export function adminEntitleRouter(store: Store): Router {
   const r = Router();
+  const admin = (req: Request, res: Response): boolean => {
+    const want = process.env["NOBI_ADMIN_KEY"] ?? "";
+    const got = req.header("x-admin-key") ?? "";
+    if (!want || got.length !== want.length || !timingSafeEqual(Buffer.from(got), Buffer.from(want))) { res.status(401).json({ error: "unauthorized" }); return false; }
+    return true;
+  };
+  r.post("/units", async (req: Request, res: Response) => {
+    if (!admin(req, res)) return;
+    const b = (req.body ?? {}) as { botNumber?: string; claimCode?: string; email?: string; note?: string };
+    const botNumber = b.botNumber ? String(b.botNumber).replace(/\D+/g, "").padStart(7, "0") : await store.nextBotNumber();
+    if (await store.getUnit(botNumber)) { res.status(409).json({ error: "unit exists", botNumber }); return; }
+    const account = b.email ? await store.getAccountByEmail(b.email.toLowerCase()) : undefined;
+    if (b.email && !account) { res.status(404).json({ error: "no such account" }); return; }
+    const claimCode = b.claimCode ? String(b.claimCode).trim().toUpperCase() : undefined;
+    await store.createUnit({ botNumber, claimCodeHash: claimCode ? sha256(claimCode) : undefined, accountId: account?.id, createdAt: Date.now(), claimedAt: account ? Date.now() : undefined, note: b.note });
+    if (account) { const current = (await store.getProfile(account.id)) ?? {}; await store.setProfile(account.id, { ...current, entitled: true, botNumber }); }
+    res.json({ ok: true, botNumber, claimCode: claimCode ?? null, boundTo: account?.email ?? null });
+  });
+  r.get("/units", async (req: Request, res: Response) => {
+    if (!admin(req, res)) return;
+    const units = await store.listUnits();
+    const rows = [];
+    for (const u of units) { const a = u.accountId ? await store.getAccountById(u.accountId) : undefined; rows.push({ botNumber: u.botNumber, owner: a?.email ?? null, hasClaimCode: !!u.claimCodeHash, createdAt: u.createdAt, claimedAt: u.claimedAt ?? null, note: u.note ?? null }); }
+    res.json({ units: rows });
+  });
   r.post("/entitle", async (req: Request, res: Response) => {
     const want = process.env["NOBI_ADMIN_KEY"] ?? "";
     const got = req.header("x-admin-key") ?? "";

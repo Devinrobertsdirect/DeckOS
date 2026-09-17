@@ -58,12 +58,24 @@ export type Profile = {
   updatedAt: number;
 };
 
+/** A physical unit: its serial (bot #), an optional claim code, and the account that owns it. */
+export type Unit = {
+  botNumber: string;          // zero-padded, e.g. "0000042"
+  claimCodeHash?: string;     // sha256 of the code printed with the unit (optional)
+  accountId?: string;
+  createdAt: number;
+  claimedAt?: number;
+  note?: string;
+};
+
 type DbDoc = {
   accounts: Account[];
   sessions: Session[];
   vault: VaultEntry[];
   bots: Bot[];
   profiles: Profile[];
+  units: Unit[];
+  meta: { nextBot: number };
 };
 
 const MAX_SESSIONS_PER_ACCOUNT = 25;
@@ -100,10 +112,17 @@ export interface Store {
   setProfile(accountId: string, data: Record<string, unknown>): Promise<void>;
   /** Every stored profile (fulfilment: list saved build profiles). */
   listProfiles(): Promise<Profile[]>;
+
+  /** Serials: the next bot # (zero-padded, 7 digits), and the unit registry. */
+  nextBotNumber(): Promise<string>;
+  createUnit(u: Unit): Promise<void>;
+  getUnit(botNumber: string): Promise<Unit | undefined>;
+  updateUnit(botNumber: string, patch: Partial<Unit>): Promise<void>;
+  listUnits(): Promise<Unit[]>;
 }
 
 export class FileStore implements Store {
-  private doc: DbDoc = { accounts: [], sessions: [], vault: [], bots: [], profiles: [] };
+  private doc: DbDoc = { accounts: [], sessions: [], vault: [], bots: [], profiles: [], units: [], meta: { nextBot: 1 } };
   private file: string;
   private writeChain: Promise<void> = Promise.resolve();
   private flushTimer: NodeJS.Timeout | null = null;
@@ -123,6 +142,8 @@ export class FileStore implements Store {
         vault: parsed.vault ?? [],
         bots: parsed.bots ?? [],
         profiles: parsed.profiles ?? [],
+        units: parsed.units ?? [],
+        meta: { nextBot: parsed.meta?.nextBot ?? 1 },
       };
     } catch {
       /* first run or unreadable → start empty */
@@ -276,6 +297,29 @@ export class FileStore implements Store {
   }
   async listProfiles() {
     return [...this.doc.profiles];
+  }
+
+  async nextBotNumber() {
+    const n = this.doc.meta.nextBot++;
+    await this.persistNow();
+    return String(n).padStart(7, "0");
+  }
+  async createUnit(u: Unit) {
+    if (this.doc.units.some((x) => x.botNumber === u.botNumber)) throw new Error("unit exists");
+    this.doc.units.push(u);
+    const n = Number(u.botNumber);
+    if (Number.isFinite(n) && n >= this.doc.meta.nextBot) this.doc.meta.nextBot = n + 1;
+    await this.persistNow();
+  }
+  async getUnit(botNumber: string) {
+    return this.doc.units.find((x) => x.botNumber === botNumber);
+  }
+  async updateUnit(botNumber: string, patch: Partial<Unit>) {
+    const u = this.doc.units.find((x) => x.botNumber === botNumber);
+    if (u) { Object.assign(u, patch); await this.persistNow(); }
+  }
+  async listUnits() {
+    return [...this.doc.units];
   }
   async setProfile(accountId: string, data: Record<string, unknown>) {
     const existing = this.doc.profiles.find((p) => p.accountId === accountId);

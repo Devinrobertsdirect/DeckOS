@@ -30,6 +30,8 @@ const ProfileSchema = z.object({
   build: z.record(z.string(), z.unknown()).optional(),
   /** Nobi Cloud base URL — where "sync" redeems codes and pulls keys/settings. */
   cloudUrl: z.string().trim().url().max(200).optional(),
+  /** The unit's serial (bot #), printed with it. */
+  botNumber: z.string().trim().regex(/^\d{1,7}$/).optional(),
 });
 const BodySchema = z.object({ code: z.string().min(1), profile: ProfileSchema });
 
@@ -53,6 +55,7 @@ router.post("/provision", async (req, res) => {
   const applied = { botName: p.botName || undefined, ownerName: p.ownerName || undefined, personaId, eyeTheme: p.eyeTheme, accent: p.accent, at: new Date().toISOString() };
   if (applied.botName) await setConfig("ATLAS_BOT_NAME", applied.botName);
   if (p.cloudUrl) await setConfig("NOBI_CLOUD_URL", p.cloudUrl.replace(/\/+$/, ""));
+  if (p.botNumber) await setConfig("NOBI_BOT_NUMBER", p.botNumber.padStart(7, "0"));
   await setConfig("NOBI_BUILD_PROFILE", JSON.stringify({ ...applied, build: p.build ?? null }));
   broadcast({ type: "provision.apply", source: "provision", payload: applied, timestamp: new Date().toISOString() });
   res.json({ ok: true, applied });

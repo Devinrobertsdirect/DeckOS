@@ -22,6 +22,7 @@ import { READOUT_SKILLS } from "./skills-readouts.js";
 import { ACTION_SKILLS } from "./skills-actions.js";
 import { getOrCreatePairingCode } from "./pairing.js";
 import { syncFromCloud } from "./cloud-sync.js";
+import { getConfig } from "./app-config.js";
 
 // ── Client action contract (executed by PetShell) ────────────────────────────
 export type UiAction =
@@ -894,6 +895,17 @@ const syncAccount: Skill = {
   },
 };
 
+/** "what's your bot number / serial" → the unit's serial, digit by digit. */
+const botNumberSkill: Skill = {
+  id: "bot-number",
+  async handle({ lower }) {
+    if (!/\b(bot|serial|unit) (number|no\.?|#)\b|\bwhat number are you\b|\bwhich (unit|number) are you\b/.test(lower)) return null;
+    const n = (await getConfig("NOBI_BOT_NUMBER").catch(() => null)) ?? "";
+    if (!n) return { speak: "I do not have a bot number yet. I get one when I am registered." };
+    return { speak: `I am bot number ${n.split("").join(" ")}. Number ${Number(n)}.` };
+  },
+};
+
 /** "how can I get one of you" / "design me a new bot" → the 30-second order walkthrough. */
 const orderShow: Skill = {
   id: "order-show",
@@ -915,7 +927,7 @@ const shopSkill: Skill = {
 };
 
 const SKILLS: Skill[] = [
-  meetSomeone, pitchShow, demoShow, orderShow, syncAccount, phoneLink, myAddress, shopSkill,
+  meetSomeone, pitchShow, demoShow, orderShow, syncAccount, botNumberSkill, phoneLink, myAddress, shopSkill,
   releaseEstop, emergencyStop, spinSkill, wanderSkill, setSpeedSkill, stopSkill,
   experienceModeSkill, uiModeSkill, describeScreenSkill, survivorSkill, videoControlSkill, playVideoSkill,
   closeSkill, openSkill, controlDevice, readSensor, listDevices,

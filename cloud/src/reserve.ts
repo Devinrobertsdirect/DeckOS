@@ -91,10 +91,16 @@ export function reserveRouter(store: Store): Router {
       const accountId = meta["accountId"] ?? (obj["client_reference_id"] as string | undefined);
       if (accountId) {
         const current = (await store.getProfile(accountId)) ?? {};
+        // Every reservation is a unit: assign the next bot # and bind it to the account.
+        const prior = current["reservation"] as { botNumber?: string } | undefined;
+        const botNumber = prior?.botNumber ?? (await store.nextBotNumber());
+        if (!(await store.getUnit(botNumber))) await store.createUnit({ botNumber, accountId, createdAt: Date.now(), claimedAt: Date.now(), note: "reserved" });
         await store.setProfile(accountId, {
           ...current,
+          botNumber,
           reservation: {
             status: "reserved",
+            botNumber,
             sessionId: obj["id"],
             paymentIntent: obj["payment_intent"],
             amountTotal: obj["amount_total"],
@@ -125,7 +131,7 @@ export function adminRouter(store: Store): Router {
       const a = await store.getAccountById(p.accountId);
       rows.push({
         accountId: p.accountId, email: a?.email, displayName: a?.displayName,
-        ownerName: p.data["ownerName"], botName: p.data["botName"], emailUpdates: p.data["emailUpdates"],
+        botNumber: p.data["botNumber"] ?? null, ownerName: p.data["ownerName"], botName: p.data["botName"], emailUpdates: p.data["emailUpdates"],
         code: bp["code"], summary: bp["summary"], savedAt: bp["savedAt"],
         build: bp, reservation: p.data["reservation"] ?? null, updatedAt: p.updatedAt,
       });

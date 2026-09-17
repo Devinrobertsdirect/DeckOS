@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { X, User, KeyRound, Sparkles, Volume2, Eye, Smile, Palette, Cpu, Brain, Check, Trash2, Wifi, Activity, ShoppingBag, Smartphone } from "lucide-react";
+import { X, User, KeyRound, Sparkles, Volume2, Eye, Smile, Palette, Cpu, Brain, Check, Trash2, Wifi, Activity, ShoppingBag, Smartphone, RefreshCw, Cloud } from "lucide-react";
 import { ConnectivityPanel } from "@/pet/ConnectivityPanel";
 import { DiagPanel } from "@/components/DiagPanel";
 import { AtlasFace, FACE_THEMES, EMOJI_PACKS, useFaceTheme, saveFaceTheme, useEmojiPack } from "@/components/faces/AtlasFace";
@@ -53,6 +53,50 @@ function chip(active: boolean) {
 }
 
 const SHOP_URL = "https://developmentindustries.org/build";
+
+/** Cloud status + "Sync now" + the three words from the site — same as the website's Sync, from the robot's side. */
+function CloudSync() {
+  const [st, setSt] = useState<{ url: string; connected: boolean; email: string | null; botNumber: string | null } | null>(null);
+  const [code, setCode] = useState("");
+  const [msg, setMsg] = useState("");
+  const [busy, setBusyState] = useState(false);
+  const base = import.meta.env.BASE_URL;
+  const load = () => fetch(`${base}api/provision`).then((r) => r.json()).then((j: { cloud?: typeof st }) => setSt(j.cloud ?? null)).catch(() => setSt(null));
+  useEffect(() => { void load(); }, []);
+  const sync = async (withCode?: string) => {
+    setBusyState(true); setMsg(withCode ? "Redeeming your code…" : "Syncing…");
+    try {
+      const r = await fetch(`${base}api/provision/sync`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(withCode ? { code: withCode } : {}) });
+      const j = (await r.json()) as { ok: boolean; error?: string; ownerName?: string; keys?: string[] };
+      if (j.ok) { setMsg(`Synced${j.ownerName ? ` — hello, ${j.ownerName}` : ""}. ${j.keys?.length ?? 0} key${(j.keys?.length ?? 0) === 1 ? "" : "s"} in. Settings applied.`); setCode(""); void load(); }
+      else setMsg({ no_cloud: "No cloud configured on this Nobi yet.", bad_code: "That code didn't work — get a fresh one from the site.", no_token: "Enter the three words from the site's Sync button.", expired: "Session expired — get a fresh code from the site." }[j.error ?? ""] ?? `Sync failed: ${j.error ?? "unknown"}`);
+    } catch { setMsg("Couldn't reach the brain."); }
+    setBusyState(false);
+  };
+  const hooked = !!st?.url;
+  return (
+    <div className="space-y-3">
+      <div className="text-sm text-foreground/80">
+        {st === null ? "Checking…" : !hooked ? "Not hooked up to a cloud yet — it's set when this Nobi is provisioned." : st.connected ? `Connected${st.email ? ` as ${st.email}` : ""}${st.botNumber ? ` · Nobi #${st.botNumber}` : ""}.` : `Hooked up to ${st.url.replace(/^https?:\/\//, "")}. Not synced to an account yet.`}
+      </div>
+      {hooked && (
+        <div className="flex flex-wrap items-center gap-2">
+          {st?.connected && (
+            <button type="button" className={chip(false) + " gap-2"} disabled={busy} onClick={() => void sync()}>
+              <RefreshCw className="h-3.5 w-3.5" /> Sync now
+            </button>
+          )}
+          <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="three words from the site, e.g. apple river stone" className="max-w-xs" />
+          <button type="button" className={chip(false) + " gap-2"} disabled={busy || code.trim().split(/\s+/).length < 3} onClick={() => void sync(code.trim())}>
+            <Cloud className="h-3.5 w-3.5" /> Sync with code
+          </button>
+        </div>
+      )}
+      {msg && <div className="text-xs text-foreground/70">{msg}</div>}
+      {hooked && <div className="text-xs text-foreground/50">Get a code: developmentindustries.org/talk → Sync my Nobi. Or just say it: “Hey Nobi, sync apple river stone.”</div>}
+    </div>
+  );
+}
 
 export function BuddySettings({ onClose, onShowLink }: {
   onClose: () => void;
@@ -128,6 +172,10 @@ export function BuddySettings({ onClose, onShowLink }: {
 
       <div className="mx-auto max-w-3xl space-y-10 px-5 py-8 sm:px-8">
         {/* ── Names ─────────────────────────────────────────────────────── */}
+        <Section icon={<Cloud className="h-4 w-4" />} title="Your account" subtitle="Sync pulls your keys and settings from developmentindustries.org into this Nobi.">
+          <CloudSync />
+        </Section>
+
         <Section icon={<ShoppingBag className="h-4 w-4" />} title="Shop" subtitle="Design a Nobi: shell, faceplate, eyes, accessories, a name. Every combination composes.">
           <div className="flex flex-wrap gap-2">
             <button type="button" className={chip(false) + " gap-2"}

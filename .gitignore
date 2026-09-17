@@ -58,3 +58,6 @@ Thumbs.db
 dist-robot/
 core/server/server-deploy.tgz
 **/mobile-dist/
+
+# local Nobi Cloud dev data (accounts, sessions)
+cloud/.neura-cloud/

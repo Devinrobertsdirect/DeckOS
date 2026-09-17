@@ -15,18 +15,31 @@
 import { Router, type Request, type Response } from "express";
 import { timingSafeEqual } from "node:crypto";
 import type { Store } from "./store.js";
-import { requireAuth, type AuthedRequest } from "./auth.js";
+import { requireAuth, validateSession, type AuthedRequest } from "./auth.js";
 import { decryptSecret, randomToken, sha256 } from "./crypto.js";
 
 const WORDS = ["apple", "river", "stone", "maple", "cloud", "tiger", "ocean", "piano", "lemon", "cedar", "comet", "delta", "ember", "falcon", "garden", "harbor", "island", "jasper", "kettle", "lantern", "meadow", "nectar", "orbit", "pepper", "quartz", "raven", "saddle", "timber", "velvet", "willow", "yonder", "zephyr"];
 const CODE_TTL_MS = 10 * 60_000;
-const codes = new Map<string, { accountId: string; exp: number }>();
 
-export function isOwner(profile: Record<string, unknown> | undefined): boolean {
+/** Admin accounts (NOBI_ADMIN_EMAILS, comma-separated) — admins are owners too. */
+export function isAdminEmail(email: string | undefined): boolean {
+  if (!email) return false;
+  const list = (process.env["NOBI_ADMIN_EMAILS"] ?? "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
+  return list.includes(email.toLowerCase());
+}
+
+/** A reservation counts once the card is on file, a deposit is paid, or the build is paid. */
+export const RESERVED_STATUSES = new Set(["reserved", "card_on_file", "paid"]);
+export function isReserved(profile: Record<string, unknown> | undefined): boolean {
+  const r = profile?.["reservation"] as { status?: string } | undefined;
+  return RESERVED_STATUSES.has(r?.status ?? "");
+}
+
+export function isOwner(profile: Record<string, unknown> | undefined, email?: string): boolean {
+  if (isAdminEmail(email)) return true;
   if (!profile) return false;
   if (profile["entitled"] === true) return true;
-  const r = profile["reservation"] as { status?: string } | undefined;
-  return r?.status === "reserved";
+  return isReserved(profile);
 }
 
 /** Everything a robot needs to become this account's Nobi. */
@@ -47,28 +60,26 @@ export function syncRouter(store: Store): Router {
   r.get("/entitlement", requireAuth(store), async (req: AuthedRequest, res: Response) => {
     const profile = (await store.getProfile(req.account!.id)) ?? {};
     const keys = (await store.listKeys(req.account!.id)).map((k) => k.name);
-    const reservation = profile["reservation"] as { status?: string } | undefined;
-    res.json({ owner: isOwner(profile), reserved: reservation?.status === "reserved", entitled: profile["entitled"] === true, botNumber: profile["botNumber"] ?? null, keys });
+    res.json({ owner: isOwner(profile, req.account!.email), admin: isAdminEmail(req.account!.email), reserved: isReserved(profile), entitled: profile["entitled"] === true, botNumber: profile["botNumber"] ?? null, keys });
   });
 
   // POST /v1/sync/code (auth) → { code: "apple river stone", expiresAt }
   r.post("/sync/code", requireAuth(store), async (req: AuthedRequest, res: Response) => {
     const profile = await store.getProfile(req.account!.id);
-    if (!isOwner(profile)) { res.status(403).json({ error: "owners_only" }); return; }
-    for (const [k, v] of codes) if (v.exp < Date.now() || v.accountId === req.account!.id) codes.delete(k);
+    if (!isOwner(profile, req.account!.email)) { res.status(403).json({ error: "owners_only" }); return; }
     let code = "";
-    do { code = [0, 1, 2].map(() => WORDS[Math.floor(Math.random() * WORDS.length)]!).join(" "); } while (codes.has(code));
+    do { code = [0, 1, 2].map(() => WORDS[Math.floor(Math.random() * WORDS.length)]!).join(" "); } while (await store.kvGet(`synccode/${code}`));
     const exp = Date.now() + CODE_TTL_MS;
-    codes.set(code, { accountId: req.account!.id, exp });
+    await store.kvSet(`synccode/${code}`, { accountId: req.account!.id, exp });
     res.json({ code, expiresAt: new Date(exp).toISOString() });
   });
 
   // POST /v1/sync/redeem { code } — the ROBOT calls this (no login). Single use.
   r.post("/sync/redeem", async (req: Request, res: Response) => {
     const raw = String((req.body as { code?: string })?.code ?? "").toLowerCase().replace(/[^a-z ]+/g, " ").replace(/\s+/g, " ").trim();
-    const hit = codes.get(raw);
+    const hit = await store.kvGet<{ accountId: string; exp: number }>(`synccode/${raw}`);
     if (!hit || hit.exp < Date.now()) { res.status(404).json({ error: "bad_or_expired_code" }); return; }
-    codes.delete(raw);
+    await store.kvDel(`synccode/${raw}`);
     const token = randomToken(32);
     const now = Date.now();
     await store.createSession({ tokenHash: sha256(token), accountId: hit.accountId, createdAt: now, lastSeen: now });
@@ -111,14 +122,17 @@ export function syncRouter(store: Store): Router {
  *  GET  /v1/admin/units — the registry. */
 export function adminEntitleRouter(store: Store): Router {
   const r = Router();
-  const admin = (req: Request, res: Response): boolean => {
+  const admin = async (req: Request, res: Response): Promise<boolean> => {
     const want = process.env["NOBI_ADMIN_KEY"] ?? "";
     const got = req.header("x-admin-key") ?? "";
-    if (!want || got.length !== want.length || !timingSafeEqual(Buffer.from(got), Buffer.from(want))) { res.status(401).json({ error: "unauthorized" }); return false; }
-    return true;
+    if (want && got.length === want.length && timingSafeEqual(Buffer.from(got), Buffer.from(want))) return true;
+    // …or a signed-in admin (NOBI_ADMIN_EMAILS)
+    const bearer = (req.header("authorization") ?? "").replace(/^Bearer\s+/i, "");
+    if (bearer) { const acct = await validateSession(store, bearer); if (acct && isAdminEmail(acct.email)) return true; }
+    res.status(401).json({ error: "unauthorized" }); return false;
   };
   r.post("/units", async (req: Request, res: Response) => {
-    if (!admin(req, res)) return;
+    if (!(await admin(req, res))) return;
     const b = (req.body ?? {}) as { botNumber?: string; claimCode?: string; email?: string; note?: string };
     const botNumber = b.botNumber ? String(b.botNumber).replace(/\D+/g, "").padStart(7, "0") : await store.nextBotNumber();
     if (await store.getUnit(botNumber)) { res.status(409).json({ error: "unit exists", botNumber }); return; }
@@ -129,17 +143,41 @@ export function adminEntitleRouter(store: Store): Router {
     if (account) { const current = (await store.getProfile(account.id)) ?? {}; await store.setProfile(account.id, { ...current, entitled: true, botNumber }); }
     res.json({ ok: true, botNumber, claimCode: claimCode ?? null, boundTo: account?.email ?? null });
   });
+  // POST /v1/admin/units/assign { botNumber, email | null } — (re)bind or release a unit.
+  r.post("/units/assign", async (req: Request, res: Response) => {
+    if (!(await admin(req, res))) return;
+    const b = (req.body ?? {}) as { botNumber?: string; email?: string | null };
+    const botNumber = String(b.botNumber ?? "").replace(/\D+/g, "").padStart(7, "0");
+    const unit = await store.getUnit(botNumber);
+    if (!unit) { res.status(404).json({ error: "unknown_unit" }); return; }
+    // release from the current owner
+    if (unit.accountId) {
+      const prev = (await store.getProfile(unit.accountId)) ?? {};
+      if (prev["botNumber"] === botNumber) { const { botNumber: _b, ...rest } = prev; await store.setProfile(unit.accountId, { ...rest, entitled: isReserved(rest) ? rest["entitled"] : false }); }
+    }
+    const account = b.email ? await store.getAccountByEmail(String(b.email).toLowerCase()) : undefined;
+    if (b.email && !account) { res.status(404).json({ error: "no such account" }); return; }
+    await store.updateUnit(botNumber, { accountId: account?.id, claimedAt: account ? Date.now() : undefined });
+    if (account) { const cur = (await store.getProfile(account.id)) ?? {}; await store.setProfile(account.id, { ...cur, entitled: true, botNumber }); }
+    res.json({ ok: true, botNumber, owner: account?.email ?? null });
+  });
+  // GET /v1/admin/accounts — who has signed up (no secrets).
+  r.get("/accounts", async (req: Request, res: Response) => {
+    if (!(await admin(req, res))) return;
+    const rows = [];
+    for (const p of await store.listProfiles()) { const a = await store.getAccountById(p.accountId); rows.push({ email: a?.email, displayName: a?.displayName, createdAt: a?.createdAt, botNumber: p.data["botNumber"] ?? null, entitled: p.data["entitled"] === true, reserved: isReserved(p.data), status: (p.data["reservation"] as { status?: string } | undefined)?.status ?? null, emailUpdates: p.data["emailUpdates"] === true }); }
+    res.json({ accounts: rows });
+  });
+
   r.get("/units", async (req: Request, res: Response) => {
-    if (!admin(req, res)) return;
+    if (!(await admin(req, res))) return;
     const units = await store.listUnits();
     const rows = [];
     for (const u of units) { const a = u.accountId ? await store.getAccountById(u.accountId) : undefined; rows.push({ botNumber: u.botNumber, owner: a?.email ?? null, hasClaimCode: !!u.claimCodeHash, createdAt: u.createdAt, claimedAt: u.claimedAt ?? null, note: u.note ?? null }); }
     res.json({ units: rows });
   });
   r.post("/entitle", async (req: Request, res: Response) => {
-    const want = process.env["NOBI_ADMIN_KEY"] ?? "";
-    const got = req.header("x-admin-key") ?? "";
-    if (!want || got.length !== want.length || !timingSafeEqual(Buffer.from(got), Buffer.from(want))) { res.status(401).json({ error: "unauthorized" }); return; }
+    if (!(await admin(req, res))) return;
     const { email, entitled } = (req.body ?? {}) as { email?: string; entitled?: boolean };
     const account = email ? await store.getAccountByEmail(email.toLowerCase()) : undefined;
     if (!account) { res.status(404).json({ error: "no such account" }); return; }

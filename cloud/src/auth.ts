@@ -12,6 +12,7 @@
  * (async, non-blocking) and login is timing-equalized against a dummy hash so the
  * response time can't be used to enumerate which emails have accounts.
  */
+import { isAdminEmail } from "./sync.js";
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { z } from "zod";
 import type { Store, Account } from "./store.js";
@@ -206,7 +207,7 @@ export function authRouter(store: Store): Router {
   });
 
   r.get("/me", requireAuth(store), async (req: AuthedRequest, res: Response) => {
-    res.json({ user: publicUser(req.account!) });
+    res.json({ admin: isAdminEmail(req.account!.email), user: publicUser(req.account!) });
   });
 
   return r;

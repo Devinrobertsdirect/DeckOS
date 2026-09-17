@@ -37,6 +37,20 @@ export function createApp(store: Store = new FileStore()): {
   // Behind Replit's / a cloud proxy, so req.ip reflects the client, not the proxy.
   app.set("trust proxy", 1);
   app.use(cors());
+  // In a serverless runtime (Netlify Function) the body arrives pre-read as a
+  // Buffer and body-parser skips it — parse it here and keep the raw bytes (the
+  // Stripe webhook signature is computed over them). Under node:http this is a no-op.
+  app.use((req, _res, next) => {
+    const r = req as express.Request & { rawBody?: Buffer };
+    const b = r.body as unknown;
+    if (Buffer.isBuffer(b)) {
+      r.rawBody = b;
+      const ct = String(req.headers["content-type"] ?? "");
+      if (ct.includes("application/json")) { try { r.body = b.length ? JSON.parse(b.toString("utf8")) : {}; } catch { r.body = {}; } }
+      else if (ct.includes("application/x-www-form-urlencoded")) r.body = Object.fromEntries(new URLSearchParams(b.toString("utf8")));
+    }
+    next();
+  });
   // Keep the raw body: the Stripe webhook signature is computed over the exact bytes.
   app.use(express.json({ limit: "1mb", verify: (req, _res, buf) => { (req as express.Request & { rawBody?: Buffer }).rawBody = buf; } }));
 

@@ -144,7 +144,7 @@ export function brainRouter(store: Store): Router {
       return;
     }
     // Owners only: the web face is for people who reserved a Nobi (or were entitled).
-    if (!isOwner(await store.getProfile(req.account!.id))) {
+    if (!isOwner(await store.getProfile(req.account!.id), req.account!.email)) {
       res.status(403).json({ error: "owners_only", message: "The web face is for Nobi owners. Reserve yours to unlock it." });
       return;
     }

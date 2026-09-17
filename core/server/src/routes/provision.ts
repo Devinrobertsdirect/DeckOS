@@ -71,7 +71,11 @@ router.post("/provision/sync", async (req, res) => {
 router.get("/provision", async (req, res) => {
   if (!isPrivate(req)) { res.status(403).json({ error: "local network only" }); return; }
   const raw = await getConfig("NOBI_BUILD_PROFILE").catch(() => null);
-  res.json({ profile: raw ? JSON.parse(raw) : null });
+  const profile = raw ? (JSON.parse(raw) as Record<string, unknown>) : null;
+  const cloudUrl = (await getConfig("NOBI_CLOUD_URL").catch(() => null)) ?? process.env["NOBI_CLOUD_URL"] ?? "";
+  const connected = !!(await getConfig("NOBI_CLOUD_TOKEN").catch(() => null));
+  const botNumber = (await getConfig("NOBI_BOT_NUMBER").catch(() => null)) ?? null;
+  res.json({ profile, cloud: { url: cloudUrl, connected, email: connected ? (profile?.["email"] ?? null) : null, botNumber } });
 });
 
 export default router;

@@ -26,7 +26,7 @@ export function ttsRouter(store: Store): Router {
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) { res.status(400).json({ error: "text required" }); return; }
     const accountId = req.account!.id;
-    if (!isOwner(await store.getProfile(accountId))) { res.status(403).json({ error: "owners_only" }); return; }
+    if (!isOwner(await store.getProfile(accountId), req.account!.email)) { res.status(403).json({ error: "owners_only" }); return; }
     const entry = await store.getKey(accountId, "ELEVENLABS_API_KEY");
     if (!entry) { res.status(412).json({ error: "no_key" }); return; }
     let key = "";

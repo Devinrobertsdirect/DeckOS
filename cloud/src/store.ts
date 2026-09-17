@@ -76,6 +76,7 @@ type DbDoc = {
   profiles: Profile[];
   units: Unit[];
   meta: { nextBot: number };
+  kv?: Record<string, unknown>;
 };
 
 const MAX_SESSIONS_PER_ACCOUNT = 25;
@@ -119,6 +120,11 @@ export interface Store {
   getUnit(botNumber: string): Promise<Unit | undefined>;
   updateUnit(botNumber: string, patch: Partial<Unit>): Promise<void>;
   listUnits(): Promise<Unit[]>;
+
+  /** Small key/value (sync codes and the like) — shared across function instances. */
+  kvGet<T = unknown>(key: string): Promise<T | undefined>;
+  kvSet(key: string, value: unknown): Promise<void>;
+  kvDel(key: string): Promise<void>;
 }
 
 export class FileStore implements Store {
@@ -321,6 +327,10 @@ export class FileStore implements Store {
   async listUnits() {
     return [...this.doc.units];
   }
+
+  async kvGet<T = unknown>(key: string) { return (this.doc.kv ?? {})[key] as T | undefined; }
+  async kvSet(key: string, value: unknown) { (this.doc.kv ??= {})[key] = value; await this.persistNow(); }
+  async kvDel(key: string) { if (this.doc.kv) { delete this.doc.kv[key]; await this.persistNow(); } }
   async setProfile(accountId: string, data: Record<string, unknown>) {
     const existing = this.doc.profiles.find((p) => p.accountId === accountId);
     if (existing) {

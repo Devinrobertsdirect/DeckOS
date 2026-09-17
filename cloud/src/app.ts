@@ -19,6 +19,7 @@ import { authRouter } from "./auth.js";
 import { vaultRouter } from "./vault.js";
 import { profileRouter } from "./profile.js";
 import { reserveRouter, adminRouter } from "./reserve.js";
+import { syncRouter, adminEntitleRouter } from "./sync.js";
 import { brainRouter } from "./brain.js";
 import { botsRouter, RelayHub } from "./relay.js";
 import { vaultKeyConfigured } from "./crypto.js";
@@ -76,6 +77,8 @@ export function createApp(store: Store = new FileStore()): {
   app.use("/v1/profile", profileRouter(store));
   app.use("/v1/reserve", reserveRouter(store));
   app.use("/v1/admin", adminRouter(store));
+  app.use("/v1/admin", adminEntitleRouter(store));
+  app.use("/v1", syncRouter(store));
   app.use("/v1/chat", brainRouter(store));
   app.use("/v1/bots", botsRouter(store, hub));
 

@@ -186,6 +186,9 @@ export function sfxForScene(scene: string | null): (() => void) | null {
     case "trick": sfx.tada(); return null;
     case "core": case "orbit": case "desk": sfx.chime(); return null;
     case "name": sfx.sparkle(); return null;
+    case "studioShell": case "studioEyes": case "studioName": sfx.chime(); return null;
+    case "studioGear": sfx.pop(0.3, 0.3); sfx.pop(2.0, 0.3); sfx.pop(3.8, 0.3); return null;
+    case "qr": sfx.sparkle(); sfx.chime(); return null;
     case "gears": return sfx.gears();
     default: return null;
   }

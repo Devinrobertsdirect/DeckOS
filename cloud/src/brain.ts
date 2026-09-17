@@ -12,6 +12,7 @@ import { Router, type Response } from "express";
 import { z } from "zod";
 import type { Store } from "./store.js";
 import { requireAuth, type AuthedRequest } from "./auth.js";
+import { isOwner } from "./sync.js";
 import { decryptSecret } from "./crypto.js";
 import { rateLimit } from "./ratelimit.js";
 
@@ -54,6 +55,30 @@ async function accountKey(store: Store, accountId: string, name: string): Promis
     return decryptSecret(entry.ciphertext, `${accountId}:${name}`);
   } catch {
     return "";
+  }
+}
+
+const OPENROUTER_MODEL = process.env.NEURA_CLOUD_OPENROUTER_MODEL || "anthropic/claude-sonnet-4.5";
+async function callOpenRouter(
+  key: string,
+  system: string | undefined,
+  messages: Array<{ role: "user" | "assistant"; content: string }>,
+): Promise<{ reply: string; model: string }> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "content-type": "application/json", "HTTP-Referer": "https://developmentindustries.org", "X-Title": "Nobi" },
+      body: JSON.stringify({ model: OPENROUTER_MODEL, max_tokens: DEFAULT_MAX_TOKENS, messages: [...(system ? [{ role: "system", content: system }] : []), ...messages] }),
+      signal: controller.signal,
+    });
+    if (!res.ok) { const body = await res.text(); throw new Error(`OpenRouter ${res.status}: ${body.slice(0, 300)}`); }
+    const data = (await res.json()) as { model?: string; choices?: Array<{ message?: { content?: string } }> };
+    const reply = (data.choices?.[0]?.message?.content ?? "").trim();
+    return { reply: reply || "(no response)", model: data.model || OPENROUTER_MODEL };
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -118,11 +143,18 @@ export function brainRouter(store: Store): Router {
       res.status(400).json({ error: "message required" });
       return;
     }
-    const key = await accountKey(store, req.account!.id, "ANTHROPIC_API_KEY");
+    // Owners only: the web face is for people who reserved a Nobi (or were entitled).
+    if (!isOwner(await store.getProfile(req.account!.id))) {
+      res.status(403).json({ error: "owners_only", message: "The web face is for Nobi owners. Reserve yours to unlock it." });
+      return;
+    }
+    // Bring your own model: OpenRouter first (what the robot runs), else Anthropic.
+    const orKey = await accountKey(store, req.account!.id, "OPENROUTER_API_KEY");
+    const key = orKey || (await accountKey(store, req.account!.id, "ANTHROPIC_API_KEY"));
     if (!key) {
       res.status(412).json({
         error: "no_key",
-        message: "Add your Anthropic API key in Settings to use online mode.",
+        message: "Add your OpenRouter or Anthropic API key to use the web face.",
       });
       return;
     }
@@ -131,7 +163,7 @@ export function brainRouter(store: Store): Router {
       { role: "user" as const, content: parsed.data.message },
     ];
     try {
-      const out = await callClaude(key, parsed.data.system, messages);
+      const out = orKey ? await callOpenRouter(orKey, parsed.data.system, messages) : await callClaude(key, parsed.data.system, messages);
       res.json(out);
     } catch (err) {
       res.status(502).json({ error: "brain_error", message: redact(err, key) });

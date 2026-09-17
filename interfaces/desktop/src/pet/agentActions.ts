@@ -38,7 +38,7 @@ export type UiAction =
   | { type: "openTutorial" }
   | { type: "showLink"; title: string; url: string; code?: string; hint?: string }
   | { type: "closeOverlay" }
-  | { type: "show"; kind: "demo" | "pitch" }
+  | { type: "show"; kind: "demo" | "pitch" | "order" }
   | { type: "meet"; name?: string; relation?: string }
   | { type: "replayLast" };
 
@@ -60,7 +60,7 @@ export interface ActionHelpers {
   /** Close any full-screen overlay (image / tutorial) — back to the face. */
   closeOverlay?: () => void;
   /** Run a built-in show: the ~2min "quick demo" or the ~90s "tell them about you" pitch. */
-  playShow?: (kind: "demo" | "pitch") => void;
+  playShow?: (kind: "demo" | "pitch" | "order") => void;
 }
 
 /** Run a client action. Returns a deferred effect to run after Atlas speaks, or null. */

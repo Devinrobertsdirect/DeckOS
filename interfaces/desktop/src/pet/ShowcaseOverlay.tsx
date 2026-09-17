@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import type * as THREE from "three";
+import qrcode from "qrcode-generator";
 
 /**
  * ShowcaseOverlay — Nobi's stage. A Three.js layer over (or instead of) the
@@ -39,6 +40,7 @@ import type * as THREE from "three";
  */
 export type ShowcaseScene =
   | "boot" | "core" | "orbit" | "warp" | "finale" | "bowl" | "drive" | "desk"
+  | "studioShell" | "studioEyes" | "studioGear" | "studioName" | "qr"
   | "faces" | "helmet" | "lab" | "labpop" | "sparkle" | "hearts" | "confetti" | "trick" | "hud" | "gears" | "name"
   | "out";
 
@@ -46,10 +48,16 @@ export const TRANSPARENT_SCENES: ReadonlySet<ShowcaseScene> = new Set<ShowcaseSc
   "faces", "helmet", "lab", "labpop", "sparkle", "hearts", "confetti", "trick", "hud", "gears", "name", "out",
 ]);
 
+/** Opaque scenes drawn on a light Apple-studio background instead of the night stage. */
+export const LIGHT_SCENES: ReadonlySet<ShowcaseScene> = new Set<ShowcaseScene>(["studioShell", "studioEyes", "studioGear", "studioName", "qr"]);
+const STUDIO_BG = 0xf5f5f7;
+export const SHOP_URL = "https://developmentindustries.org/build";
+
 type ThreeMod = typeof import("three");
-type RigKey = "boot" | "core" | "orbit" | "warp" | "finale" | "bowl" | "drive" | "desk" | "faces" | "helmet" | "lab" | "sparkle" | "hearts" | "confetti" | "trick" | "hud" | "gears" | "name";
+type RigKey = "boot" | "core" | "orbit" | "warp" | "finale" | "bowl" | "drive" | "desk" | "studio" | "qr" | "faces" | "helmet" | "lab" | "sparkle" | "hearts" | "confetti" | "trick" | "hud" | "gears" | "name";
 const RIG_FOR: Record<Exclude<ShowcaseScene, "out">, RigKey> = {
   boot: "boot", core: "core", orbit: "orbit", warp: "warp", finale: "finale", bowl: "bowl", drive: "drive", desk: "desk",
+  studioShell: "studio", studioEyes: "studio", studioGear: "studio", studioName: "studio", qr: "qr",
   faces: "faces", helmet: "helmet", lab: "lab", labpop: "lab", sparkle: "sparkle", hearts: "hearts", confetti: "confetti", trick: "trick",
   hud: "hud", gears: "gears", name: "name",
 };
@@ -513,7 +521,11 @@ function buildWarp(T: ThreeMod, label: string | null): Rig {
 // One continuous white curve, smoked-glass face, antenna loop, charcoal base
 // with the gold stripe, five speaker dots, one wheel. Toon ink outlines come
 // from an inverted back-face hull behind each shell piece. Faces +z.
-interface Mark1 { bot: THREE.Group; wheel: THREE.Group; eyeL: THREE.Mesh; eyeR: THREE.Mesh; loop: THREE.Mesh; loopGlow: ReturnType<typeof points> }
+interface Mark1 {
+  bot: THREE.Group; wheel: THREE.Group; eyeL: THREE.Mesh; eyeR: THREE.Mesh; loop: THREE.Mesh; loopGlow: ReturnType<typeof points>;
+  /** recolorable parts (the studio show cycles them) */
+  shell: THREE.Mesh; face: THREE.Mesh; stripe: THREE.Mesh; base: THREE.Mesh; eyeGlow: ReturnType<typeof points>; foot: THREE.Mesh;
+}
 function buildMark1(T: ThreeMod, glowTex: THREE.Texture): Mark1 {
   const INK = 0x101d2e, PAPER = 0xf7f5f0, GLASS = 0x1e2a38, BASE = 0x1c2634, STRIPE = 0xe0a64b;
   const hull = (geo: THREE.BufferGeometry, s: number): THREE.Mesh => { const m = new T.Mesh(geo, new T.MeshBasicMaterial({ color: INK, side: T.BackSide })); m.scale.setScalar(s); return m; };
@@ -544,7 +556,7 @@ function buildMark1(T: ThreeMod, glowTex: THREE.Texture): Mark1 {
   wheel.add(foot); wheel.position.y = -0.14;
   loop.visible = false; loopGlow.pts.visible = false;   // V1 has no antenna (kept for the rigs that animate it)
   bot.add(shellInk, shell, face, faceRim, eyeL, eyeR, eyeGlow.pts, loop, loopGlow.pts, earL, earR, dots, baseInk, base, stripe, wheel);
-  return { bot, wheel, eyeL, eyeR, loop, loopGlow };
+  return { bot, wheel, eyeL, eyeR, loop, loopGlow, shell, face, stripe, base, eyeGlow, foot };
 }
 
 // ── drive: the Mark 1 rolls in from the left, skids, turns to camera, settles ─
@@ -617,6 +629,145 @@ function buildDrive(T: ThreeMod): Rig {
       (loopGlow.pts.material as THREE.PointsMaterial).opacity = 0.35 + 0.35 * Math.sin(t * 5);
     },
     dispose: () => disposeGroup(group),
+  };
+}
+
+// ── studio: the Apple-white product studio for the "how do I get one" show ───
+// One rig, four scenes (RIG_FOR maps them all here): studioShell cycles shell
+// colors, studioEyes cycles the eye color (the accent follows: seam, gear
+// details), studioGear pops the real accessories on, studioName engraves the
+// name on the base. Light background — the ink outlines carry the drawing.
+const SHELL_CYCLE = [0xffffff, 0x2b3440, 0x6d2b25, 0xb99a6b, 0x9db8a4, 0xa9c6e8, 0xefc3c8, 0x182338];
+const EYE_CYCLE = [0xc9dcf0, 0xf5b83d, 0x5ce0b8, 0xff8fb0, 0xc08bff, 0xff7a3d];
+function nameTexture(T: ThreeMod, text: string, dark: boolean, px = 54): THREE.Texture {
+  const c = document.createElement("canvas"); c.width = 512; c.height = 96;
+  const g = c.getContext("2d")!;
+  g.clearRect(0, 0, 512, 96);
+  g.fillStyle = dark ? "#f7f5f0" : "#101d2e"; g.textAlign = "center"; g.textBaseline = "middle";
+  let size = px;
+  do { g.font = `700 ${size}px ui-monospace, Menlo, Consolas, monospace`; size -= 2; } while (g.measureText(text).width > 496 && size > 14);   // fit the plate
+  g.fillText(text, 256, 50);
+  const t = new T.CanvasTexture(c); t.needsUpdate = true; return t;
+}
+function buildStudio(T: ThreeMod, getName: () => string): Rig {
+  const group = new T.Group();
+  const glowTex = radialTexture(T, "201,220,240");
+  const m1 = buildMark1(T, glowTex);
+  const { bot, eyeL, eyeR, shell, stripe, eyeGlow, foot } = m1;
+  const SC = 1.5; bot.scale.setScalar(SC); bot.position.set(0, -0.62, 0);
+  group.add(bot);
+  const floor = new T.Mesh(new T.PlaneGeometry(2.4, 0.5), new T.MeshBasicMaterial({ map: radialTexture(T, "29,29,31"), transparent: true, opacity: 0.22, depthWrite: false }));
+  floor.position.set(0, -0.86, -0.2); floor.scale.set(1, 0.3, 1);
+  group.add(floor);
+  // gear: cradle (car cup-holder carrier), charger pack, charging stand
+  const INK = 0x101d2e, GEAR = 0x1c2634;
+  const cradle = new T.Group();
+  const cup = new T.Mesh(new T.CylinderGeometry(0.44, 0.52, 0.5, 32, 1, true), flat(T, GEAR, 1, { side: T.DoubleSide })); cup.position.y = 0.05;
+  const cupBottom = new T.Mesh(new T.CylinderGeometry(0.52, 0.5, 0.06, 32), flat(T, GEAR, 1)); cupBottom.position.y = -0.2;
+  const taper = new T.Mesh(new T.CylinderGeometry(0.22, 0.18, 0.34, 24), flat(T, 0x121a26, 1)); taper.position.y = -0.4;
+  const cupLip = new T.Mesh(new T.TorusGeometry(0.44, 0.02, 8, 48), flat(T, INK, 1)); cupLip.position.y = 0.3; cupLip.rotation.x = Math.PI / 2;
+  const cupBand = new T.Mesh(new T.TorusGeometry(0.49, 0.014, 8, 48), flat(T, 0xc9dcf0, 1)); cupBand.position.y = -0.02; cupBand.rotation.x = Math.PI / 2;
+  cradle.add(cup, cupBottom, taper, cupLip, cupBand); cradle.position.set(0, -0.62, 0); cradle.scale.setScalar(0.001);
+  const pack = new T.Group();
+  const packBody = new T.Mesh(new T.BoxGeometry(0.22, 0.5, 0.16), flat(T, GEAR, 1));
+  const packInk = new T.Mesh(new T.BoxGeometry(0.22, 0.5, 0.16), new T.MeshBasicMaterial({ color: INK, side: T.BackSide })); packInk.scale.setScalar(1.06);
+  const packWin = new T.Mesh(new T.PlaneGeometry(0.1, 0.24), flat(T, 0xc9dcf0, 1)); packWin.position.set(0, 0.02, 0.081);
+  const packLvl = new T.Mesh(new T.PlaneGeometry(0.07, 0.1), flat(T, 0x1c2634, 1)); packLvl.position.set(0, -0.03, 0.082);
+  pack.add(packInk, packBody, packWin, packLvl); pack.position.set(0.5, 0.05, -0.05); pack.scale.setScalar(0.001);
+  const stand = new T.Group();
+  const standDisc = new T.Mesh(new T.CylinderGeometry(0.62, 0.66, 0.06, 40), flat(T, 0x2b3440, 1));
+  const standRing = new T.Mesh(new T.TorusGeometry(0.5, 0.02, 8, 48), flat(T, 0xc9dcf0, 1)); standRing.position.y = 0.035; standRing.rotation.x = Math.PI / 2;
+  stand.add(standDisc, standRing); stand.position.set(0, -0.88, 0); stand.scale.setScalar(0.001);
+  group.add(cradle, pack, stand);
+  const accentMeshes = [stripe, cupBand, packWin, standRing];
+  // name plate on the base
+  let nameMat = new T.MeshBasicMaterial({ map: nameTexture(T, "", true), transparent: true });
+  const plate = new T.Mesh(new T.PlaneGeometry(0.62, 0.116), nameMat); plate.position.set(0, -0.045 * SC - 0.62, 0.36 * SC);
+  group.add(plate);
+  let typed = -1;
+  let shellIdx = -1, eyeIdx = -1;
+  const setShell = (hex: number) => { (shell.material as THREE.MeshBasicMaterial).color.set(hex); };
+  const setEyes = (hex: number) => { for (const m of [eyeL, eyeR]) (m.material as THREE.MeshBasicMaterial).color.set(hex); eyeGlow.mat.color.set(hex); for (const a of accentMeshes) (a.material as THREE.MeshBasicMaterial).color.set(hex); };
+  const popIn = (g: THREE.Group, t: number, at: number) => { g.scale.setScalar(Math.max(0.001, easeOutBack((t - at) / 0.6))); };
+  return {
+    group,
+    update(t, dt, scene, ts) {
+      bot.position.y = -0.62 + 0.025 * Math.sin(t * 1.4);
+      bot.rotation.y = 0.18 * Math.sin(t * 0.5);
+      const blink = (t % 3.4) < 0.15 ? 0.12 : 1; eyeL.scale.y = blink; eyeR.scale.y = blink;
+      if (scene === "studioShell") {
+        const i = Math.min(SHELL_CYCLE.length - 1, Math.floor(ts / 0.75));
+        if (i !== shellIdx) { shellIdx = i; setShell(SHELL_CYCLE[i]!); shell.scale.setScalar(1.06); }
+        shell.scale.setScalar(1 + (shell.scale.x - 1) * Math.max(0, 1 - dt * 8));
+        bot.rotation.y = 0.55 * Math.sin(ts * 1.3);                    // shows both sides, never the back
+      } else if (scene === "studioEyes") {
+        const i = Math.min(EYE_CYCLE.length - 1, Math.floor(ts / 0.7));
+        if (i !== eyeIdx) { eyeIdx = i; setEyes(EYE_CYCLE[i]!); }
+        eyeGlow.mat.size = 0.42 + 0.12 * Math.abs(Math.sin(t * 5));
+        bot.rotation.y = 0.1 * Math.sin(t * 0.8);
+      } else if (scene === "studioGear") {
+        popIn(cradle, ts, 0.3); popIn(pack, ts, 2.0); popIn(stand, ts, 3.8);
+        foot.visible = ts < 0.3;                                      // it sits IN the cradle
+        pack.position.set(0.5 + 0.02 * Math.sin(t * 2), 0.05, -0.05);
+      } else if (scene === "studioName") {
+        cradle.scale.setScalar(Math.max(0.001, cradle.scale.x * (1 - dt * 4)));
+        pack.scale.setScalar(Math.max(0.001, pack.scale.x * (1 - dt * 4)));
+        stand.scale.setScalar(Math.max(0.001, stand.scale.x * (1 - dt * 4)));
+        foot.visible = true;
+        const full = (getName() || "YOURS").toUpperCase().slice(0, 12);
+        const n = Math.min(full.length, Math.floor(ts / 0.22));
+        if (n !== typed) { typed = n; nameMat.map?.dispose(); nameMat.map = nameTexture(T, full.slice(0, n) + (n < full.length ? "_" : ""), true); nameMat.needsUpdate = true; }
+        bot.rotation.y = 0;
+        bot.position.y = -0.62 + 0.02 * Math.sin(t * 1.4);
+      }
+    },
+    dispose: () => { nameMat.map?.dispose(); disposeGroup(group); },
+  };
+}
+
+// ── qr: the shop's QR assembles from scattered cubes (scannable when settled) ─
+function buildQr(T: ThreeMod, url: string): Rig {
+  const group = new T.Group();
+  const q = qrcode(0, "M"); q.addData(url); q.make();
+  const n = q.getModuleCount();
+  const cells: Array<[number, number]> = [];
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (q.isDark(r, c)) cells.push([r, c]);
+  const SIZE = 2.9, cell = SIZE / n;
+  const geo = new T.BoxGeometry(cell * 0.92, cell * 0.92, cell * 0.6);
+  const mesh = new T.InstancedMesh(geo, new T.MeshBasicMaterial({ color: 0x1d1d1f }), cells.length);
+  const from = new Float32Array(cells.length * 3), delay = new Float32Array(cells.length);
+  const M = new T.Matrix4(), P = new T.Vector3(), Q = new T.Quaternion(), S = new T.Vector3(1, 1, 1);
+  cells.forEach(([r, c], i) => {
+    const x = (c - n / 2 + 0.5) * cell, y = -(r - n / 2 + 0.5) * cell;
+    const a = rnd(0, Math.PI * 2), rad = rnd(2.4, 4.2);
+    from.set([Math.cos(a) * rad, Math.sin(a) * rad, rnd(-1.5, 1.5)], i * 3);
+    delay[i] = Math.hypot(x, y) / (SIZE * 0.72) * 0.9 + rnd(0, 0.25);
+    M.compose(P.set(from[i * 3]!, from[i * 3 + 1]!, from[i * 3 + 2]!), Q, S); mesh.setMatrixAt(i, M);
+  });
+  mesh.position.y = 0.12;
+  group.add(mesh);
+  const quiet = new T.Mesh(new T.PlaneGeometry(SIZE + cell * 4, SIZE + cell * 4), flat(T, 0xffffff, 1)); quiet.position.set(0, 0.12, -0.02);
+  group.add(quiet);
+  const capMat = new T.MeshBasicMaterial({ map: nameTexture(T, url.replace(/^https?:\/\//, ""), false, 40), transparent: true });
+  const cap = new T.Mesh(new T.PlaneGeometry(2.6, 0.48), capMat); cap.position.set(0, -1.72, 0.05);
+  group.add(cap);
+  return {
+    group,
+    update(t) {
+      const settled = t > 2.2;
+      cells.forEach(([r, c], i) => {
+        const x = (c - n / 2 + 0.5) * cell, y = -(r - n / 2 + 0.5) * cell;
+        const k = easeOut((t - delay[i]!) / 1.1);
+        const fx = from[i * 3]!, fy = from[i * 3 + 1]!, fz = from[i * 3 + 2]!;
+        P.set(fx + (x - fx) * k, fy + (y - fy) * k, fz * (1 - k));
+        Q.setFromAxisAngle(new T.Vector3(0.3, 1, 0.2).normalize(), (1 - k) * 4);
+        M.compose(P, Q, S); mesh.setMatrixAt(i, M);
+      });
+      mesh.instanceMatrix.needsUpdate = true;
+      group.scale.setScalar(settled ? 1 + 0.01 * Math.sin(t * 2) : 1);
+      (capMat as THREE.MeshBasicMaterial).opacity = easeOut((t - 1.8) / 0.8);
+    },
+    dispose: () => { capMat.map?.dispose(); disposeGroup(group); },
   };
 }
 
@@ -992,6 +1143,7 @@ export default function ShowcaseOverlay({ scene, label, nameTag, onSkip }: {
         bowl: buildBowl(T), faces: buildFaces(T), helmet: buildHelmet(T), lab: buildLab(T), sparkle: buildSparkle(T),
         hearts: buildHearts(T), confetti: buildConfetti(T), trick: buildTrick(T), hud: buildHud(T), gears: buildGears(T), drive: buildDrive(T),
         desk: buildDesk(T), name: buildName(T, nameTagRef.current),
+        studio: buildStudio(T, () => nameTagRef.current), qr: buildQr(T, SHOP_URL),
       };
       const keys = Object.keys(rigs) as RigKey[];
       const alpha: Record<string, number> = {};
@@ -1020,7 +1172,7 @@ export default function ShowcaseOverlay({ scene, label, nameTag, onSkip }: {
         const s = sceneRef.current;
         if (s !== activeScene) { activeScene = s; sceneStart = now; }
         const want = s === "out" ? null : RIG_FOR[s];
-        renderer.setClearColor(0x03060f, TRANSPARENT_SCENES.has(s) ? 0 : 1);
+        renderer.setClearColor(LIGHT_SCENES.has(s) ? STUDIO_BG : 0x03060f, TRANSPARENT_SCENES.has(s) ? 0 : 1);
         for (const k of keys) {
           const target = k === want ? 1 : 0;
           const a = alpha[k]!;
@@ -1052,6 +1204,6 @@ export default function ShowcaseOverlay({ scene, label, nameTag, onSkip }: {
   return (
     <div ref={hostRef} onClick={onSkip} role="presentation"
       className="fixed inset-0 z-[110] flex items-center justify-center transition-colors duration-700"
-      style={{ background: transparent ? "transparent" : "#03060f", cursor: "none" }} />
+      style={{ background: transparent ? "transparent" : LIGHT_SCENES.has(scene) ? "#f5f5f7" : "#03060f", cursor: "none" }} />
   );
 }

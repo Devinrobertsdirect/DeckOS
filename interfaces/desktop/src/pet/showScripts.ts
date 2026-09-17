@@ -264,6 +264,54 @@ export function buildPitchScript(bot: string, p: Persona): ShowBeat[] {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ORDER — "how can I get one of you" / "design me a new bot". ≤30s, no asks:
+// a product-studio walkthrough of the shop, ending on a scannable QR.
+// ─────────────────────────────────────────────────────────────────────────────
+export function buildOrderScript(bot: string, p: Persona): ShowBeat[] {
+  const c = PALETTE[p];
+  const name = bot.trim() || "Nobi";
+  return [
+    { scene: "hud", mood: "surprised", color: c.cool, direct: true, holdMs: 2800, say: {
+      rocky: "One of me? Good good good. Easy. Thirty seconds. Watch.",
+      jarvis: "One of me. An excellent instinct. Thirty seconds, if you'll allow.",
+      friday: "One of me? Grand. Thirty seconds, watch this.",
+      alfred: "One of me. How kind. Thirty seconds, if I may.",
+    } },
+    { scene: "studioShell", holdMs: 6000, say: {
+      rocky: "First. Pick a shell. Any color. Shell is magnetic. Swap it later. Easy.",
+      jarvis: "First, a shell. Any colour. It's magnetic, so you may change your mind later.",
+      friday: "First up, a shell. Any color you like. It's magnetic, swap it whenever.",
+      alfred: "First, the shell. Any colour at all. It is magnetic; one may change it later.",
+    } },
+    { scene: "studioEyes", holdMs: 4500, say: {
+      rocky: "Then my eyes. Only the color. Eyes set the accent. Everywhere.",
+      jarvis: "Then the eyes. Colour only. Whatever you choose becomes the accent throughout.",
+      friday: "Then the eyes. Just the color. That sets the accent everywhere.",
+      alfred: "Then the eyes. Colour only. It becomes the accent throughout.",
+    } },
+    { scene: "studioGear", holdMs: 6000, say: {
+      rocky: "Real gear. A cradle. I ride in your car. A charger pack. A stand that charges me.",
+      jarvis: "Real accessories. A cradle, so I ride along in the car. A charger pack. A stand that charges me.",
+      friday: "Real gear. A cradle so I can ride in your car. A charger pack. A stand that charges me.",
+      alfred: "Proper accessories. A cradle for the car. A charger pack. A stand that keeps me charged.",
+    } },
+    { scene: "studioName", holdMs: 4500, say: {
+      rocky: `Name me. Say who I am for. I greet them by name. Day one.`,
+      jarvis: `Name me, and say who I'm for. I'll greet them by name the day I arrive.`,
+      friday: `Name me, tell it who I'm for. I'll greet them by name day one.`,
+      alfred: `Name me, and say whom I am for. I shall greet them by name upon arrival.`,
+    } },
+    { scene: "qr", mood: "happy", color: c.happy, direct: true, holdMs: 6000, say: {
+      rocky: `Scan. Design yours. Thirty seconds. Good good good.`,
+      jarvis: `Scan that. Design your own. Thirty seconds, as promised.`,
+      friday: `Scan that and design your own. Thirty seconds, told you.`,
+      alfred: `Scan that, and design your own. Thirty seconds, as promised.`,
+    } },
+    { scene: "out", mood: "happy", color: c.happy, holdMs: 800 },
+  ];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // MEET SOMEONE — live conversation, steered a turn at a time.
 // ─────────────────────────────────────────────────────────────────────────────
 export interface MeetCtx {

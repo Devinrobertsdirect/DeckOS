@@ -17,6 +17,7 @@ import { z } from "zod/v4";
 import { broadcast } from "../lib/ws-server.js";
 import { getConfig, setConfig } from "../lib/app-config.js";
 import { getOrCreatePairingCode } from "../lib/pairing.js";
+import { syncFromCloud } from "../lib/cloud-sync.js";
 
 const router = Router();
 
@@ -27,6 +28,8 @@ const ProfileSchema = z.object({
   eyeTheme: z.string().trim().max(32).optional(),
   accent: z.string().trim().max(32).optional(),
   build: z.record(z.string(), z.unknown()).optional(),
+  /** Nobi Cloud base URL — where "sync" redeems codes and pulls keys/settings. */
+  cloudUrl: z.string().trim().url().max(200).optional(),
 });
 const BodySchema = z.object({ code: z.string().min(1), profile: ProfileSchema });
 
@@ -49,9 +52,17 @@ router.post("/provision", async (req, res) => {
   const personaId = p.personaId ? (MIND_TO_PERSONA[p.personaId] ?? p.personaId) : undefined;
   const applied = { botName: p.botName || undefined, ownerName: p.ownerName || undefined, personaId, eyeTheme: p.eyeTheme, accent: p.accent, at: new Date().toISOString() };
   if (applied.botName) await setConfig("ATLAS_BOT_NAME", applied.botName);
+  if (p.cloudUrl) await setConfig("NOBI_CLOUD_URL", p.cloudUrl.replace(/\/+$/, ""));
   await setConfig("NOBI_BUILD_PROFILE", JSON.stringify({ ...applied, build: p.build ?? null }));
   broadcast({ type: "provision.apply", source: "provision", payload: applied, timestamp: new Date().toISOString() });
   res.json({ ok: true, applied });
+});
+
+// POST /api/provision/sync { code?: "apple river stone" } — same as saying it (phone app / LAN).
+router.post("/provision/sync", async (req, res) => {
+  if (!isPrivate(req)) { res.status(403).json({ error: "local network only" }); return; }
+  const code = typeof (req.body as { code?: unknown })?.code === "string" ? (req.body as { code: string }).code : undefined;
+  res.json(await syncFromCloud(code));
 });
 
 router.get("/provision", async (req, res) => {

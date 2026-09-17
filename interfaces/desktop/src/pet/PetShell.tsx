@@ -18,10 +18,10 @@ import { applyClientAction, type UiAction } from "@/pet/agentActions";
 import { mirrorFace } from "@/lib/hardwareFace";
 import { segmentReply, emojiGlyph, type EmotionSegment } from "@/genesis/emotionDirector";
 import { personaPrompt, getPersona, setPersona } from "@/genesis/personality";
-import ShowcaseOverlay, { type ShowcaseScene } from "@/pet/ShowcaseOverlay";
+import ShowcaseOverlay, { SHOP_URL, type ShowcaseScene } from "@/pet/ShowcaseOverlay";
 import { sfx, sfxForScene } from "@/pet/showSfx";
 import {
-  buildDemoScript, buildPitchScript, meetDirectorNote, meetDetectBeats, guessName, line, asPersona,
+  buildDemoScript, buildPitchScript, buildOrderScript, meetDirectorNote, meetDetectBeats, guessName, line, asPersona,
   TRICK_MOODS, TRICK_TADA, type AskSpec, type MeetCtx, type Persona,
 } from "@/pet/showScripts";
 import { stripEmoji } from "@/lib/stripText";
@@ -351,7 +351,7 @@ export function PetShell({
     await sayQueued(reply);
     if (next === "name") setShowcaseScene(stage);
   }, [runTrick]);
-  const runShow = useCallback(async (kind: "demo" | "pitch") => {
+  const runShow = useCallback(async (kind: "demo" | "pitch" | "order") => {
     if (showRef.current) return;
     showRef.current = true;
     cancelRef.current = false;
@@ -364,7 +364,8 @@ export function PetShell({
     // deferred hand-off, and an unmuted mic would hear the narration itself.
     await setEarsMuted(true);
     const p = asPersona(getPersona().id);
-    const script = kind === "demo" ? buildDemoScript(getBotName(), p) : buildPitchScript(getBotName(), p);
+    const script = kind === "demo" ? buildDemoScript(getBotName(), p) : kind === "order" ? buildOrderScript(getBotName(), p) : buildPitchScript(getBotName(), p);
+    if (kind === "order") setMeetName(getUserName().trim() || "YOURS");   // the studio engraves the owner's name
     const started = performance.now();
     sfx.prime();
     setShowcaseScene(script[0]!.scene);
@@ -411,6 +412,10 @@ export function PetShell({
       setBusy(false);
       showRef.current = false;
       void setEarsMuted(false);
+      if (kind === "order") {
+        setOverlay({ kind: "link", src: SHOP_URL, caption: "Design your Nobi", hint: "developmentindustries.org/build" });
+        window.setTimeout(() => setOverlay((o) => (o && o.kind === "link" && o.src === SHOP_URL ? null : o)), 60_000);
+      }
     }
   }, [speak, drainQueue, waitForQueue, demoMood, demoSleep, runTrick, askAndRespond]);
   const skipShow = useCallback(() => {

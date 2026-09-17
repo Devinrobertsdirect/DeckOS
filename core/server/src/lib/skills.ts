@@ -21,6 +21,7 @@ import { FUN_SKILLS, EXTRA_ACTION_SKILLS } from "./skills-extra.js";
 import { READOUT_SKILLS } from "./skills-readouts.js";
 import { ACTION_SKILLS } from "./skills-actions.js";
 import { getOrCreatePairingCode } from "./pairing.js";
+import { syncFromCloud } from "./cloud-sync.js";
 
 // ── Client action contract (executed by PetShell) ────────────────────────────
 export type UiAction =
@@ -46,7 +47,7 @@ export type UiAction =
   | { type: "videoControl"; action: "pause" | "resume" | "close" }
   | { type: "survivor"; variant: "torches" | "snuff"; banner: string }
   | { type: "showImage"; url: string; prompt?: string }
-  | { type: "show"; kind: "demo" | "pitch" }
+  | { type: "show"; kind: "demo" | "pitch" | "order" }
   | { type: "meet"; name?: string; relation?: string }
   | { type: "openTutorial" }
   | { type: "showLink"; title: string; url: string; code?: string; hint?: string }
@@ -869,6 +870,39 @@ const myAddress: Skill = {
     return { speak: ip ? `My address is ${ip.split(".").join(" dot ")}, port ${PORT}. Or just nobi dot local.` : "I can't see a network address right now." };
   },
 };
+/** "hey nobi, sync apple river stone" — redeem the site's sync code; "sync my account" re-syncs with the stored session. */
+const syncAccount: Skill = {
+  id: "sync-account",
+  async handle({ lower }) {
+    const m = lower.match(/\bsync(?: code| with)?(?: my)?(?: (?:account|nobi|bot|robot|cloud))?[:,]?\s+([a-z]+)[ ,-]+([a-z]+)[ ,-]+([a-z]+)\b/);
+    const plain = /\bsync (my|your|the) (account|cloud|settings|keys|nobi|bot)\b|\bconnect (to )?my (account|cloud)\b/.test(lower);
+    if (!m && !plain) return null;
+    const code = m ? `${m[1]} ${m[2]} ${m[3]}` : undefined;
+    const r = await syncFromCloud(code);
+    if (r.ok) {
+      const who = r.ownerName ? ` Hello, ${r.ownerName}.` : "";
+      const keys = r.keys?.length ? ` ${r.keys.length} key${r.keys.length === 1 ? "" : "s"} in.` : "";
+      return { speak: `Synced.${who}${keys} Settings are in. Good good good.` };
+    }
+    const why: Record<string, string> = {
+      no_cloud: "I am not connected to a cloud yet. That gets set up when I am provisioned.",
+      bad_code: "That code did not work. Get a fresh one from the site and say it again.",
+      no_token: "Say the three words from the site: sync, then the words.",
+      expired: "My cloud session expired. Get a fresh code from the site.",
+    };
+    return { speak: why[r.error ?? ""] ?? "Sync did not work. Check that I am online and try again." };
+  },
+};
+
+/** "how can I get one of you" / "design me a new bot" → the 30-second order walkthrough. */
+const orderShow: Skill = {
+  id: "order-show",
+  handle({ lower }) {
+    const asks = /\b(how|where) (can|do|could|would) (i|we|someone|you) (order|get|buy|purchase|reserve)\b|\b(order|get|buy|purchase|reserve) (one of you|my own|a nobi|a bot|a robot|one)\b|\bdesign (me|us) (a |my )?(new )?(bot|nobi|robot)\b|\bhow much (are you|do you cost|does it cost|is a nobi)\b|\bhow (to|do i) (get|order) (a |one of )?(you|nobi)\b|\bmake me (a|one) (bot|nobi|robot)?\b/;
+    if (!asks.test(lower)) return null;
+    return { speak: "", ui: { type: "show", kind: "order" } };
+  },
+};
 const SHOP_URL = "https://developmentindustries.org/build";
 const shopSkill: Skill = {
   id: "shop",
@@ -881,7 +915,7 @@ const shopSkill: Skill = {
 };
 
 const SKILLS: Skill[] = [
-  meetSomeone, pitchShow, demoShow, phoneLink, myAddress, shopSkill,
+  meetSomeone, pitchShow, demoShow, orderShow, syncAccount, phoneLink, myAddress, shopSkill,
   releaseEstop, emergencyStop, spinSkill, wanderSkill, setSpeedSkill, stopSkill,
   experienceModeSkill, uiModeSkill, describeScreenSkill, survivorSkill, videoControlSkill, playVideoSkill,
   closeSkill, openSkill, controlDevice, readSensor, listDevices,

@@ -17,11 +17,13 @@ import { encryptSecret } from "./crypto.js";
 // The provider keys the cloud brain + bots know how to use. Extra names are
 // allowed (uppercase snake) so the app can grow without a server change.
 export const KNOWN_KEYS = [
+  "OPENROUTER_API_KEY",
   "ANTHROPIC_API_KEY",
   "OPENAI_API_KEY",
   "GEMINI_API_KEY",
   "PERPLEXITY_API_KEY",
   "ELEVENLABS_API_KEY",
+  "ELEVENLABS_VOICE_ID",
 ] as const;
 
 const nameSchema = z

@@ -126,16 +126,25 @@ export interface TtsSettings { stability?: number; similarity?: number; style?: 
 const clamp = (v: unknown, lo: number, hi: number, dflt: number) =>
   typeof v === "number" && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : dflt;
 
-async function elevenLabsTts(text: string, voiceId: string, apiKey: string, settings?: TtsSettings): Promise<Buffer> {
+/** ElevenLabs models the route will accept (default turbo v2.5: style + speed, ~half-second). */
+const ELEVEN_MODELS = new Set(["eleven_turbo_v2_5", "eleven_flash_v2_5", "eleven_multilingual_v2", "eleven_v3"]);
+const DEFAULT_ELEVEN_MODEL = "eleven_turbo_v2_5";
+
+async function elevenLabsTts(text: string, voiceId: string, apiKey: string, settings?: TtsSettings, model = DEFAULT_ELEVEN_MODEL): Promise<Buffer> {
   const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;
-  // turbo v2.5 honours style + speed (turbo v2 ignores them); same latency class.
-  const voice_settings = {
-    stability: clamp(settings?.stability, 0, 1, 0.45),
-    similarity_boost: clamp(settings?.similarity, 0, 1, 0.80),
-    style: clamp(settings?.style, 0, 1, 0),
-    speed: clamp(settings?.speed, 0.7, 1.2, 1.0),
-    use_speaker_boost: true,
-  };
+  // v3 (audio tags like [laughs] / [whispers]) takes only stability in three
+  // steps — 0 creative / 0.5 natural / 1 robust — and ignores style + speed.
+  const v3 = model === "eleven_v3";
+  const stab = clamp(settings?.stability, 0, 1, 0.45);
+  const voice_settings = v3
+    ? { stability: stab < 0.34 ? 0 : stab < 0.75 ? 0.5 : 1, similarity_boost: clamp(settings?.similarity, 0, 1, 0.80), use_speaker_boost: true }
+    : {
+        stability: stab,
+        similarity_boost: clamp(settings?.similarity, 0, 1, 0.80),
+        style: clamp(settings?.style, 0, 1, 0),
+        speed: clamp(settings?.speed, 0.7, 1.2, 1.0),
+        use_speaker_boost: true,
+      };
   const resp = await fetch(url, {
     method: "POST",
     headers: {
@@ -145,7 +154,7 @@ async function elevenLabsTts(text: string, voiceId: string, apiKey: string, sett
     },
     body: JSON.stringify({
       text: text.slice(0, 5000),
-      model_id: "eleven_turbo_v2_5",
+      model_id: model,
       voice_settings,
     }),
   });
@@ -183,13 +192,17 @@ function stripSpeechEmoji(s: string): string {
 }
 
 router.post("/tts", async (req, res) => {
-  const { text: rawText, voice, gender: bodyGender, settings } = req.body as {
+  const { text: rawText, voice, gender: bodyGender, settings, model: modelReq } = req.body as {
     text?: string;
     voice?: string;
     gender?: string;
     /** Character delivery (stability / similarity / style / speed), from the persona. */
     settings?: TtsSettings;
+    /** ElevenLabs model override (allow-listed); config ELEVENLABS_MODEL is the default. */
+    model?: string;
   };
+  const configured = (await getConfig("ELEVENLABS_MODEL").catch(() => null)) ?? DEFAULT_ELEVEN_MODEL;
+  const elModel = ELEVEN_MODELS.has(modelReq ?? "") ? modelReq! : ELEVEN_MODELS.has(configured) ? configured : DEFAULT_ELEVEN_MODEL;
 
   if (!rawText || typeof rawText !== "string") {
     res.status(400).json({ error: "text required" });
@@ -273,7 +286,7 @@ router.post("/tts", async (req, res) => {
   if (elKey && provider !== "openai") {
     const voiceId = voice ?? (await getConfig("ELEVENLABS_VOICE_ID").catch(() => null)) ?? "pNInz6obpgDQGcFmaJgB";
     try {
-      const audio = await elevenLabsTts(text, voiceId, elKey, settings);
+      const audio = await elevenLabsTts(text, voiceId, elKey, settings, elModel);
       res.json({ audio: audio.toString("base64"), format: "mp3", provider: "elevenlabs" });
       return;
     } catch (err) {

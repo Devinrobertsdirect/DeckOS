@@ -714,9 +714,14 @@ export class AtlasFaceEngine {
     const wantGaze = opts.gaze ?? { x: 0, y: 0 };
     this.glanceX += (wantGaze.x - this.glanceX) * 0.12;
     this.glanceY += (wantGaze.y - this.glanceY) * 0.12;
+    // 0.06 made a full-throw "look left" move the eyes by about five percent of
+    // their own width — technically a glance, invisible from across a stand. At
+    // 0.17 a deliberate look is unmistakable from the far side of a room, which
+    // is the entire reason the button exists. Idle drift is unaffected: it comes
+    // through pose.gazeX, which is not scaled by this.
     ctx.translate(
-      (pose.gazeX + this.glanceX * 0.06) * D + driftX,
-      (pose.gazeY + this.glanceY * 0.06) * D + driftY,
+      (pose.gazeX + this.glanceX * 0.17) * D + driftX,
+      (pose.gazeY + this.glanceY * 0.17) * D + driftY,
     );
 
     ctx.fillStyle = `rgb(${eyeRgb})`;

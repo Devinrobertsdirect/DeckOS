@@ -66,21 +66,46 @@ const COMMANDS: Record<string, Command> = {
   shocked:  { label: "Shocked",    face: { mood: "shocked" } },
   sleep:    { label: "Sleep",      face: { mood: "sleepy" } },
   // where he looks
-  lookL:    { label: "Look left",  face: { gaze: [-0.9, 0] } },
-  lookR:    { label: "Look right", face: { gaze: [0.9, 0] } },
-  lookU:    { label: "Look up",    face: { gaze: [0, -0.8] } },
+  // Full throw. A "look left" that moves the eyes a hair is not a look — these
+  // are demo buttons, read from across a stand, and they should be unmistakable.
+  lookL:    { label: "Look left",  face: { gaze: [-1, 0] } },
+  lookR:    { label: "Look right", face: { gaze: [1, 0] } },
+  lookU:    { label: "Look up",    face: { gaze: [0, -1] } },
+  lookD:    { label: "Look down",  face: { gaze: [0, 1] } },
   lookAt:   { label: "Look at you", face: { gaze: [0, 0] } },
   // eye colour
+  // A full wheel, so "change his eyes" is a real demo moment rather than six
+  // near neighbours. Every one is a distinct hue, not a shade of the last.
   cIce:     { label: "Ice",        face: { color: "#c9dcf0" } },
   cGold:    { label: "Gold",       face: { color: "#f5b83d" } },
   cMint:    { label: "Mint",       face: { color: "#5ce0b8" } },
   cRose:    { label: "Rose",       face: { color: "#ff8fb0" } },
   cViolet:  { label: "Violet",     face: { color: "#c08bff" } },
   cEmber:   { label: "Ember",      face: { color: "#ff7a3d" } },
+  cRed:     { label: "Red",        face: { color: "#ff4d4d" } },
+  cOrange:  { label: "Orange",     face: { color: "#ff9f1c" } },
+  cLime:    { label: "Lime",       face: { color: "#9ee04a" } },
+  cGreen:   { label: "Green",      face: { color: "#3ddc84" } },
+  cCyan:    { label: "Cyan",       face: { color: "#3ad7ff" } },
+  cBlue:    { label: "Blue",       face: { color: "#4d8cff" } },
+  cIndigo:  { label: "Indigo",     face: { color: "#7a6cff" } },
+  cMagenta: { label: "Magenta",    face: { color: "#ff5ce0" } },
+  cWhite:   { label: "White",      face: { color: "#ffffff" } },
   // background scenes
+  // Every one of these is a scene the face genuinely draws. They were all
+  // already built for the shows; only three were reachable from the remote.
   sSpark:   { label: "Sparkle",    face: { scene: "sparkle" } },
   sConf:    { label: "Confetti",   face: { scene: "confetti" } },
   sCore:    { label: "Core",       face: { scene: "core" } },
+  sOrbit:   { label: "Orbit",      face: { scene: "orbit" } },
+  sWarp:    { label: "Starfield",  face: { scene: "warp" } },
+  sHud:     { label: "HUD",        face: { scene: "hud" } },
+  sGears:   { label: "Gears",      face: { scene: "gears" } },
+  sLab:     { label: "Lab",        face: { scene: "lab" } },
+  sHelmet:  { label: "Helmet",     face: { scene: "helmet" } },
+  sBowl:    { label: "Fishbowl",   face: { scene: "bowl" } },
+  sDrive:   { label: "Drive",      face: { scene: "drive" } },
+  sFinale:  { label: "Finale",     face: { scene: "finale" } },
   sOff:     { label: "Clear",      face: { scene: null, mood: "idle", color: null } },
   stop:     { label: "Stop",       stop: true },
 };
@@ -172,9 +197,18 @@ router.post("/remote/setup", async (req, res) => {
 const GROUPS: Array<{ title: string; keys: string[]; wide?: string[] }> = [
   { title: "Do", keys: ["demo", "pitch", "order", "qr", "trick", "spin", "hearts", "warp", "joke", "meet", "shop", "botno"], wide: ["demo"] },
   { title: "Feel", keys: ["happy", "excited", "wink", "love", "cool", "shocked", "think", "sleep"] },
-  { title: "Look", keys: ["lookL", "lookAt", "lookR", "lookU", "cIce", "cGold", "cMint", "cRose", "cViolet", "cEmber", "sSpark", "sConf", "sCore", "sOff", "sync"] },
+  { title: "Look", keys: ["lookL", "lookAt", "lookR", "lookU", "lookD", "sOff"] },
+  { title: "Colour", keys: ["cIce", "cGold", "cMint", "cRose", "cViolet", "cEmber", "cRed", "cOrange", "cLime", "cGreen", "cCyan", "cBlue", "cIndigo", "cMagenta", "cWhite"] },
+  { title: "Scenes", keys: ["sSpark", "sConf", "sCore", "sOrbit", "sWarp", "sHud", "sGears", "sLab", "sHelmet", "sBowl", "sDrive", "sFinale", "sync"] },
 ];
-const SWATCH: Record<string, string> = { cIce: "#c9dcf0", cGold: "#f5b83d", cMint: "#5ce0b8", cRose: "#ff8fb0", cViolet: "#c08bff", cEmber: "#ff7a3d" };
+/** Swatches are read straight off the commands, so a new colour cannot be added without one. */
+const SWATCH: Record<string, string> = Object.fromEntries(
+  Object.entries(COMMANDS).flatMap(([k, c]) => {
+    if (!k.startsWith("c") || !("face" in c)) return [];
+    const color = (c.face as { color?: unknown }).color;
+    return typeof color === "string" ? [[k, color] as const] : [];
+  }),
+);
 
 router.get("/remote", async (_req, res) => {
   const code = await getOrCreatePairingCode();

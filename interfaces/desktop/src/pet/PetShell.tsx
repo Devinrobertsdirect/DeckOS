@@ -30,6 +30,7 @@ import {
 import { stripEmoji } from "@/lib/stripText";
 import { dockLines } from "@/genesis/dockGreetings";
 import MeteorCanvas, { type MeteorCanvasData } from "@/pet/MeteorCanvas";
+import { useHideCursor } from "@/pet/useHideCursor";
 import {
   appendTurn, ingestUserMessage, buildContext,
   useAtlasMemory, addFact, removeFact, memorySummary,
@@ -112,6 +113,8 @@ export function PetShell({
   const [faceState, setFaceState] = useState<FaceState>("idle");
   const [caption, setCaption] = useState("");
   const [eyeColor, setEyeColor] = useState<string | null>(null);
+  // No white arrow parked on his eye when nobody is using a mouse.
+  useHideCursor();
   /** A visible clock on something irreversible, so it can be seen and stopped. */
   const [countdown, setCountdown] = useState<{ n: number; label: string } | null>(null);
   const [discTint, setDiscTint] = useState<string | null>(null);
@@ -320,8 +323,22 @@ export function PetShell({
       setShowcaseScene("trick");
       for (const [m, col] of TRICK_MOODS) { if (cancelRef.current) break; demoMood(m, col); await demoSleep(650); }
     }
-    setShowcaseScene("confetti");
-    demoMood("starstruck", "#F5B83D");
+    // Each trick lands on its OWN ending. They all used to finish on confetti
+    // and the same starstruck face, which meant four genuinely different set
+    // pieces blurred into one in the memory of anyone who watched two of them.
+    if (kind === "spin") {
+      setShowcaseScene("sparkle");
+      demoMood("proud", "#FFC820");        // skidded to a stop and pleased about it
+    } else if (kind === "hearts") {
+      setShowcaseScene("hearts");
+      demoMood("love", "#FF6FA5");         // stays soft; confetti would break the mood
+    } else if (kind === "warp") {
+      setShowcaseScene("core");
+      demoMood("mindblown", "#C9DCF0");    // drops out of warp into his own core
+    } else {
+      setShowcaseScene("confetti");
+      demoMood("starstruck", "#F5B83D");   // the rainbow one keeps the party ending
+    }
   }, [demoMood, demoSleep]);
   /** An ASK beat: question → ears open → answer → live in-character reply. */
   const askAndRespond = useCallback(async (

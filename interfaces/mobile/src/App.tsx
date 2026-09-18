@@ -489,12 +489,24 @@ const REMOTE_GROUPS: Array<{ title: string; keys: Array<{ cmd: string; label: st
   ] },
   { title: "Look", keys: [
     { cmd: "lookL", label: "Left" }, { cmd: "lookAt", label: "At you" }, { cmd: "lookR", label: "Right" },
-    { cmd: "lookU", label: "Up" },
+    { cmd: "lookU", label: "Up" }, { cmd: "lookD", label: "Down" }, { cmd: "sOff", label: "Clear" },
+  ] },
+  { title: "Colour", keys: [
     { cmd: "cIce", label: "Ice", swatch: "#c9dcf0" }, { cmd: "cGold", label: "Gold", swatch: "#f5b83d" },
     { cmd: "cMint", label: "Mint", swatch: "#5ce0b8" }, { cmd: "cRose", label: "Rose", swatch: "#ff8fb0" },
     { cmd: "cViolet", label: "Violet", swatch: "#c08bff" }, { cmd: "cEmber", label: "Ember", swatch: "#ff7a3d" },
-    { cmd: "sSpark", label: "Sparkle" }, { cmd: "sConf", label: "Confetti" },
-    { cmd: "sCore", label: "Core" }, { cmd: "sOff", label: "Clear" }, { cmd: "sync", label: "Sync" },
+    { cmd: "cRed", label: "Red", swatch: "#ff4d4d" }, { cmd: "cOrange", label: "Orange", swatch: "#ff9f1c" },
+    { cmd: "cLime", label: "Lime", swatch: "#9ee04a" }, { cmd: "cGreen", label: "Green", swatch: "#3ddc84" },
+    { cmd: "cCyan", label: "Cyan", swatch: "#3ad7ff" }, { cmd: "cBlue", label: "Blue", swatch: "#4d8cff" },
+    { cmd: "cIndigo", label: "Indigo", swatch: "#7a6cff" }, { cmd: "cMagenta", label: "Magenta", swatch: "#ff5ce0" },
+    { cmd: "cWhite", label: "White", swatch: "#ffffff" },
+  ] },
+  { title: "Scenes", keys: [
+    { cmd: "sSpark", label: "Sparkle" }, { cmd: "sConf", label: "Confetti" }, { cmd: "sCore", label: "Core" },
+    { cmd: "sOrbit", label: "Orbit" }, { cmd: "sWarp", label: "Starfield" }, { cmd: "sHud", label: "HUD" },
+    { cmd: "sGears", label: "Gears" }, { cmd: "sLab", label: "Lab" }, { cmd: "sHelmet", label: "Helmet" },
+    { cmd: "sBowl", label: "Fishbowl" }, { cmd: "sDrive", label: "Drive" }, { cmd: "sFinale", label: "Finale" },
+    { cmd: "sync", label: "Sync" },
   ] },
 ];
 

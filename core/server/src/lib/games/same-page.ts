@@ -75,6 +75,8 @@ export const samePage: GameDefinition<SamePageState> = {
   id: "same-page",
   title: "Same Page",
   blurb: "Two phones, five-letter words, no talking. Race for the point, or team up against the clock.",
+  icon: "🧩",
+  color: "#5ce0b8",
   minPlayers: 1,
   maxPlayers: 4,
 

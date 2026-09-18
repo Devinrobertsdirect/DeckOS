@@ -59,6 +59,8 @@ export const readTheRoom: GameDefinition<RoomState> = {
   id: "read-the-room",
   title: "Read the Room",
   blurb: "Everyone answers a question. One of you answered a different one. Find them.",
+  icon: "🎭",
+  color: "#ff8fb0",
   minPlayers: 3,
   maxPlayers: 8,
 
@@ -118,7 +120,13 @@ export const readTheRoom: GameDefinition<RoomState> = {
     }
 
     if (action === "vote" && state.phase === "voting") {
-      const suspect = value ?? "";
+      // A choice button sends its LABEL, which here is the suspect's NAME — so
+      // the vote has to be turned back into a player id. Comparing the raw value
+      // to an id silently matched nobody, and every round ended a draw.
+      const raw = (value ?? "").trim();
+      const byId = Object.keys(state.scores).find((id) => id === raw);
+      const byName = ctx.players.find((p) => p.name === raw)?.id;
+      const suspect = byId ?? byName ?? "";
       if (!suspect || suspect === player.id) return state;
       const votes = { ...state.votes, [player.id]: suspect };
       const everyone = Object.keys(state.scores);

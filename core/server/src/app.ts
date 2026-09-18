@@ -59,6 +59,22 @@ app.get("/remote", (req, res) => {
   res.redirect(302, `/api/remote${qs}`);
 });
 
+// /setup is the Wi-Fi onboarding page, and it is read off a robot's face and
+// typed into a phone by someone who has owned him for four minutes. It has to
+// be the shortest thing that could possibly work.
+app.get("/setup", (_req, res) => res.redirect(302, "/api/setup"));
+
+// The probes iOS and Android fire when they join a network decide whether the
+// phone shows "sign in to this network". While the setup hotspot is up we are
+// that network, and answering these with a redirect is what makes the setup
+// page appear BY ITSELF — no URL to read out, no typing. When the hotspot is
+// not up these paths are never reached on a normal network, so this costs
+// nothing the rest of the time.
+app.get(
+  ["/hotspot-detect.html", "/generate_204", "/gen_204", "/connecttest.txt", "/ncsi.txt", "/library/test/success.html"],
+  (_req, res) => res.redirect(302, "/api/setup"),
+);
+
 // Serve the installable mobile companion (PWA) at /mobile/. This is the URL the
 // pairing flow hands to a phone; the phone can "Add to Home Screen" and connect
 // back to this brain. Mounted BEFORE the desktop SPA so /mobile/* never falls

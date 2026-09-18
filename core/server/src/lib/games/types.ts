@@ -77,6 +77,12 @@ export interface GameContext {
   /** Deterministic within a turn, so a replay of the same state matches. */
   random: () => number;
   now: number;
+  /**
+   * Everyone at the table. A phone button sends its LABEL back as the value,
+   * not an id, so any game that lets you pick a PERSON needs the roster here to
+   * turn "Devin" back into a player id.
+   */
+  players: Player[];
 }
 
 export interface GameDefinition<S = unknown> {
@@ -84,6 +90,15 @@ export interface GameDefinition<S = unknown> {
   title: string;
   /** One line, shown on the game picker. */
   blurb: string;
+  /**
+   * The game's "app icon" and its colour. The picker is a grid of tiles, and a
+   * grid of identical text buttons is unfindable — you hunt for a shape and a
+   * colour long before you read a word. Every game owns one of each, and the
+   * same colour carries through onto his face while that game is running, so
+   * the room can tell at a glance which game is on.
+   */
+  icon: string;
+  color: string;
   minPlayers: number;
   maxPlayers: number;
   /** Fresh state for a new session. */

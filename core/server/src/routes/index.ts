@@ -48,6 +48,7 @@ import voiceRouter from "./voice";
 import showsRouter from "./shows";
 import remoteRouter from "./remote";
 import gamesRouter from "./games";
+import setupWifiRouter from "./setup-wifi";
 import provisionRouter from "./provision";
 import youtubeRouter from "./youtube";
 
@@ -102,6 +103,7 @@ router.use(voiceRouter);
 router.use(showsRouter);
 router.use(remoteRouter);
 router.use(gamesRouter);
+router.use(setupWifiRouter);
 router.use(provisionRouter);
 router.use(youtubeRouter);
 

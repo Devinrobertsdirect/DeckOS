@@ -189,6 +189,20 @@ router.get("/remote", async (_req, res) => {
   .band h2{font-size:11px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:#5d6b86;margin:0 2px 8px}
   .band+.band{margin-top:14px}
   .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  /* Game tiles. Each game owns an icon and a colour, and the tile wears both —
+     the colour bleeds up from the bottom so a grid of them reads as a shelf of
+     apps rather than a list of words. */
+  .gamegrid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+  .tile{position:relative;flex-direction:column;align-items:flex-start;gap:2px;
+        padding:14px 14px 13px;min-height:104px;overflow:hidden;text-align:left;
+        background:linear-gradient(180deg,var(--card) 55%,color-mix(in srgb,var(--gc) 22%,var(--card)) 100%);
+        border-color:color-mix(in srgb,var(--gc) 35%,var(--line))}
+  .tile:active{transform:scale(.97)}
+  .ticon{font-size:26px;line-height:1.1;filter:drop-shadow(0 2px 6px rgba(0,0,0,.45))}
+  .tname{font:700 15px system-ui,sans-serif;color:var(--ink)}
+  .tsub{font:500 11px system-ui,sans-serif;color:#8fa0b8}
+  .tile.live{border-color:var(--gc);box-shadow:0 0 0 1px var(--gc),0 6px 18px -8px var(--gc)}
+  .tile.live .tsub{color:var(--gc)}
   button{appearance:none;border:1px solid var(--line);background:var(--card);color:var(--ink);
          border-radius:14px;padding:16px 6px;font:600 14px system-ui,sans-serif;display:flex;
          align-items:center;justify-content:center;gap:7px;cursor:pointer;
@@ -208,6 +222,10 @@ router.get("/remote", async (_req, res) => {
   .gsecret{margin-top:12px;padding-top:12px;border-top:1px dashed var(--line);font-size:14px;color:var(--stop)}
   .gsecret::before{content:"Only you know: ";color:#5d6b86}
   .gplayers{margin-top:14px;font-size:12px;color:#5d6b86;text-align:center}
+  .pad{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;margin-top:12px}
+  .padb{min-height:96px;font-size:34px;border-radius:20px;background:var(--card)}
+  .padb:active{background:#25344a;transform:scale(.97)}
+  .padhint{font:600 11px system-ui,sans-serif;color:#7d8ba6;text-align:center;white-space:nowrap}
   #gChoices button{min-height:62px;font-size:15px;flex-direction:column;gap:3px}
   #gChoices button small{font-size:11px;color:#7d8ba6;font-weight:500}
   .setup{margin-top:18px;border-top:1px solid var(--line);padding-top:14px}
@@ -232,7 +250,7 @@ router.get("/remote", async (_req, res) => {
 <h1><svg width="20" height="20" viewBox="0 0 48 48"><circle cx="24" cy="24" r="22" fill="#1e2a38"/><g fill="#c9dcf0"><rect x="13" y="15" width="7" height="18" rx="3.5"/><rect x="28" y="15" width="7" height="18" rx="3.5"/></g></svg>Nobi remote</h1>
 <div class="band" id="gamesBand">
   <h2>Games</h2>
-  <div class="grid" id="gameList"><button class="b wide" disabled>Loading\u2026</button></div>
+  <div class="gamegrid" id="gameList"><button class="b wide" disabled>Loading\u2026</button></div>
 </div>
 
 ${GROUPS.map((g) => `<div class="band"><h2>${g.title}</h2><div class="grid">
@@ -281,6 +299,14 @@ ${g.keys.map((k) => {
     <div class="gsecret" id="gSecret" hidden></div>
   </div>
   <div id="gChoices" class="grid"></div>
+  <!-- The arcade pad. Hidden until a game asks for it, and it REPEATS while
+       held: a phone has no analogue stick, so holding a direction has to be how
+       you turn smoothly, or aiming a shield is impossible. -->
+  <div id="gPad" class="pad" hidden>
+    <button class="padb" data-pad="left">&#8592;</button>
+    <div class="padhint" id="gPadHint">hold to turn</div>
+    <button class="padb" data-pad="right">&#8594;</button>
+  </div>
   <div class="row2" id="gInputRow" hidden>
     <input id="gInput" placeholder="\u2026">
     <button class="b" id="gSend">Go</button>
@@ -384,9 +410,19 @@ ${g.keys.map((k) => {
       if (!r.ok) return;
       var j = await r.json();
       var list = document.getElementById("gameList");
+      // App tiles, not a list of identical buttons. You find a game by its
+      // shape and its colour long before you finish reading its name, and a
+      // game already in progress has to be the most obvious thing on screen.
       list.innerHTML = j.games.map(function (g) {
         var live = j.session && j.session.gameId === g.id;
-        return '<button class="b wide" data-game="' + g.id + '">' + g.title + (live ? " \u00b7 in progress" : "") + "</button>";
+        return '<button class="tile' + (live ? " live" : "") + '" data-game="' + g.id +
+               '" style="--gc:' + (g.color || "#7fb3ff") + '">' +
+               '<span class="ticon">' + (g.icon || "\u2b50") + "</span>" +
+               '<span class="tname">' + g.title + "</span>" +
+               '<span class="tsub">' + (live ? "In progress \u00b7 tap to rejoin"
+                 : (g.minPlayers === g.maxPlayers ? g.minPlayers + " players"
+                    : g.minPlayers + "\u2013" + g.maxPlayers + " players")) + "</span>" +
+               "</button>";
       }).join("");
       list.querySelectorAll("[data-game]").forEach(function (b) {
         b.addEventListener("click", function () { openGame(b.dataset.game, j.session && j.session.gameId === b.dataset.game); });
@@ -424,11 +460,36 @@ ${g.keys.map((k) => {
     msg.textContent = end ? "Game ended." : "Saved. Pick it up any time.";
     loadGames();
   }
+  // Hold-to-repeat, at roughly the rate the game ticks. Each repeat is one
+  // turn step, so a long press sweeps the shield and a tap nudges it.
+  (function () {
+    var held = null;
+    function begin(dir) {
+      if (held) return;
+      act(dir, undefined, true);
+      held = setInterval(function () { act(dir, undefined, true); }, 90);
+    }
+    function end() { if (held) { clearInterval(held); held = null; } }
+    document.querySelectorAll("[data-pad]").forEach(function (b) {
+      var dir = b.dataset.pad;
+      b.addEventListener("pointerdown", function (e) { e.preventDefault(); begin(dir); });
+      ["pointerup", "pointercancel", "pointerleave"].forEach(function (ev) {
+        b.addEventListener(ev, end);
+      });
+    });
+    // A finger that leaves the screen entirely must not leave the shield spinning.
+    window.addEventListener("blur", end);
+  })();
+
   document.getElementById("gameBack").addEventListener("click", function () { leaveGame(false); });
   document.getElementById("gameEnd").addEventListener("click", function () { leaveGame(true); });
-  async function act(action, value) {
+  async function act(action, value, quiet) {
     await fetch("/api/games/act", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ code: code(), playerId: playerId, action: action, value: value }) }).catch(function () {});
+    // A held d-pad fires ten times a second; re-fetching the phone view after
+    // each one would triple the traffic to redraw a card that has not changed.
+    // The face is driven by the server's own frames, so it stays correct.
+    if (quiet) return;
     pollGame();
   }
   async function pollGame() {
@@ -454,6 +515,7 @@ ${g.keys.map((k) => {
       ch.querySelectorAll("[data-a]").forEach(function (b) {
         b.addEventListener("click", function () { act(b.dataset.a, b.dataset.v); });
       });
+      show("gPad", p.pad === "dpad");
       show("gInputRow", !!p.input);
       if (p.input) {
         document.getElementById("gInput").placeholder = p.input.placeholder || "";

@@ -892,6 +892,66 @@ const phoneLink: Skill = {
     };
   },
 };
+/**
+ * "Nobi, set up my wifi" / "are you online?" — the spoken half of onboarding.
+ *
+ * A robot with no keyboard cannot be put on a network the usual way, so he runs
+ * the setup himself: he puts a hotspot in the air and TELLS you what to join and
+ * what to type. Being able to say it out loud is the entire advantage he has
+ * over every other headless device, so the words matter more than the API does.
+ */
+/**
+ * The QR he puts on his face during setup is NOT a link — it is the standard
+ * Wi-Fi join string every phone camera understands. A link would be useless
+ * here: the phone cannot reach a page on a robot it has not joined yet. Point
+ * a camera at his face, tap the banner, and the phone is on his hotspot with
+ * the password already filled in. Then the setup page opens on its own.
+ */
+function wifiJoinQr(ssid: string, password: string): string {
+  const esc = (s: string) => s.replace(/([\\;,":])/g, "\\$1");
+  return `WIFI:T:WPA;S:${esc(ssid)};P:${esc(password)};;`;
+}
+const wifiSetupSkill: Skill = {
+  id: "wifi-setup",
+  async handle({ lower }) {
+    const asksOnline = /\b(are you (on ?line|connected|on (the )?(wi-?fi|internet|network))|what (wi-?fi|network) are you on|which network)\b/.test(lower);
+    const asksSetup = /\b((set ?up|setup|change|switch|connect|join|fix|configure) (my |the |your |to )?(wi-?fi|wifi|network|internet)|wi-?fi setup|get (you )?on ?line|new wi-?fi)\b/.test(lower);
+    if (!asksOnline && !asksSetup) return null;
+
+    const net = await import("./net-setup.js");
+    const s = await net.status();
+
+    if (asksOnline && !asksSetup) {
+      return {
+        speak: s.setupMode
+          ? `Not yet. I'm in setup mode — join my network, ${s.hotspotName}, and I'll walk you through it.`
+          : s.ssid
+            ? `Yes. I'm on ${s.ssid}.`
+            : "Not right now. I can't see a network I know. Say set up my wifi and I'll help.",
+      };
+    }
+
+    // Already in setup mode: repeat the instructions rather than restart it.
+    if (s.setupMode) {
+      return {
+        speak: `I'm already in setup. On your phone, join the network ${s.hotspotName}. The password is ${s.hotspotPassword.split("").join(" ")}.`,
+        ui: { type: "showLink", title: "Join me to set up", url: wifiJoinQr(s.hotspotName, s.hotspotPassword), code: s.hotspotPassword, hint: s.hotspotName },
+      };
+    }
+
+    // He is online and someone wants to move him. Starting a hotspot takes him
+    // off the network he is on, so it is armed to come back by itself: ten
+    // minutes is long enough to type a password and short enough that a robot
+    // abandoned mid-setup is on the old Wi-Fi again before anyone worries.
+    const started = await net.startHotspot({ revertAfterMs: 600_000 });
+    if (!started) return { speak: "I couldn't start setup mode. My Wi-Fi radio wouldn't do it." };
+    const fresh = await net.status();
+    return {
+      speak: `Alright. On your phone, join the network ${fresh.hotspotName}. The password is ${fresh.hotspotPassword.split("").join(" ")}. A page will open, pick your wifi, and I'll do the rest.`,
+      ui: { type: "showLink", title: "Join me to set up", url: wifiJoinQr(fresh.hotspotName, fresh.hotspotPassword), code: fresh.hotspotPassword, hint: fresh.hotspotName },
+    };
+  },
+};
 const myAddress: Skill = {
   id: "my-address",
   handle({ lower }) {
@@ -988,7 +1048,7 @@ const shopSkill: Skill = {
 };
 
 const SKILLS: Skill[] = [
-  meetSomeone, pitchShow, demoShow, orderShow, syncAccount, botNumberSkill, qrSkill, remoteSkill, phoneLink, myAddress, shopSkill,
+  meetSomeone, pitchShow, demoShow, orderShow, syncAccount, botNumberSkill, qrSkill, remoteSkill, phoneLink, wifiSetupSkill, myAddress, shopSkill,
   releaseEstop, emergencyStop, spinSkill, wanderSkill, setSpeedSkill, stopSkill,
   experienceModeSkill, uiModeSkill, describeScreenSkill, survivorSkill, videoControlSkill, playVideoSkill,
   closeSkill, openSkill, controlDevice, readSensor, listDevices,

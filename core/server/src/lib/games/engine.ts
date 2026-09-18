@@ -7,6 +7,8 @@ import type { GameDefinition, GameSession, Player, GameContext } from "./types.j
 import { devsDungeon } from "./devs-dungeon.js";
 import { samePage } from "./same-page.js";
 import { readTheRoom } from "./read-the-room.js";
+import { bizbot } from "./bizbot.js";
+import { meteor } from "./meteor.js";
 
 /**
  * games/engine.ts — one live game at a time, owned by the robot.
@@ -24,6 +26,8 @@ const GAMES: Record<string, GameDefinition<never>> = {
   [devsDungeon.id]: devsDungeon as unknown as GameDefinition<never>,
   [samePage.id]: samePage as unknown as GameDefinition<never>,
   [readTheRoom.id]: readTheRoom as unknown as GameDefinition<never>,
+  [bizbot.id]: bizbot as unknown as GameDefinition<never>,
+  [meteor.id]: meteor as unknown as GameDefinition<never>,
 };
 
 const SAVE_KEY = "NOBI_GAME_SESSION";
@@ -43,7 +47,8 @@ let ticker: ReturnType<typeof setInterval> | null = null;
 
 export function listGames() {
   return Object.values(GAMES).map((g) => ({
-    id: g.id, title: g.title, blurb: g.blurb, minPlayers: g.minPlayers, maxPlayers: g.maxPlayers,
+    id: g.id, title: g.title, blurb: g.blurb, icon: g.icon, color: g.color,
+    minPlayers: g.minPlayers, maxPlayers: g.maxPlayers,
   }));
 }
 
@@ -65,7 +70,21 @@ export async function restoreSession(): Promise<void> {
   } catch { /* a corrupt save is not worth a crash; start fresh */ }
 }
 
-async function save(): Promise<void> {
+let lastSaveAt = 0;
+/**
+ * Persist the session, at most once every couple of seconds.
+ *
+ * Turn-based games publish a frame when somebody presses a button, so saving on
+ * every publish was free. An arcade game ticks fourteen times a second, and
+ * writing the whole session to the config store fourteen times a second would
+ * put the robot's storage under constant load for the sake of a game nobody
+ * needs resumed to the exact frame. Losing a second of a meteor round is not a
+ * loss; a turn-based game still saves promptly because `force` skips the gate.
+ */
+async function save(force = false): Promise<void> {
+  const now = Date.now();
+  if (!force && now - lastSaveAt < 2000) return;
+  lastSaveAt = now;
   try {
     await setConfig(SAVE_KEY, session ? JSON.stringify({ ...session, schema: SAVE_VERSION }) : "");
   } catch { /* best effort */ }
@@ -100,6 +119,7 @@ function context(): GameContext {
   return {
     now: Date.now(),
     random: Math.random,
+    players: session ? session.players : [],
     narrate: async (prompt: string, maxWords = 60) => {
       // A narrator, not an assistant: the rules go in the prompt because
       // runInference takes a single prompt, and a game that gets "Sure! Here's
@@ -118,19 +138,25 @@ function context(): GameContext {
 }
 
 /** Push the current frame to the face and bump the version phones poll on. */
-function publish(): void {
+function publish(opts: { fromTick?: boolean } = {}): void {
   const d = def();
   if (!session || !d) return;
   session.version += 1;
   const frame = guard("render", () => d.render(session!.state as never, session!.players), null);
   if (!frame) return;
+  // Every frame carries the game's identity, so the face can wear it: the icon
+  // sits on the board strip and the colour tints the moment. A game that does
+  // not choose a colour for a particular beat inherits its own, which means no
+  // two games ever look the same across the room.
+  const face = { ...frame.face, color: frame.face.color ?? d.color, icon: d.icon, accent: d.color };
   broadcast({
     type: "game.frame",
     source: "games",
-    payload: { gameId: session.gameId, version: session.version, face: frame.face },
+    payload: { gameId: session.gameId, version: session.version, face },
     timestamp: new Date().toISOString(),
   });
-  void save();
+  // A press is worth saving immediately; a tick can wait for the throttle.
+  void save(!opts.fromTick);
 }
 
 function startTicker(): void {
@@ -142,7 +168,7 @@ function startTicker(): void {
     const next = guard("tick", () => d.tick!(session!.state as never, context()) as unknown, null);
     if (next === null) return;          // the guard has already ended the game
     session.state = next;
-    publish();
+    publish({ fromTick: true });
   }, d.tickMs);
 }
 
@@ -230,6 +256,8 @@ export function viewFor(playerId: string) {
   return {
     gameId: session.gameId,
     title: d.title,
+    icon: d.icon,
+    color: d.color,
     version: session.version,
     phone: frame.phones[playerId] ?? { title: d.title, body: "Join to play." },
     players: session.players.map((p) => ({ id: p.id, name: p.name })),

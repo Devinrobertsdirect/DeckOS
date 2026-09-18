@@ -29,6 +29,7 @@ import {
 } from "@/pet/showScripts";
 import { stripEmoji } from "@/lib/stripText";
 import { dockLines } from "@/genesis/dockGreetings";
+import MeteorCanvas, { type MeteorCanvasData } from "@/pet/MeteorCanvas";
 import {
   appendTurn, ingestUserMessage, buildContext,
   useAtlasMemory, addFact, removeFact, memorySummary,
@@ -1087,6 +1088,8 @@ export function PetShell({
     title?: string; body?: string; big?: string; mood?: string; color?: string;
     scene?: string | null; speak?: string; scores?: Array<{ name: string; score: number; active?: boolean }>;
     canvas?: Record<string, unknown>;
+    /** The running game's identity, stamped on every frame by the engine. */
+    icon?: string; accent?: string;
   }>(null);
   const lastSpoken = useRef<string>("");
   useEffect(() => {
@@ -1245,6 +1248,11 @@ export function PetShell({
           <div className="absolute inset-0 flex items-center justify-center">
             <AtlasFace mode="auto" state={faceState} size={faceFill} bare activity={activity} gaze={gaze}
               eyeColorOverride={eyeColor} discTint={discTint} emoji={emoji} />
+            {/* A game that draws its own playfield gets the whole disc, around
+                his eyes. Only Meteor uses this so far. */}
+            {gameFace?.canvas?.["kind"] === "meteor" && (
+              <MeteorCanvas data={gameFace.canvas as unknown as MeteorCanvasData} />
+            )}
           </div>
           <div className="pointer-events-none absolute inset-x-0 top-[63%] flex justify-center px-10">
             {/* The game board: a thin strip the room can read from across a
@@ -1252,10 +1260,16 @@ export function PetShell({
             {gameFace && (
               <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex flex-col items-center gap-1 px-6 pb-3">
                 {gameFace.title && (
-                  <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-primary/60">{gameFace.title}</div>
+                  /* The game's own icon and colour ride on the title, so the
+                     room can tell which game is on from the doorway. */
+                  <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.28em]"
+                    style={{ color: gameFace.accent ?? undefined }}>
+                    {gameFace.icon && <span className="text-[15px] tracking-normal">{gameFace.icon}</span>}
+                    <span className={gameFace.accent ? "" : "text-primary/60"}>{gameFace.title}</span>
+                  </div>
                 )}
                 {gameFace.big && (
-                  <div className="text-4xl font-bold tabular-nums text-foreground">{gameFace.big}</div>
+                  <div className="text-4xl font-bold tabular-nums" style={{ color: gameFace.accent ?? undefined }}>{gameFace.big}</div>
                 )}
                 {!!gameFace.scores?.length && (
                   <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-0.5">

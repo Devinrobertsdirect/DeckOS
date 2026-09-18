@@ -436,6 +436,12 @@ export async function bootstrap(): Promise<void> {
   // A game in progress survives a brain restart: the table is where you left it.
   void import("./games/engine.js").then((m) => m.restoreSession()).catch(() => {});
 
+  // If he wakes up somewhere new with no network he knows, he offers his own.
+  // This is the whole out-of-box story for a robot with no keyboard — see
+  // net-setup.ts. It waits out a grace period first and never interrupts a
+  // working connection, so on a robot that is already online it does nothing.
+  void import("./net-setup.js").then((m) => m.beginNetworkWatch()).catch(() => {});
+
   await refreshOllamaDetection().catch(() => {});
   // Auto-install a local model if a local runtime is present but empty, then
   // hook it — so Nobi always has a free local brain once Ollama is around.

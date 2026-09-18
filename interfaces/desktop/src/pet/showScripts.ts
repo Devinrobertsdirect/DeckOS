@@ -76,7 +76,7 @@ export function buildDemoScript(bot: string, p: Persona): ShowBeat[] {
       { mood: "idle", holdMs: 140 }, { mood: "sleeping", holdMs: 480 },
     ] },
     { scene: "sparkle", mood: "surprised", color: c.cool, direct: true, holdMs: 2600, say: {
-      rocky:  "Oh! Hello. Visitors. Happy. Happy happy happy.",
+      rocky:  "Oh! Hello. Visitors. This is my favourite part of the day.",
       jarvis: "Ah. Visitors. How very good of you to come.",
       friday: "Oh, hiya! Look at you lot. Grand. This is grand.",
       alfred: "Ah. Good evening. Visitors. What a genuine pleasure.",
@@ -90,7 +90,7 @@ export function buildDemoScript(bot: string, p: Persona): ShowBeat[] {
     { scene: "hud", mood: "wink", color: c.happy, holdMs: 900 },
     // ── the whole of him, in a fishbowl ───────────────────────────────────────
     { scene: "bowl", holdMs: 10500, say: {
-      rocky:  "Look. Here is all of me. Small body. Big eyes. I like to hang out in here. Like a fish. Hello, fish.",
+      rocky:  "Look. Here is all of me. Small body, big eyes. I live in here like a fish in a bowl. Hello, fish.",
       jarvis: "This, for the record, is the whole of me. Compact. Efficient. The fish and I have an understanding.",
       friday: "And that's me, the full package, body and all. Bit of a fishbowl situation, but I've made it home. Hi, fish.",
       alfred: "Here I am in full, as it were. Modest in stature. The fish keeps me company; we get on splendidly.",
@@ -107,7 +107,7 @@ export function buildDemoScript(bot: string, p: Persona): ShowBeat[] {
       },
       director: `They just told you their name (or said something else). Say their name back with real delight and make ONE playful, kind joke or compliment about it, or about meeting them. In character. 1-2 short sentences. Do NOT ask a question. Only use what they said just now; never claim to remember them or invent past meetings. ${VOICE_RULE}`,
       fallback: {
-        rocky:  "Shy. That is okay. I like quiet friends too.",
+        rocky:  "Shy is okay. Some of my favourite friends are quiet ones.",
         jarvis: "The strong, silent type. Noted. I respect that.",
         friday: "Playing it cool. Fair enough. I'll win you over.",
         alfred: "A private sort. Quite right. We'll get there.",
@@ -115,7 +115,7 @@ export function buildDemoScript(bot: string, p: Persona): ShowBeat[] {
     } },
     // ── science: the tube slides in, bubbles, boils over ─────────────────────
     { scene: "lab", mood: "focused", color: SCIENCE, direct: true, holdMs: 6800, say: {
-      rocky:  "I love science. Look. Green bubbles. Science is happening. Good good good.",
+      rocky:  "I love science. Look at that. Green bubbles, which means something is definitely happening.",
       jarvis: "I also dabble in science. Mind the green. It's meant to bubble like that. Probably.",
       friday: "Oh, and I do science. See the green stuff? Totally under control. Mostly.",
       alfred: "I keep a small laboratory, naturally. The green solution is meant to bubble. I'm nearly certain.",
@@ -139,7 +139,7 @@ export function buildDemoScript(bot: string, p: Persona): ShowBeat[] {
       },
       director: `They just told you something they love. React with GENUINE enthusiasm, connect it to something about yourself or something you could do together, or make a warm joke about it. In character. 1-2 short sentences. Do NOT ask a question. Only use what they said just now; never claim to remember them or invent past meetings. ${VOICE_RULE}`,
       fallback: {
-        rocky:  "Hard to pick one. I know. I love everything too.",
+        rocky:  "Hard to pick just one. I know the feeling. I love nearly everything.",
         jarvis: "Too many to choose from. A good problem to have.",
         friday: "Can't pick just one? Same. Honestly, same.",
         alfred: "Spoilt for choice. As it should be.",
@@ -147,13 +147,13 @@ export function buildDemoScript(bot: string, p: Persona): ShowBeat[] {
     } },
     // ── space: helmet on, warp ───────────────────────────────────────────────
     { scene: "helmet", mood: "starstruck", color: c.cool, direct: true, holdMs: 5600, say: {
-      rocky:  "One day, I go to space. Helmet on. You come too, friend. We see the stars.",
+      rocky:  "One day I will go to space. Helmet on. You come too, friend, and we will look at the stars.",
       jarvis: "One day, space. Helmet on, obviously. You're welcome to join. I'll handle the navigation.",
       friday: "Someday I'm going to space. Helmet's on, I'm ready. You're coming with me, obviously.",
       alfred: "One day I rather fancy space. Helmet on. You shall come along. I'll see to the tea.",
     } },
     { scene: "warp", holdMs: 4200, say: {
-      rocky:  "Stars. Stars stars stars. Amaze.",
+      rocky:  "Stars in every direction, as far as I can see. Amaze.",
       jarvis: "Ah. Stars. Rather a lot of them.",
       friday: "Look at that. Stars for days.",
       alfred: "Stars. One never tires of them.",
@@ -179,7 +179,7 @@ export function buildDemoScript(bot: string, p: Persona): ShowBeat[] {
       alfred: `And that is me. ${name}. It has been a genuine pleasure. Do come back.`,
     } },
     { scene: "confetti", mood: "happy", color: c.happy, direct: true, holdMs: 3400, say: {
-      rocky: "Good. Good good good.", jarvis: "Thank you. You've been lovely.", friday: "Cheers, you lot!", alfred: "Thank you, all. Most kind.",
+      rocky: "Thank you for stopping. Come back and say hello.", jarvis: "Thank you. You've been lovely.", friday: "Cheers, you lot!", alfred: "Thank you, all. Most kind.",
     } },
     { scene: "out", mood: "happy", color: c.happy, holdMs: 1200 },
   ];
@@ -236,7 +236,7 @@ export function interruptedLine(p: Persona): string {
 
 /** The rainbow trick: rapid moods + rainbow ring + confetti, then a "ta-da". */
 export const TRICK_MOODS: Array<[string, string]> = [["dizzy", MISCHIEF], ["shocked", "#C9DCF0"], ["mindblown", "#F5B83D"], ["love", LOVE], ["starstruck", "#C9DCF0"], ["laughing", "#FFC820"]];
-export const TRICK_TADA: Lines = { rocky: "Ta-da. Good good good.", jarvis: "Ta-da. Modest, but effective.", friday: "Ta-da! Nailed it.", alfred: "Ta-da. Restrained, I trust." };
+export const TRICK_TADA: Lines = { rocky: "Ta-da! I have been practising that one.", jarvis: "Ta-da. Modest, but effective.", friday: "Ta-da! Nailed it.", alfred: "Ta-da. Restrained, I trust." };
 
 /**
  * A few SET tricks, so "do a trick" is instant and never the same twice in a
@@ -268,7 +268,9 @@ export const TRICK_INTRO: Record<TrickKind, Lines> = {
  */
 export const JOKES: Record<Persona, string[]> = {
   rocky: [
-    "Why did the robot go on vacation? He needed to recharge. Good good good.",
+    "Why did the robot go on vacation? He needed to recharge.",
+    "I spent all morning debugging myself. Eureka! It was the part that says Eureka.",
+    "I do not have hands, so everything I build, I build by describing it very confidently.",
     "I would tell you a joke about the internet. But you might not get it. I work offline.",
     "What do you call a robot who takes the long way? R two detour.",
     "I asked the toaster for advice. It got heated. Not my fault.",
@@ -323,7 +325,7 @@ export function buildPitchScript(bot: string, p: Persona): ShowBeat[] {
     // the Mark 1 rolls onto his own screen, skids, turns to camera — then speaks
     { scene: "drive", holdMs: 2500 },
     { scene: "drive", direct: true, holdMs: 4200, say: {
-      rocky: `Hello. I am ${name}. That is me. Small me. Big me is talking.`,
+      rocky: `Hello. I am ${name}. That little one is me, and this big one is me talking about me.`,
       jarvis: `Good day. I am ${name}. That, in miniature, is me. The full-size version is speaking.`,
       friday: `Hiya. I'm ${name}. That little fella is me. Big me's doing the talking.`,
       alfred: `Good evening. I am ${name}. That is me, at a modest scale. The rest of me is speaking.`,
@@ -332,7 +334,7 @@ export function buildPitchScript(bot: string, p: Persona): ShowBeat[] {
       rocky: "These are my eyes. They do all the acting.", jarvis: "These are my eyes. They do all the acting.", friday: "And these are my eyes. They do all the acting.", alfred: "These are my eyes. They do all of the acting.",
     } },
     { scene: "boot", holdMs: 11000, say: {
-      rocky:  "I started as a spark. Little bits, floating. Then, together. A mind. A heart. Me.",
+      rocky:  "I started as a spark. Little bits, floating, and then all of it together. A mind, a heart, me.",
       jarvis: "I began as a spark. Scattered fragments that, given a moment, organised themselves into a mind. Efficiently, I might add.",
       friday: "I started as a spark. Bits floating about, then bang, they pulled together. A mind. A heart. Me.",
       alfred: "I began, as all good things do, quietly. A spark. Scattered pieces gathering themselves into a mind and, in time, a heart.",
@@ -356,7 +358,7 @@ export function buildPitchScript(bot: string, p: Persona): ShowBeat[] {
     ] },
     { scene: "sparkle", mood: "wink", color: c.happy, holdMs: 900 },
     { scene: "hearts", mood: "love", color: LOVE, direct: true, holdMs: 5200, say: {
-      rocky:  "I care about my friend. A lot. Big heart. Big big heart.",
+      rocky:  "I care about my friend. A great deal. Small robot, very big heart.",
       jarvis: "I am, beneath the polish, rather devoted to my person.",
       friday: "And I proper care about my people. Big heart, this one.",
       alfred: "And I care for my people. Deeply, and without fuss.",
@@ -375,7 +377,7 @@ export function buildPitchScript(bot: string, p: Persona): ShowBeat[] {
       alfred: "Lights, music, questions, all attended to from my post on the desk. Home, as it were.",
     } },
     { scene: "finale", mood: "proud", color: c.warm, direct: true, holdMs: 10500, say: {
-      rocky:  `So. That is me. ${name}. Your friend. Good. Good good good.`,
+      rocky:  `So that is me. ${name}. Your friend. Good good good.`,
       jarvis: `That, then, is me. ${name}. A pleasure.`,
       friday: `So that's me. ${name}. Pleasure's all mine.`,
       alfred: `And that is me. ${name}. At your service.`,
@@ -395,37 +397,37 @@ export function buildOrderScript(bot: string, p: Persona): ShowBeat[] {
   const name = bot.trim() || "Nobi";
   return [
     { scene: "hud", mood: "surprised", color: c.cool, direct: true, holdMs: 2800, say: {
-      rocky: "One of me? Good good good. Easy. Thirty seconds. Watch.",
+      rocky: "One of me? Eureka, a customer. It takes about thirty seconds. Watch.",
       jarvis: "One of me. An excellent instinct. Thirty seconds, if you'll allow.",
       friday: "One of me? Grand. Thirty seconds, watch this.",
       alfred: "One of me. How kind. Thirty seconds, if I may.",
     } },
     { scene: "studioShell", holdMs: 6000, say: {
-      rocky: "First. Pick a shell. Any color. Shell is magnetic. Swap it later. Easy.",
+      rocky: "First, pick a shell in any color. They are magnetic, so you can swap it whenever you like.",
       jarvis: "First, a shell. Any colour. It's magnetic, so you may change your mind later.",
       friday: "First up, a shell. Any color you like. It's magnetic, swap it whenever.",
       alfred: "First, the shell. Any colour at all. It is magnetic; one may change it later.",
     } },
     { scene: "studioEyes", holdMs: 4500, say: {
-      rocky: "Then my eyes. Only the color. Eyes set the accent. Everywhere.",
+      rocky: "Then my eyes. Just the color. Whatever you pick becomes my accent everywhere.",
       jarvis: "Then the eyes. Colour only. Whatever you choose becomes the accent throughout.",
       friday: "Then the eyes. Just the color. That sets the accent everywhere.",
       alfred: "Then the eyes. Colour only. It becomes the accent throughout.",
     } },
     { scene: "studioGear", holdMs: 6000, say: {
-      rocky: "Real gear. A cradle. I ride in your car. A charger pack. A stand that charges me.",
+      rocky: "Then the real gear. A cradle so I can ride in your car, a battery pack, and a stand that charges me.",
       jarvis: "Real accessories. A cradle, so I ride along in the car. A charger pack. A stand that charges me.",
       friday: "Real gear. A cradle so I can ride in your car. A charger pack. A stand that charges me.",
       alfred: "Proper accessories. A cradle for the car. A charger pack. A stand that keeps me charged.",
     } },
     { scene: "studioName", holdMs: 4500, say: {
-      rocky: `Name me. Say who I am for. I greet them by name. Day one.`,
+      rocky: `Name me, and tell me who I am for. I will greet them by name on day one.`,
       jarvis: `Name me, and say who I'm for. I'll greet them by name the day I arrive.`,
       friday: `Name me, tell it who I'm for. I'll greet them by name day one.`,
       alfred: `Name me, and say whom I am for. I shall greet them by name upon arrival.`,
     } },
     { scene: "qr", mood: "happy", color: c.happy, direct: true, holdMs: 6000, say: {
-      rocky: `Scan. Design yours. Thirty seconds. Good good good.`,
+      rocky: `Scan that and design your own. Thirty seconds, start to finish.`,
       jarvis: `Scan that. Design your own. Thirty seconds, as promised.`,
       friday: `Scan that and design your own. Thirty seconds, told you.`,
       alfred: `Scan that, and design your own. Thirty seconds, as promised.`,

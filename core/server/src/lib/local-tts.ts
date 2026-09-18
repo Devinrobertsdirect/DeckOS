@@ -28,12 +28,43 @@ function voiceParams(gender?: string | null): { voice: string; pitch: string; sp
       return { voice: "en-us", pitch: "42", speed: "150" };
     case "male":
     default:
-      // The offline stand-in for Rocky: brighter and a touch higher than the old
-      // JARVIS rumble (Devin: "a little higher and brighter"), with some pace.
-      // ElevenLabs takes over the moment a real key is present — this is the
-      // voice he has when the network is off, so it should still sound awake.
-      return { voice: "en-us+m3", pitch: "44", speed: "160" };
+      // The offline voice. It is not trying to be the cloud voice — it is trying
+      // to be UNDERSTOOD, which is a different job. Brighter and higher than the
+      // old rumble, and slowed from 160 to 148: on a small Bluetooth speaker in
+      // a room with people in it, pace is what costs you the words. A synthetic
+      // voice that is a shade too slow reads as deliberate; one that is a shade
+      // too fast reads as broken.
+      return { voice: "en-us+m3", pitch: "44", speed: "148" };
   }
+}
+
+/**
+ * Give espeak-ng something it can perform.
+ *
+ * espeak decides its intonation from punctuation alone, so a line with no full
+ * stop comes out as one flat unbroken shelf of sound — the single biggest reason
+ * the offline voice is tiring. This adds the marks it needs: a terminal stop so
+ * the pitch actually falls at the end, a breath after a long clause, and a real
+ * pause where the text was already pausing.
+ */
+function shapeForEspeak(text: string): string {
+  let t = text
+    .replace(/\s+[—–]\s+|\s+-{2,}\s+/g, ", ")   // an em dash is a breath, not a word
+    .replace(/…|\.\s*\.\s*\./g, "...")          // espeak reads "..." as a pause
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  // A clause running past roughly a dozen words gets a comma at its midpoint,
+  // so he takes a breath instead of sprinting to the end of it.
+  t = t.split(/(?<=[.!?])\s+/).map((sentence) => {
+    const words = sentence.split(" ");
+    if (words.length < 14 || /,/.test(sentence)) return sentence;
+    const mid = Math.floor(words.length / 2);
+    return [...words.slice(0, mid), `${words[mid]},`, ...words.slice(mid + 1)].join(" ");
+  }).join(" ");
+  // Without a terminal mark espeak never drops its pitch, and every line sounds
+  // like it was cut off mid-thought.
+  if (!/[.!?]$/.test(t)) t += ".";
+  return t;
 }
 
 /**
@@ -52,7 +83,15 @@ export function localTts(text: string, gender?: string | null): Promise<Buffer> 
       "-v", voice,
       "-s", speed,
       "-p", pitch,
-      "-a", "90",
+      // Louder, because this voice exists for the times the good one is gone
+      // and it is usually coming out of a small speaker across a room.
+      "-a", "120",
+      // A 30ms gap between words. It is the cheapest intelligibility you can
+      // buy from espeak: consonants at the edges of words stop being eaten by
+      // the word next to them.
+      "-g", "3",
+      // Capitals get a touch of emphasis rather than being spelled out.
+      "-k", "1",
       "--stdout",
     ]);
 
@@ -69,7 +108,7 @@ export function localTts(text: string, gender?: string | null): Promise<Buffer> 
 
     proc.on("error", reject);
 
-    const safe = text.slice(0, 3000);
+    const safe = shapeForEspeak(text).slice(0, 3000);
     proc.stdin.write(safe, "utf8");
     proc.stdin.end();
   });

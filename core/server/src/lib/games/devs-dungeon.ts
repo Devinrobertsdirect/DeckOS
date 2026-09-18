@@ -79,6 +79,8 @@ export const devsDungeon: GameDefinition<DungeonState> = {
   id: "devs-dungeon",
   title: "Dev's Dungeon",
   blurb: "A co-op adventure Nobi narrates. Your phone holds your secrets and your rolls.",
+  icon: "⚔️",
+  color: "#9b7ff0",
   minPlayers: 1,
   maxPlayers: 6,
 

@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { broadcast } from "../lib/ws-server.js";
 import { getOrCreatePairingCode } from "../lib/pairing.js";
+import { getConfig, setConfig } from "../lib/app-config.js";
 
 /**
  * remote.ts — the demo remote: a page you bookmark on your phone.
@@ -106,6 +107,59 @@ router.post("/remote/command", async (req, res) => {
   res.json({ ok: true, ran: parsed.data.command });
 });
 
+/**
+ * Everything the remote needs to show its Setup band, and the one place it can
+ * change things. Pairing-code gated like the commands: same network, same bar.
+ *
+ * Keys are WRITE-ONLY here. The remote can tell you a key is present and how
+ * long it is, never what it is — a code that lets you drive the robot should
+ * not also hand out its credentials.
+ */
+const KEY_SLOTS = ["OPENROUTER_API_KEY", "ANTHROPIC_API_KEY", "ELEVENLABS_API_KEY"] as const;
+
+async function checkCode(req: Parameters<typeof router.post>[1] extends never ? never : any): Promise<boolean> {
+  const given = String((req.body?.code ?? req.query?.code ?? "")).trim().toUpperCase().replace(/\s+/g, "");
+  const expected = (await getOrCreatePairingCode()).toUpperCase().replace(/\s+/g, "");
+  return !!given && given === expected;
+}
+
+router.get("/remote/state", async (req, res) => {
+  if (!(await checkCode(req))) { res.status(403).json({ error: "bad code" }); return; }
+  const [voiceId, ...keys] = await Promise.all([
+    getConfig("ELEVENLABS_VOICE_ID").catch(() => null),
+    ...KEY_SLOTS.map((k) => getConfig(k).catch(() => null)),
+  ]);
+  const cloudUrl = (await getConfig("NOBI_CLOUD_URL").catch(() => null)) ?? "";
+  const token = (await getConfig("NOBI_CLOUD_TOKEN").catch(() => null)) ?? "";
+  const botNumber = (await getConfig("NOBI_BOT_NUMBER").catch(() => null)) ?? null;
+  res.json({
+    voiceId: voiceId ?? null,
+    keys: Object.fromEntries(KEY_SLOTS.map((k, i) => [k, { set: !!keys[i], length: (keys[i] ?? "").length }])),
+    cloud: { url: cloudUrl, linked: !!token, botNumber },
+  });
+});
+
+router.post("/remote/setup", async (req, res) => {
+  if (!(await checkCode(req))) { res.status(403).json({ error: "bad code" }); return; }
+  const b = (req.body ?? {}) as { voiceId?: string; key?: string; value?: string; sync?: boolean };
+  const done: string[] = [];
+  if (typeof b.voiceId === "string" && /^[A-Za-z0-9]{10,40}$/.test(b.voiceId)) {
+    await setConfig("ELEVENLABS_VOICE_ID", b.voiceId);
+    done.push("voice");
+  }
+  if (typeof b.key === "string" && (KEY_SLOTS as readonly string[]).includes(b.key) && typeof b.value === "string" && b.value.trim()) {
+    await setConfig(b.key, b.value.trim());
+    done.push(b.key);
+  }
+  if (b.sync) {
+    const { syncFromCloud } = await import("../lib/cloud-sync.js");
+    const r = await syncFromCloud();
+    res.json({ ok: r.ok, done: [...done, "sync"], sync: r });
+    return;
+  }
+  res.json({ ok: true, done });
+});
+
 /** Laid out as three bands: what he DOES, how he LOOKS, where he LOOKS. */
 const GROUPS: Array<{ title: string; keys: string[]; wide?: string[] }> = [
   { title: "Do", keys: ["demo", "pitch", "order", "qr", "trick", "spin", "hearts", "warp", "joke", "meet", "shop", "botno"], wide: ["demo"] },
@@ -140,6 +194,17 @@ router.get("/remote", async (_req, res) => {
   button .sw{width:13px;height:13px;border-radius:50%;flex:none;box-shadow:0 0 0 1px rgba(255,255,255,.25)}
   button:active{transform:scale(.95);background:#1b2740}
   button[disabled]{opacity:.45}
+  .setup{margin-top:18px;border-top:1px solid var(--line);padding-top:14px}
+  .setup label{display:block;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#5d6b86;margin:14px 2px 6px}
+  .setup .hint{letter-spacing:0;text-transform:none;color:#4a5878}
+  .setup .row{font-size:13px;color:#8fa0bd;padding:10px 12px;background:var(--card);border:1px solid var(--line);border-radius:12px}
+  .setup .row2{display:grid;grid-template-columns:1fr auto;gap:8px}
+  .setup select,.setup input{width:100%;background:var(--card);border:1px solid var(--line);color:var(--ink);
+        border-radius:12px;padding:13px;font:500 15px system-ui,sans-serif}
+  .setup input{margin-top:8px;font-family:ui-monospace,Menlo,monospace;letter-spacing:.05em}
+  .setup button.b{min-height:0;padding:0 18px;font-size:14px}
+  .setup button.full{width:100%;margin-top:10px;padding:16px}
+  .fine{font-size:11px;color:#4a5878;margin-top:8px;line-height:1.5}
   .stop{width:100%;margin-top:14px;background:var(--stop);color:#20160a;border-color:transparent;
         padding:22px;font-size:17px;font-weight:700}
   .msg{min-height:22px;text-align:center;font-size:14px;color:#7d8ba6}
@@ -159,6 +224,30 @@ ${g.keys.map((k) => {
 }).join("\n")}
 </div></div>`).join("\n")}
 <button class="stop" data-cmd="stop">\u25A0 STOP</button>
+
+<div class="band setup">
+  <h2>Setup</h2>
+  <div class="row" id="cloudRow">Checking\u2026</div>
+  <button class="b full" id="syncBtn">\u27F3  Sync from my account</button>
+
+  <label for="voiceSel">His voice</label>
+  <div class="row2">
+    <select id="voiceSel"><option>Loading voices\u2026</option></select>
+    <button class="b" id="voiceSave">Use</button>
+  </div>
+
+  <label for="keySel">API keys <span class="hint" id="keyHint"></span></label>
+  <div class="row2">
+    <select id="keySel">
+      <option value="OPENROUTER_API_KEY">OpenRouter (his brain)</option>
+      <option value="ELEVENLABS_API_KEY">ElevenLabs (his voice)</option>
+      <option value="ANTHROPIC_API_KEY">Anthropic</option>
+    </select>
+    <button class="b" id="keySave">Save</button>
+  </div>
+  <input id="keyVal" type="password" autocomplete="off" spellcheck="false" placeholder="paste the key, then Save">
+  <p class="fine">Keys are written straight to this robot and never shown back.</p>
+</div>
 <div class="msg" id="msg">Tap a button. He does it on his own screen.</div>
 <div class="gate">
   <label for="code">Pairing code${/* prefilled when opened from the robot's own QR */ ""}</label>
@@ -171,6 +260,76 @@ ${g.keys.map((k) => {
   var msg = document.getElementById("msg");
   input.value = params.get("code") || localStorage.getItem(KEY) || "";
   input.addEventListener("change", function () { try { localStorage.setItem(KEY, input.value.trim()); } catch (e) {} });
+  // ── Setup: what the robot currently has, and the three things you can change
+  function setupBody(extra) {
+    var o = { code: input.value.trim() };
+    for (var k in extra) o[k] = extra[k];
+    return { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(o) };
+  }
+  async function loadState() {
+    var code = input.value.trim();
+    if (!code) return;
+    try {
+      var r = await fetch("/api/remote/state?code=" + encodeURIComponent(code));
+      if (!r.ok) { document.getElementById("cloudRow").textContent = "Enter the pairing code to set things up."; return; }
+      var st = await r.json();
+      var c = st.cloud || {};
+      document.getElementById("cloudRow").innerHTML = (c.botNumber ? "Nobi #" + c.botNumber + " \u00b7 " : "") +
+        (c.linked ? "linked to your account" : c.url ? "not linked yet" : "no cloud set");
+      var hint = [];
+      for (var k in st.keys) if (st.keys[k].set) hint.push(k.split("_")[0].toLowerCase());
+      document.getElementById("keyHint").textContent = hint.length ? "(" + hint.join(", ") + " set)" : "(none set)";
+      loadVoices(st.voiceId);
+    } catch (e) { /* offline */ }
+  }
+  async function loadVoices(current) {
+    var sel = document.getElementById("voiceSel");
+    try {
+      var r = await fetch("/api/vision/elevenlabs/voices");
+      var j = await r.json();
+      var list = (j.voices || []);
+      if (!list.length) { sel.innerHTML = "<option>No voices (check the ElevenLabs key)</option>"; return; }
+      sel.innerHTML = list.map(function (v) {
+        return '<option value="' + v.id + '"' + (v.id === current ? " selected" : "") + ">" + v.name + "</option>";
+      }).join("");
+    } catch (e) { sel.innerHTML = "<option>Could not load voices</option>"; }
+  }
+  document.getElementById("syncBtn").addEventListener("click", async function () {
+    this.disabled = true; msg.textContent = "Syncing\u2026";
+    try {
+      var r = await fetch("/api/remote/setup", setupBody({ sync: true }));
+      var j = await r.json();
+      msg.textContent = j.ok
+        ? "Synced" + (j.sync && j.sync.ownerName ? " \u2014 hello, " + j.sync.ownerName : "") + ". " + ((j.sync && j.sync.keys ? j.sync.keys.length : 0)) + " key(s) in."
+        : "Sync: " + ((j.sync && j.sync.error) || j.error || "failed");
+      loadState();
+    } catch (e) { msg.textContent = "Could not reach him."; }
+    this.disabled = false;
+  });
+  document.getElementById("voiceSave").addEventListener("click", async function () {
+    var id = document.getElementById("voiceSel").value;
+    this.disabled = true; msg.textContent = "Setting voice\u2026";
+    try {
+      var r = await fetch("/api/remote/setup", setupBody({ voiceId: id }));
+      msg.textContent = r.ok ? "Voice set. Next thing he says uses it." : "Could not set the voice.";
+    } catch (e) { msg.textContent = "Could not reach him."; }
+    this.disabled = false;
+  });
+  document.getElementById("keySave").addEventListener("click", async function () {
+    var name = document.getElementById("keySel").value, val = document.getElementById("keyVal");
+    if (!val.value.trim()) { msg.textContent = "Paste a key first."; return; }
+    this.disabled = true; msg.textContent = "Saving\u2026";
+    try {
+      var r = await fetch("/api/remote/setup", setupBody({ key: name, value: val.value.trim() }));
+      msg.textContent = r.ok ? name.split("_")[0] + " key saved." : "Could not save that key.";
+      val.value = "";
+      loadState();
+    } catch (e) { msg.textContent = "Could not reach him."; }
+    this.disabled = false;
+  });
+  input.addEventListener("change", loadState);
+  if (input.value.trim()) loadState();
+
   document.querySelectorAll("button[data-cmd]").forEach(function (b) {
     b.addEventListener("click", async function () {
       var code = input.value.trim();

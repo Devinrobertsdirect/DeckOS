@@ -174,6 +174,10 @@ export function PetShell({
 
   // ── Sequential speak queue — sentences are spoken in order as they arrive ────
   const queueRef = useRef<EmotionSegment[]>([]);
+  // handleSend is declared much further down, but the remote pre-empt effect
+  // needs to call it. A ref refreshed each render bridges that without
+  // reordering the component.
+  const handleSendRef = useRef<((t: string) => Promise<void>) | null>(null);
   const drainingRef = useRef(false);
   const drainQueue = useCallback(async () => {
     if (drainingRef.current) return;
@@ -703,6 +707,9 @@ export function PetShell({
     },
     [drainQueue, waitForQueue, speak],
   );
+  // The pre-empt effect above runs before handleSend is declared, so it reaches
+  // it through this ref, refreshed on every render.
+  handleSendRef.current = handleSend;
 
   // ── Hands-free listening ────────────────────────────────────────────────────
   const { supported: micSupported, listening } = useAtlasListening({
@@ -803,7 +810,33 @@ export function PetShell({
     void speak(ack, { voiceId: personaVoiceId() });
   }, [voiceInterruptEv, stop]);
 
+  // A phrase from the REMOTE (not the microphone) also pre-empts: same reason.
+  // Ears-sourced speech still queues politely, because a bystander talking over
+  // a running demo should not restart it.
   const voiceHeardEv = useLatestEvent("voice.heard");
+  const preemptFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!voiceHeardEv || voiceHeardEv.source !== "remote") return;
+    if (preemptFor.current === voiceHeardEv.timestamp) return;
+    preemptFor.current = voiceHeardEv.timestamp;
+    if (!busyRef.current && !showRef.current) return;
+    cancelRef.current = true;
+    queueRef.current = [];
+    pendingAnswerRef.current = null;
+    stop();
+    setShowcaseScene(null);
+    // The normal handler has already refused this message (it arrived while he
+    // was busy), so cancelling is only half the job: once the old work has
+    // unwound we must run the new request ourselves, or the button does nothing
+    // but stop him — which is the most confusing possible outcome on a stand.
+    const text = String((voiceHeardEv.payload as { text?: string } | undefined)?.text ?? "").trim();
+    window.setTimeout(() => {
+      cancelRef.current = false;
+      busyRef.current = false;
+      setBusy(false);
+      if (text) void handleSendRef.current?.(text);
+    }, 300);
+  }, [voiceHeardEv, stop]);
   // Provisioning (POST /api/provision, before a unit ships): apply the build
   // profile — owner name, bot name, personality, eye theme — then reload so
   // every surface picks it up and the first greeting is to the owner by name.
@@ -1021,6 +1054,15 @@ export function PetShell({
       trick?: TrickKind; joke?: boolean; scene?: string | null;
     };
     touched();
+    // A press on the remote wins. Whatever is mid-flight — a show, a trick, a
+    // sentence — stops so the new thing starts now: on a stand you press a
+    // button because you want THAT, not because you want to queue behind this.
+    if (p.trick || p.joke || p.scene !== undefined) {
+      cancelRef.current = true;
+      queueRef.current = [];
+      stop();
+      window.setTimeout(() => { cancelRef.current = false; }, 220);
+    }
     // An explicit Clear also stops whatever is mid-flight: a trick sets its own
     // scene and mood a beat later, which would otherwise land on top of the
     // reset and leave him wearing the thing you just asked him to drop.

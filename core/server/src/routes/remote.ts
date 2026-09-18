@@ -145,6 +145,8 @@ router.post("/remote/setup", async (req, res) => {
   const done: string[] = [];
   if (typeof b.voiceId === "string" && /^[A-Za-z0-9]{10,40}$/.test(b.voiceId)) {
     await setConfig("ELEVENLABS_VOICE_ID", b.voiceId);
+    // The face caches the voice; tell it now so the next line uses the new one.
+    broadcast({ type: "voice.changed", source: "remote", payload: { voiceId: b.voiceId }, timestamp: new Date().toISOString() });
     done.push("voice");
   }
   if (typeof b.key === "string" && (KEY_SLOTS as readonly string[]).includes(b.key) && typeof b.value === "string" && b.value.trim()) {

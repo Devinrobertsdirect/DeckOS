@@ -100,6 +100,12 @@ export async function syncFromCloud(code?: string): Promise<SyncResult> {
       if (KEY_SLOTS.has(name) && typeof value === "string" && value.trim()) { await setConfig(name, value.trim()); applied.push(name); }
     }
     if (applied.length) void refreshOllamaDetection().catch(() => undefined);
+    // A voice chosen on the website arrives as a key slot; the face caches the
+    // voice, so it has to be told rather than left on the one it started with.
+    if (applied.includes("ELEVENLABS_VOICE_ID")) {
+      const vid = (await getConfig("ELEVENLABS_VOICE_ID").catch(() => null)) ?? "";
+      broadcast({ type: "voice.changed", source: "cloud-sync", payload: { voiceId: vid }, timestamp: new Date().toISOString() });
+    }
     const p = data.profile ?? {};
     const bp = (p["buildProfile"] ?? {}) as Record<string, unknown>;
     const botName = String(p["botName"] ?? bp["name"] ?? "").trim() || undefined;

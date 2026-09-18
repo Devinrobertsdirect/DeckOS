@@ -57,7 +57,27 @@ function toEyeRgb(color: string): string | null {
 }
 
 /** Per-persona ElevenLabs voice (localStorage `atlas_persona_voices` = {rocky: id, …}); undefined → the default voice. */
+/**
+ * The voice set on the robot itself (ELEVENLABS_VOICE_ID — what the remote's
+ * picker and the website write). Learned at boot and updated the moment it
+ * changes, so picking a voice takes effect without a restart.
+ */
+let configuredVoiceId: string | undefined;
+export function setConfiguredVoiceId(id: string | undefined): void {
+  configuredVoiceId = id && id.trim() ? id.trim() : undefined;
+}
+
+/**
+ * Which voice to speak in.
+ *
+ * The SET voice wins — everywhere, including shows. It used to lose to a
+ * per-persona map held in the browser, so conversation came out in the voice
+ * you had chosen and then the demo switched to whatever the map remembered.
+ * Choosing a voice has to mean he uses it, or the picker is a lie. The persona
+ * map is only a fallback for a desktop install that has no configured voice.
+ */
 function personaVoiceId(): string | undefined {
+  if (configuredVoiceId) return configuredVoiceId;
   try {
     const map = JSON.parse(localStorage.getItem("atlas_persona_voices") || "{}") as Record<string, string>;
     const id = map[getPersona().id];
@@ -1031,6 +1051,19 @@ export function PetShell({
   }, []);
   useEffect(() => { if (overlay) glanceAt(0, 0.35, 2200); }, [overlay, glanceAt]);
   useEffect(() => { if (caption) glanceAt(0, 0.22, 900); }, [caption, glanceAt]);
+
+  // The robot's own voice setting, learned at boot and kept current.
+  useEffect(() => {
+    fetch(`${import.meta.env.BASE_URL}api/config`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { config?: Record<string, string> } | null) => setConfiguredVoiceId(j?.config?.["ELEVENLABS_VOICE_ID"]))
+      .catch(() => { /* fall back to the persona map */ });
+  }, []);
+  const voiceChangedEv = useLatestEvent("voice.changed");
+  useEffect(() => {
+    if (!voiceChangedEv) return;
+    setConfiguredVoiceId((voiceChangedEv.payload as { voiceId?: string } | undefined)?.voiceId);
+  }, [voiceChangedEv]);
 
   // Show overrides: fetched once at boot, then whatever the brain pushes. This
   // is what makes a demo editable at a stand instead of via a three-minute deploy.

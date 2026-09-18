@@ -1107,6 +1107,11 @@ export function PetShell({
       setShowcaseScene(null);
       clearMood();
       setFaceState("idle");
+      // And take down the game's join QR. It advertises a PLAY CODE that died
+      // with the game, so leaving it up means the next person to scan his face
+      // gets a refusal and concludes the robot is broken. Caught in a
+      // screenshot: he was still showing a code from a game ended long before.
+      setOverlay((o) => (o?.kind === "link" ? null : o));
       return;
     }
     touched();
@@ -1277,8 +1282,11 @@ export function PetShell({
             )}
             {/* The countdown sits under his eyes, big enough to read across a
                 room — the whole point is that someone notices in time. */}
+            {/* Above the overlay (z-40). A countdown on something irreversible
+                is a safety control: if a QR card can cover it, the one moment
+                it exists for is the moment you cannot see it. */}
             {countdown && (
-              <div className="pointer-events-none absolute inset-x-0 top-[58%] z-30 flex flex-col items-center">
+              <div className="pointer-events-none fixed inset-x-0 top-[58%] z-50 flex flex-col items-center">
                 <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-amber-300/70">{countdown.label}</div>
                 <div className="text-6xl font-bold tabular-nums text-amber-300 drop-shadow-[0_0_18px_rgba(252,211,77,0.45)]">
                   {countdown.n}
@@ -1315,7 +1323,13 @@ export function PetShell({
                 )}
               </div>
             )}
-            <FaceCaption text={gameFace?.body ?? caption} hint={attracting ? "Say “Hey Nobi”" : hint} busy={busy} progress={sayProgress} listening={earsOpen} />
+            {/* The caption steps aside for a countdown. They occupy the same
+                band under his eyes, and stacked on each other neither one can
+                be read — which defeats a countdown whose entire job is to be
+                noticed in time to stop it. */}
+            {!countdown && (
+              <FaceCaption text={gameFace?.body ?? caption} hint={attracting ? "Say “Hey Nobi”" : hint} busy={busy} progress={sayProgress} listening={earsOpen} />
+            )}
           </div>
         </div>
       ) : (

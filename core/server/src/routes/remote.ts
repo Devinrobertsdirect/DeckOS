@@ -3,6 +3,7 @@ import { z } from "zod";
 import { broadcast } from "../lib/ws-server.js";
 import { getOrCreatePairingCode } from "../lib/pairing.js";
 import { getConfig, setConfig } from "../lib/app-config.js";
+import { cancelRotation } from "../lib/code-rotation.js";
 
 /**
  * remote.ts — the demo remote: a page you bookmark on your phone.
@@ -96,6 +97,11 @@ router.post("/remote/command", async (req, res) => {
   const cmd = COMMANDS[parsed.data.command];
   if (!cmd) { res.status(400).json({ error: "unknown command" }); return; }
 
+  // ANY button calls off a pending code change. Reaching for the remote is the
+  // clearest possible way of saying "not that" — and the person who wants to
+  // stop it is usually the person already holding the thing.
+  const stoppedRotation = cancelRotation();
+
   if ("stop" in cmd) {
     broadcast({ type: "voice.interrupt", source: "remote", payload: { text: "" }, timestamp: new Date().toISOString() });
   } else if ("face" in cmd) {
@@ -104,7 +110,7 @@ router.post("/remote/command", async (req, res) => {
     // Exactly what the ears send when they hear the same request out loud.
     broadcast({ type: "voice.heard", source: "remote", payload: { text: cmd.phrase }, timestamp: new Date().toISOString() });
   }
-  res.json({ ok: true, ran: parsed.data.command });
+  res.json({ ok: true, ran: parsed.data.command, ...(stoppedRotation ? { stoppedCodeChange: true } : {}) });
 });
 
 /**

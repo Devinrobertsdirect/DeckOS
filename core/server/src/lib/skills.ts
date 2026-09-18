@@ -20,7 +20,8 @@ import { describeScreen } from "./screen-vision.js";
 import { FUN_SKILLS, EXTRA_ACTION_SKILLS } from "./skills-extra.js";
 import { READOUT_SKILLS } from "./skills-readouts.js";
 import { ACTION_SKILLS } from "./skills-actions.js";
-import { getOrCreatePairingCode, resetPairingCode } from "./pairing.js";
+import { getOrCreatePairingCode } from "./pairing.js";
+import { beginRotation, cancelRotation, isRotationPending } from "./code-rotation.js";
 import { syncFromCloud } from "./cloud-sync.js";
 import { getConfig } from "./app-config.js";
 
@@ -891,18 +892,17 @@ const newCodeSkill: Skill = {
     const confirms = /\b(confirm|yes|do it|go ahead|change it)\b/.test(lower)
       && (/\bcode\b/.test(lower) || Date.now() - pendingNewCodeAt < NEW_CODE_CONFIRM_MS);
 
+    // "Cancel", "stop", "never mind" — the spoken twin of pressing a button.
+    if (/\b(cancel|never ?mind|forget it|stop|don'?t)\b/.test(lower) && isRotationPending()) {
+      cancelRotation();
+      return { speak: "Stopped. Your code is unchanged." };
+    }
+
     if (confirms && Date.now() - pendingNewCodeAt < NEW_CODE_CONFIRM_MS) {
       pendingNewCodeAt = 0;
-      const code = await resetPairingCode();
-      const ip = lanIp();
-      const host = ip ? `${ip}:${PORT}` : `${os.hostname()}.local:${PORT}`;
-      const url = `http://${host}/api/remote?code=${encodeURIComponent(code)}`;
-      // Show it immediately: he has just cut off every paired phone, so the new
-      // code has to be on screen before anyone asks where the remote went.
-      return {
-        speak: `Done. Your new code is ${code.split("").join(" ")}. Old phones will need it again.`,
-        ui: { type: "showLink", title: "New remote code", url, code, hint: `Same Wi-Fi. ${host}/api/remote` },
-      };
+      // The change itself is on a ten second clock that any remote button calls
+      // off, so this returns immediately and the rotation lands later.
+      return { speak: beginRotation() };
     }
 
     if (!wantsNew) return null;

@@ -112,6 +112,8 @@ export function PetShell({
   const [faceState, setFaceState] = useState<FaceState>("idle");
   const [caption, setCaption] = useState("");
   const [eyeColor, setEyeColor] = useState<string | null>(null);
+  /** A visible clock on something irreversible, so it can be seen and stopped. */
+  const [countdown, setCountdown] = useState<{ n: number; label: string } | null>(null);
   const [discTint, setDiscTint] = useState<string | null>(null);
   const [emoji, setEmoji] = useState<string | null>(null);
   const [input, setInput] = useState("");
@@ -1131,8 +1133,18 @@ export function PetShell({
     const p = (faceCmdEv.payload ?? {}) as {
       mood?: string; color?: string | null; gaze?: [number, number];
       trick?: TrickKind; joke?: boolean; scene?: string | null;
+      countdown?: number | null; countdownLabel?: string;
+      say?: string; showLink?: { title: string; url: string; code?: string; hint?: string };
     };
     touched();
+    // A countdown ticking toward something irreversible (a new pairing code).
+    // It is painted, never spoken per tick: ten synthesised numbers would cost
+    // credits and talk over the person trying to call it off.
+    if (p.countdown !== undefined) {
+      setCountdown(p.countdown === null ? null : { n: p.countdown, label: p.countdownLabel ?? "" });
+    }
+    if (p.showLink) setOverlay({ kind: "link", src: p.showLink.url, caption: p.showLink.title, code: p.showLink.code, hint: p.showLink.hint });
+    if (p.say) { setCaption(p.say); void speak(p.say, { voiceId: personaVoiceId() }); }
     // A press on the remote wins. Whatever is mid-flight — a show, a trick, a
     // sentence — stops so the new thing starts now: on a stand you press a
     // button because you want THAT, not because you want to queue behind this.
@@ -1262,6 +1274,17 @@ export function PetShell({
                 his eyes. Only Meteor uses this so far. */}
             {gameFace?.canvas?.["kind"] === "meteor" && (
               <MeteorCanvas data={gameFace.canvas as unknown as MeteorCanvasData} />
+            )}
+            {/* The countdown sits under his eyes, big enough to read across a
+                room — the whole point is that someone notices in time. */}
+            {countdown && (
+              <div className="pointer-events-none absolute inset-x-0 top-[58%] z-30 flex flex-col items-center">
+                <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-amber-300/70">{countdown.label}</div>
+                <div className="text-6xl font-bold tabular-nums text-amber-300 drop-shadow-[0_0_18px_rgba(252,211,77,0.45)]">
+                  {countdown.n}
+                </div>
+                <div className="font-mono text-[10px] tracking-wide text-amber-300/60">any remote button cancels</div>
+              </div>
             )}
           </div>
           <div className="pointer-events-none absolute inset-x-0 top-[63%] flex justify-center px-10">

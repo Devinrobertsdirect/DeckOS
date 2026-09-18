@@ -53,8 +53,17 @@ export interface FaceView {
 export interface PhoneView {
   title?: string;
   body?: string;
-  /** Buttons. `action` is handed back to act() verbatim. */
-  choices?: Array<{ action: string; label: string; detail?: string; disabled?: boolean }>;
+  /**
+   * Buttons. `action` is handed back to act() verbatim.
+   *
+   * `value` is what act() receives. It defaults to the LABEL, which is a trap
+   * worth naming: Same Page read its seat button as `Number(value)` while the
+   * label said "Player 1", so `Number("Player 1")` was NaN and nobody could
+   * ever take a seat — the game was unplayable from a phone while passing every
+   * test that called the API with `value: "1"`. If act() compares against
+   * anything other than the words on the button, set `value` explicitly.
+   */
+  choices?: Array<{ action: string; label: string; value?: string; detail?: string; disabled?: boolean }>;
   /** A free-text box, when the game wants words rather than a choice. */
   input?: { action: string; placeholder: string; maxLength?: number };
   /** Something only this player knows: a role, a hand, a secret roll. */

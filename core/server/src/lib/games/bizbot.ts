@@ -249,8 +249,8 @@ export const bizbot: GameDefinition<BizState> = {
           body: i ? `${i.verdict}\n\nDo this: ${i.action}` : "He lost his train of thought. It happens to the best of us.",
           secret: isClient ? i?.zinger : undefined,
           choices: [
-            { action: "applaud", label: "Actually useful" },
-            { action: "applaud", label: "Get off the stage" },
+            { action: "applaud", label: "Actually useful", value: "yes" },
+            { action: "applaud", label: "Get off the stage", value: "no" },
             { action: "consult", label: "My turn" },
           ],
         };

@@ -240,10 +240,10 @@ export const samePage: GameDefinition<SamePageState> = {
             ? "Waiting for the other phone. Then: no talking, just the clue."
             : "One of you takes 1, the other takes 2.",
           choices: [
-            { action: "seat", label: "Player 1", disabled: taken(1) },
-            { action: "seat", label: "Player 2", disabled: taken(2) },
-            { action: "mode", label: state.mode === "race" ? "Mode: Race ✓" : "Mode: Race", detail: "First correct lock wins the point" },
-            { action: "mode", label: state.mode === "team" ? "Mode: Team ✓" : "Mode: Team", detail: "60s, combined score" },
+            { action: "seat", label: "Player 1", value: "1", disabled: taken(1) },
+            { action: "seat", label: "Player 2", value: "2", disabled: taken(2) },
+            { action: "mode", label: state.mode === "race" ? "Mode: Race ✓" : "Mode: Race", value: "race", detail: "First correct lock wins the point" },
+            { action: "mode", label: state.mode === "team" ? "Mode: Team ✓" : "Mode: Team", value: "team", detail: "60s, combined score" },
             ...(seat ? [{ action: "start", label: "Start" }] : []),
           ],
         };

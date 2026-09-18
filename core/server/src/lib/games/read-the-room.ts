@@ -226,6 +226,8 @@ export const readTheRoom: GameDefinition<RoomState> = {
           choices: voted ? [] : players.filter((o) => o.id !== p.id).map((o) => ({
             action: "vote",
             label: o.name,
+            // The vote is a player ID; the name is only what you read.
+            value: o.id,
             detail: state.answers.find((a) => a.playerId === o.id)?.text,
           })),
         };

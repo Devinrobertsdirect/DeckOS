@@ -523,7 +523,7 @@ ${g.keys.map((k) => {
       var ch = document.getElementById("gChoices");
       ch.innerHTML = (p.choices || []).map(function (c, i) {
         return '<button class="b' + ((p.choices.length % 2 && i === p.choices.length - 1) ? " wide" : "") + '" data-a="' + c.action +
-               '" data-v="' + (c.label || "").replace(/"/g, "&quot;") + '"' + (c.disabled ? " disabled" : "") + ">" +
+               '" data-v="' + String(c.value != null ? c.value : (c.label || "")).replace(/"/g, "&quot;") + '"' + (c.disabled ? " disabled" : "") + ">" +
                c.label + (c.detail ? "<small>" + c.detail + "</small>" : "") + "</button>";
       }).join("");
       ch.querySelectorAll("[data-a]").forEach(function (b) {

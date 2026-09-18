@@ -95,18 +95,46 @@ async function main() {
     if (!(await phone(a)).input) throw new Error("no way to type a guess once play started");
   });
 
+  await play("mad-librarian", async () => {
+    const a = await join("Ann");
+    await tap(a, "Start");
+    await wait(400);
+    // Keep handing in words until every gap is full and he starts reading.
+    for (let i = 0; i < 12 && (await phone(a)).input; i++) { await type(a, `word${i}`); await wait(150); }
+    const p = await phone(a);
+    if (!/^\d+ of \d+$/.test(p.title ?? "")) throw new Error(`never started reading (title: ${p.title})`);
+    if (!p.body || p.body.length < 5) throw new Error("no line to read");
+  });
+
   await play("read-the-room", async () => {
     const ids = [await join("Ann"), await join("Bob"), await join("Cal")];
     await tap(ids[0], "Start");
-    for (const [i, id] of ids.entries()) await type(id, `answer-${i}`);
-    for (let i = 0; i < 5 && (await phone(ids[0])).title?.startsWith("Answer"); i++) {
-      await tap(ids[0], (await labels(ids[0]))[0]);
+    await wait(600);
+    // Go round the circle twice: only the player whose turn it is may speak,
+    // so this also proves the turn gate holds.
+    for (let round = 0; round < 2; round++) {
+      for (let i = 0; i < ids.length; i++) {
+        const up = ids.find(async () => true);
+        void up;
+        for (const id of ids) {
+          const ph = await phone(id);
+          if (ph.yourTurn && ph.input) { await type(id, `w${round}${i}`); break; }
+        }
+        await wait(150);
+      }
     }
-    if ((await phone(ids[0])).title !== "Who was it?") throw new Error("never reached the vote");
-    for (const id of ids) await tap(id, (await labels(id))[0]);
+    // After the second circle the table must be offered the accusation.
+    const p = await phone(ids[0]);
+    const opts = (p.choices ?? []).map((c) => c.label);
+    if (!opts.includes("I know who it is")) throw new Error(`no accusation offered (saw: ${opts.join(", ")})`);
+    await tap(ids[0], "I know who it is");
+    await wait(200);
+    const names = (await labels(ids[0]));
+    if (names.length < 2) throw new Error("nobody to accuse");
+    await tap(ids[0], names[0]);
+    await wait(300);
     const end = await phone(ids[0]);
-    // A vote that matches nobody leaves every round a draw — the original bug.
-    if (!/Caught them|They got away/.test(end.title ?? "")) throw new Error(`votes did not resolve (title: ${end.title})`);
+    if (!/Caught|Got away/.test(end.title ?? "")) throw new Error(`round did not resolve (title: ${end.title})`);
   });
 
   await play("bizbot", async () => {

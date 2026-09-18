@@ -1,72 +1,74 @@
 import type { GameDefinition, GameContext, PhoneView, Player } from "./types.js";
 
 /**
- * Read the Room — everyone answers a question. One of you answered a different one.
+ * Read the Room — everyone knows the thing. One of you is faking it.
  *
- * Nobi asks the room a question out loud, but the question on your phone is the
- * one that counts — and exactly one player has been given a slightly different
- * one. Everybody types an answer. Nobi reads them all out in his own voice, in
- * a shuffled order, and the room works out whose answer belongs to a different
- * question.
+ * Every phone is given the same CHARACTER or THING, except one, which just says
+ * FRAUD. Then he goes round the circle asking each player in turn for a single
+ * word related to it. The fraud has to work out what everyone is talking about
+ * from the words already said, and then say something that sounds like they
+ * knew all along.
  *
- * The impostor does not know they are the impostor at first, which is the good
- * part: they answer honestly, hear their own answer read back, and only then
- * realise everyone is looking at them. They win by not being caught; everyone
- * else wins by catching them.
+ * The first round is the cruel one: an early speaker gives the fraud almost
+ * nothing, and the fraud speaking first is nearly dead. That is the game.
  *
- * This only works with a phone each — the answers must be written at the same
- * time and in private — so it asks for three, and it is the game to hand a
- * group of strangers at a stand.
+ * From the second round on, anyone can say they think they have it. Guessing is
+ * a real bet — name the fraud and you win outright, name the wrong person and
+ * the fraud wins. Nobody has to guess, so a table that is unsure can keep
+ * circling and gather another word each, which is the pressure that makes the
+ * fraud sweat.
  */
 
-type Phase = "lobby" | "writing" | "reading" | "voting" | "reveal";
-
-interface Answer {
-  playerId: string;
-  text: string;
-}
+type Phase = "lobby" | "speaking" | "accusing" | "reveal";
 
 export interface RoomState {
   phase: Phase;
   round: number;
-  /** What the room hears, and what most phones are shown. */
-  askedAloud: string;
-  commonPrompt: string;
-  oddPrompt: string;
-  /** Whose phone got the different question. */
-  oddPlayerId: string;
-  answers: Answer[];
-  /** Shuffled for reading out; indexes into answers. */
+  /** What everyone except the fraud was given. */
+  subject: string;
+  fraudId: string;
+  /** Turn order, fixed for the game so "the circle" means something. */
   order: string[];
-  /** How far through reading them we are. */
-  readIndex: number;
-  votes: Record<string, string>;   // voter → suspected
+  /** Whose turn it is to say a word, as an index into `order`. */
+  turn: number;
+  /** Every word said, in order, so the table can see the trail. */
+  words: Array<{ playerId: string; word: string }>;
+  /** Who asked to accuse, and what they are being asked. */
+  accuserId: string;
   scores: Record<string, number>;
-  lastResult?: { caught: boolean; oddName: string; oddPrompt: string; commonPrompt: string };
+  result: null | {
+    /** Did somebody accuse, and were they right? */
+    accuserId: string;
+    accusedId: string;
+    correct: boolean;
+    subject: string;
+  };
+  used: string[];
 }
 
-/** A fallback pair so the game still plays with no network. */
-const OFFLINE: Array<{ asked: string; common: string; odd: string }> = [
-  { asked: "Name something you would take to a desert island.", common: "Name something you would take to a desert island.", odd: "Name something you would take to a wedding." },
-  { asked: "What is the worst thing to find in a fridge?", common: "What is the worst thing to find in a fridge?", odd: "What is the worst thing to find in a suitcase?" },
-  { asked: "Describe your ideal Sunday in three words.", common: "Describe your ideal Sunday in three words.", odd: "Describe your ideal Monday in three words." },
-  { asked: "Something you would never lend to a friend.", common: "Something you would never lend to a friend.", odd: "Something you would never lend to a stranger." },
-];
+/** A round can be called from round 2 onwards — one full circle of evidence first. */
+const ACCUSE_FROM_ROUND = 2;
 
-const nameOf = (players: Player[], id: string) => players.find((p) => p.id === id)?.name ?? "someone";
+/** Offline subjects: concrete, widely known, and rich in related words. */
+const OFFLINE = [
+  "a hospital", "Batman", "a wedding", "the beach", "a supermarket",
+  "Harry Potter", "a gym", "an aeroplane", "a farm", "a birthday party",
+  "a courtroom", "space", "a barber shop", "Christmas", "a zoo",
+  "a haunted house", "a football match", "a coffee shop", "a library", "a casino",
+];
 
 export const readTheRoom: GameDefinition<RoomState> = {
   id: "read-the-room",
   title: "Read the Room",
-  blurb: "Everyone answers a question. One of you answered a different one. Find them.",
+  blurb: "Everyone gets the same thing. One of you gets FRAUD. Say a word each and find them.",
   icon: "🎭",
   color: "#ff8fb0",
   minPlayers: 3,
-  maxPlayers: 8,
+  maxPlayers: 10,
 
   create: () => ({
-    phase: "lobby", round: 0, askedAloud: "", commonPrompt: "", oddPrompt: "", oddPlayerId: "",
-    answers: [], order: [], readIndex: 0, votes: {}, scores: {},
+    phase: "lobby", round: 0, subject: "", fraudId: "", order: [], turn: 0,
+    words: [], accuserId: "", scores: {}, result: null, used: [],
   }),
 
   join: (state, player) => (state.scores[player.id] === undefined
@@ -77,167 +79,179 @@ export const readTheRoom: GameDefinition<RoomState> = {
     if (action === "start" || action === "again") {
       const players = Object.keys(state.scores);
       if (players.length < 3) return state;
-      const pair = await freshPair(ctx);
-      const odd = players[Math.floor(ctx.random() * players.length)]!;
-      return {
-        ...state,
-        phase: "writing",
-        round: state.round + 1,
-        askedAloud: pair.asked,
-        commonPrompt: pair.common,
-        oddPrompt: pair.odd,
-        oddPlayerId: odd,
-        answers: [],
-        order: [],
-        readIndex: 0,
-        votes: {},
-        lastResult: undefined,
-      };
-    }
-
-    if (action === "answer" && state.phase === "writing") {
-      const text = (value ?? "").trim().slice(0, 60);
-      if (!text) return state;
-      if (state.answers.some((a) => a.playerId === player.id)) return state;
-      const answers = [...state.answers, { playerId: player.id, text }];
-      const everyone = Object.keys(state.scores);
-      if (answers.length < everyone.length) return { ...state, answers };
-      // All in: shuffle for reading, so the order gives nothing away.
-      const order = answers.map((a) => a.playerId);
+      const subject = await freshSubject(state.used, ctx);
+      // Shuffle the speaking order: who goes first is most of the luck, so it
+      // should not be the same person every game.
+      const order = [...players];
       for (let i = order.length - 1; i > 0; i--) {
         const j = Math.floor(ctx.random() * (i + 1));
         [order[i], order[j]] = [order[j]!, order[i]!];
       }
-      return { ...state, answers, order, phase: "reading", readIndex: 0 };
+      return {
+        ...state,
+        phase: "speaking",
+        round: 1,
+        subject,
+        used: [...state.used, subject].slice(-20),
+        fraudId: players[Math.floor(ctx.random() * players.length)]!,
+        order,
+        turn: 0,
+        words: [],
+        accuserId: "",
+        result: null,
+      };
     }
 
-    // Anyone can advance the reading; it is a shared moment, not a turn.
-    if (action === "read-next" && state.phase === "reading") {
-      const next = state.readIndex + 1;
-      return next >= state.order.length
-        ? { ...state, readIndex: next, phase: "voting" }
-        : { ...state, readIndex: next };
+    if (action === "word" && state.phase === "speaking") {
+      // Only the player whose turn it is, so the circle stays a circle.
+      if (state.order[state.turn] !== player.id) return state;
+      const word = (value ?? "").trim().slice(0, 24);
+      if (!word) return state;
+      const words = [...state.words, { playerId: player.id, word }];
+      const nextTurn = state.turn + 1;
+      if (nextTurn < state.order.length) return { ...state, words, turn: nextTurn };
+      // The circle closed. One full round of words is not enough to accuse on —
+      // the table is only asked from the SECOND completed circle onwards, and
+      // after every circle after that.
+      const completed = state.round;
+      return {
+        ...state,
+        words,
+        turn: 0,
+        round: completed + 1,
+        phase: completed >= ACCUSE_FROM_ROUND ? "accusing" : "speaking",
+      };
     }
 
-    if (action === "vote" && state.phase === "voting") {
-      // A choice button sends its LABEL, which here is the suspect's NAME — so
-      // the vote has to be turned back into a player id. Comparing the raw value
-      // to an id silently matched nobody, and every round ended a draw.
-      const raw = (value ?? "").trim();
-      const byId = Object.keys(state.scores).find((id) => id === raw);
-      const byName = ctx.players.find((p) => p.name === raw)?.id;
-      const suspect = byId ?? byName ?? "";
-      if (!suspect || suspect === player.id) return state;
-      const votes = { ...state.votes, [player.id]: suspect };
-      const everyone = Object.keys(state.scores);
-      if (Object.keys(votes).length < everyone.length) return { ...state, votes };
+    // "I think I know" — from here it is a bet, not a vote.
+    if (action === "accuse" && state.phase === "accusing") {
+      return { ...state, accuserId: player.id };
+    }
 
-      // Tally. The odd one out is caught if they take the most votes outright.
-      const tally: Record<string, number> = {};
-      for (const s of Object.values(votes)) tally[s] = (tally[s] ?? 0) + 1;
-      const top = Math.max(...Object.values(tally));
-      const leaders = Object.entries(tally).filter(([, n]) => n === top).map(([id]) => id);
-      const caught = leaders.length === 1 && leaders[0] === state.oddPlayerId;
+    if (action === "keep-going" && state.phase === "accusing") {
+      return { ...state, phase: "speaking", accuserId: "" };
+    }
 
+    if (action === "name" && state.phase === "accusing" && state.accuserId === player.id) {
+      const accusedId = (value ?? "").trim();
+      // `!scores[id]` would be true for anyone on ZERO points, quietly making
+      // the players most likely to be accused unaccusable.
+      if (!accusedId || state.scores[accusedId] === undefined) return state;
+      const correct = accusedId === state.fraudId;
       const scores = { ...state.scores };
-      if (caught) {
-        // Everyone who pointed at them scores; the impostor gets nothing.
-        for (const [voter, suspected] of Object.entries(votes)) {
-          if (suspected === state.oddPlayerId) scores[voter] = (scores[voter] ?? 0) + 1;
-        }
+      if (correct) {
+        // Everyone but the fraud takes a point; the caller takes an extra.
+        for (const id of Object.keys(scores)) if (id !== state.fraudId) scores[id] = (scores[id] ?? 0) + 1;
+        scores[player.id] = (scores[player.id] ?? 0) + 1;
       } else {
-        // Got away with it — worth more than a single correct vote.
-        scores[state.oddPlayerId] = (scores[state.oddPlayerId] ?? 0) + 2;
+        // A wrong call ends it and hands the fraud the round outright.
+        scores[state.fraudId] = (scores[state.fraudId] ?? 0) + 3;
       }
       return {
         ...state,
         phase: "reveal",
-        votes,
         scores,
-        lastResult: { caught, oddName: "", oddPrompt: state.oddPrompt, commonPrompt: state.commonPrompt },
+        result: { accuserId: player.id, accusedId, correct, subject: state.subject },
       };
     }
     return state;
   },
 
   render: (state, players) => {
-    const waiting = players.filter((p) => !state.answers.some((a) => a.playerId === p.id));
-    const reading = state.order[state.readIndex];
-    const readingAnswer = state.answers.find((a) => a.playerId === reading);
+    const nameOf = (id: string) => players.find((p) => p.id === id)?.name ?? "someone";
+    const speaker = state.order[state.turn];
+    const trail = state.words.map((w) => `${nameOf(w.playerId)}: ${w.word}`);
+    const lastWord = state.words[state.words.length - 1];
 
     const face = {
       title: state.phase === "lobby" ? "Read the Room" : `Read the Room · round ${state.round}`,
       body:
         state.phase === "lobby"
-          ? players.length < 3
-            ? `Three phones needed. ${players.length} so far.`
-            : "Everyone has a phone. Press Start."
-          : state.phase === "writing"
-            ? `${state.askedAloud}   ·   waiting on ${waiting.length}`
-            : state.phase === "reading"
-              ? `“${readingAnswer?.text ?? ""}”`
-              : state.phase === "voting"
-                ? "Who answered a different question?"
-                : state.lastResult?.caught
-                  ? `Caught. ${nameOf(players, state.oddPlayerId)} was asked: ${state.oddPrompt}`
-                  : `Got away with it. ${nameOf(players, state.oddPlayerId)} was asked: ${state.oddPrompt}`,
-      mood: state.phase === "reveal" ? (state.lastResult?.caught ? "excited" : "mischievous") : state.phase === "reading" ? "curious" : "happy",
-      color: state.phase === "reveal" ? (state.lastResult?.caught ? "#5ce0b8" : "#ff8fb0") : "#c9dcf0",
-      scene: null,
-      // He asks the question aloud, and reads each answer aloud. That is the game.
+          ? players.length < 3 ? `Three phones needed. ${players.length} so far.` : "Everyone has a phone. Press Start."
+          : state.phase === "speaking"
+            ? `${nameOf(speaker ?? "")}, say one word.`
+            : state.phase === "accusing"
+              ? state.accuserId ? `${nameOf(state.accuserId)} is naming someone.` : "Anyone got it? Or go round again."
+              : state.result
+                ? state.result.correct
+                  ? `Got them. It was ${nameOf(state.fraudId)}. The thing was ${state.result.subject}.`
+                  : `Wrong. ${nameOf(state.result.accusedId)} was innocent — the fraud was ${nameOf(state.fraudId)}.`
+                : "",
+      big: state.phase === "speaking" && lastWord ? lastWord.word : undefined,
+      mood: state.phase === "reveal"
+        ? (state.result?.correct ? "excited" : "mischievous")
+        : state.phase === "accusing" ? "suspicious" : "curious",
+      color: state.phase === "reveal" ? (state.result?.correct ? "#5ce0b8" : "#ff5470") : "#ff8fb0",
+      scene: state.phase === "reveal" ? (state.result?.correct ? "confetti" : null) : null,
+      // He runs the circle out loud: naming who is up is what keeps a table of
+      // strangers moving without anyone having to take charge.
       speak:
-        state.phase === "writing" && state.answers.length === 0 ? state.askedAloud
-          : state.phase === "reading" && readingAnswer ? readingAnswer.text
-            : undefined,
-      scores: players.map((p) => ({ name: p.name, score: state.scores[p.id] ?? 0 })),
+        state.phase === "speaking" && state.words.length === 0 && state.round === 1
+          ? "Everyone has the same thing, except one of you. Say one word each. Go."
+          : state.phase === "speaking" ? `${nameOf(speaker ?? "")}.`
+            : state.phase === "reveal" && state.result
+              ? state.result.correct
+                ? `Correct. ${nameOf(state.fraudId)} was the fraud, and the thing was ${state.result.subject}.`
+                : `No. ${nameOf(state.result.accusedId)} was innocent. ${nameOf(state.fraudId)} gets away with it.`
+              : undefined,
+      scores: players.map((p) => ({ name: p.name, score: state.scores[p.id] ?? 0, active: p.id === speaker && state.phase === "speaking" })),
     };
 
     const phones: Record<string, PhoneView> = {};
     for (const p of players) {
-      const isOdd = p.id === state.oddPlayerId;
+      const isFraud = p.id === state.fraudId;
+
       if (state.phase === "lobby") {
         phones[p.id] = {
           title: "Read the Room",
           body: players.length < 3
             ? `Waiting for phones. ${players.length} of 3.`
-            : "Everyone gets a question. One of you gets a different one.",
+            : "Everyone gets the same thing. One of you gets FRAUD, and has to fake it.",
           choices: players.length >= 3 ? [{ action: "start", label: "Start" }] : [],
         };
-      } else if (state.phase === "writing") {
-        const done = state.answers.some((a) => a.playerId === p.id);
+      } else if (state.phase === "speaking") {
+        const mine = state.order[state.turn] === p.id;
         phones[p.id] = {
-          title: done ? "Answer in" : "Your question",
-          // The impostor is simply shown a different question. They are not told.
-          body: done ? `Waiting for ${waiting.length} more.` : (isOdd ? state.oddPrompt : state.commonPrompt),
-          input: done ? undefined : { action: "answer", placeholder: "a few words", maxLength: 60 },
-          yourTurn: !done,
+          // The secret is on screen the whole time, because forgetting your own
+          // word is not a fun way to lose.
+          title: isFraud ? "You are the FRAUD" : state.subject,
+          body: mine
+            ? isFraud
+              ? "Your turn. Say something that sounds like you know."
+              : "Your turn. One word related to it — not too obvious."
+            : `${nameOf(speaker ?? "")} is up.`,
+          secret: trail.length ? trail.join("  ·  ") : undefined,
+          input: mine ? { action: "word", placeholder: "one word", maxLength: 24 } : undefined,
+          yourTurn: mine,
         };
-      } else if (state.phase === "reading") {
-        phones[p.id] = {
-          title: `Answer ${state.readIndex + 1} of ${state.order.length}`,
-          body: `“${readingAnswer?.text ?? ""}”`,
-          choices: [{ action: "read-next", label: state.readIndex + 1 >= state.order.length ? "That's all — vote" : "Next answer" }],
-        };
-      } else if (state.phase === "voting") {
-        const voted = state.votes[p.id];
-        phones[p.id] = {
-          title: voted ? "Voted" : "Who was it?",
-          body: voted ? "Waiting for the others." : "Pick the one who answered a different question.",
-          choices: voted ? [] : players.filter((o) => o.id !== p.id).map((o) => ({
-            action: "vote",
-            label: o.name,
-            // The vote is a player ID; the name is only what you read.
-            value: o.id,
-            detail: state.answers.find((a) => a.playerId === o.id)?.text,
-          })),
-        };
+      } else if (state.phase === "accusing") {
+        if (state.accuserId === p.id) {
+          phones[p.id] = {
+            title: "Name the fraud",
+            body: "Right, and everyone but them scores. Wrong, and the fraud takes the round.",
+            choices: players.filter((o) => o.id !== p.id).map((o) => ({ action: "name", label: o.name, value: o.id })),
+            yourTurn: true,
+          };
+        } else if (state.accuserId) {
+          phones[p.id] = { title: "Hold on", body: `${nameOf(state.accuserId)} thinks they have it.`, secret: trail.join("  ·  ") };
+        } else {
+          phones[p.id] = {
+            title: isFraud ? "You are the FRAUD" : state.subject,
+            body: "Do you know who it is? Calling it wrong hands them the round.",
+            secret: trail.join("  ·  "),
+            choices: [
+              { action: "accuse", label: "I know who it is" },
+              { action: "keep-going", label: "Go round again" },
+            ],
+          };
+        }
       } else {
         phones[p.id] = {
-          title: state.lastResult?.caught ? "Caught them" : "They got away",
-          body: isOdd
-            ? `You were the odd one. Yours was: ${state.oddPrompt}`
-            : `${nameOf(players, state.oddPlayerId)} was asked: ${state.oddPrompt}`,
-          secret: isOdd ? "That was you all along." : undefined,
+          title: state.result?.correct ? "Caught" : "Got away with it",
+          body: isFraud
+            ? `You were the fraud. The thing was ${state.result?.subject}.`
+            : `It was ${nameOf(state.fraudId)}. The thing was ${state.result?.subject}.`,
+          secret: trail.join("  ·  "),
           choices: [{ action: "again", label: "Another round" }],
         };
       }
@@ -246,23 +260,22 @@ export const readTheRoom: GameDefinition<RoomState> = {
   },
 };
 
-/** Two questions that look like the same question. */
-async function freshPair(ctx: GameContext): Promise<{ asked: string; common: string; odd: string }> {
+/** Something concrete enough that everyone can find a word for it. */
+async function freshSubject(used: string[], ctx: GameContext): Promise<string> {
   try {
     const raw = await ctx.narrate(
       [
-        "Invent a round for a party guessing game.",
-        "Write TWO questions that sound like the same kind of question, so that answers to them are hard to tell apart,",
-        "but different enough that a careful listener could notice. Keep both under twelve words.",
-        "Reply on exactly two lines, nothing else:",
-        "A: <the question most players get>",
-        "B: <the question one player gets instead>",
+        "Name ONE thing for a party guessing game: a place, a well known fictional character, or an event.",
+        "It must be something almost anyone could say a related word about — 'a hospital', 'Batman', 'a wedding'.",
+        `Do not pick any of these: ${used.join(", ") || "none yet"}.`,
+        "Reply with the thing only, under four words, no punctuation.",
       ].join("\n"),
-      60,
+      12,
     );
-    const a = raw.match(/^A:\s*(.+)$/im)?.[1]?.trim() ?? "";
-    const b = raw.match(/^B:\s*(.+)$/im)?.[1]?.trim() ?? "";
-    if (a && b && a.toLowerCase() !== b.toLowerCase()) return { asked: a, common: a, odd: b };
+    const s = raw.trim().replace(/^["']|["'.]+$/g, "");
+    if (s && s.length <= 30 && !used.includes(s)) return s;
   } catch { /* fall through */ }
-  return OFFLINE[Math.floor(Math.random() * OFFLINE.length)]!;
+  const spare = OFFLINE.filter((o) => !used.includes(o));
+  const pool = spare.length ? spare : OFFLINE;
+  return pool[Math.floor(Math.random() * pool.length)]!;
 }

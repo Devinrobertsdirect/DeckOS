@@ -13,6 +13,7 @@ import { meteor } from "./meteor.js";
 import { quickColors } from "./quick-colors.js";
 import { wouldYouRather } from "./would-you-rather.js";
 import { hotPotato } from "./hot-potato.js";
+import { madLibrarian } from "./mad-librarian.js";
 
 /**
  * games/engine.ts — one live game at a time, owned by the robot.
@@ -35,6 +36,7 @@ const GAMES: Record<string, GameDefinition<never>> = {
   [quickColors.id]: quickColors as unknown as GameDefinition<never>,
   [wouldYouRather.id]: wouldYouRather as unknown as GameDefinition<never>,
   [hotPotato.id]: hotPotato as unknown as GameDefinition<never>,
+  [madLibrarian.id]: madLibrarian as unknown as GameDefinition<never>,
 };
 
 const SAVE_KEY = "NOBI_GAME_SESSION";

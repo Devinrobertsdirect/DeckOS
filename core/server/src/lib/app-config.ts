@@ -28,7 +28,31 @@ import { readFileSync, writeFileSync, mkdirSync, renameSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, dirname } from "node:path";
 
-const SENSITIVE_KEYS = new Set(["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "ELEVENLABS_API_KEY"]);
+/**
+ * Named secrets, kept for clarity — but the masking below does NOT rely on this
+ * list being complete, because it never can be. It started with three providers
+ * and the robot has since grown an OpenRouter key, a cloud session token, a
+ * Gemini key and a Perplexity key, every one of which was being handed out in
+ * full by GET /api/config to anything that could reach the robot on the LAN.
+ * A list you have to remember to update is a leak with a delay on it.
+ */
+const SENSITIVE_KEYS = new Set([
+  "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "ELEVENLABS_API_KEY",
+  "OPENROUTER_API_KEY", "GEMINI_API_KEY", "PERPLEXITY_API_KEY",
+  "NOBI_CLOUD_TOKEN", "NOBI_DEVICE_ID",
+]);
+
+/**
+ * Anything that LOOKS like a credential is masked whether or not it is listed.
+ * A new provider added next month is covered on the day it is added, and the
+ * cost of a false positive is a masked value in a settings page nobody reads
+ * against the cost of a false negative, which is a key on the wire.
+ */
+function looksSensitive(key: string): boolean {
+  return /(^|_)(KEY|TOKEN|SECRET|PASSWORD|PASS|CREDENTIAL)S?$/.test(key)
+    // A model name or a token LIMIT is not a credential.
+    && !/^(CLAUDE_MAX_TOKENS|MAX_TOKENS)$/.test(key);
+}
 const CACHE_TTL_MS   = 30_000;
 
 const cache   = new Map<string, string>();
@@ -190,7 +214,7 @@ export async function getAllConfig(): Promise<Record<string, string>> {
   if (Date.now() - cacheTime > CACHE_TTL_MS) await refresh();
   const out: Record<string, string> = {};
   for (const [k, v] of cache.entries()) {
-    out[k] = SENSITIVE_KEYS.has(k) ? maskSecret(v) : v;
+    out[k] = SENSITIVE_KEYS.has(k) || looksSensitive(k) ? maskSecret(v) : v;
   }
   return out;
 }

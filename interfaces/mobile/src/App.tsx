@@ -498,6 +498,74 @@ const REMOTE_GROUPS: Array<{ title: string; keys: Array<{ cmd: string; label: st
   ] },
 ];
 
+/**
+ * The games shelf, at the top of the remote where it can be found.
+ *
+ * Each game owns an icon and a colour on the server, and this wears both — a
+ * grid of identical text buttons is something you read, and a shelf of tiles is
+ * something you recognise. A game already running is the loudest tile on screen.
+ *
+ * Tapping one hands off to the robot's own game page rather than reimplementing
+ * a second game client here. That page already has the private per-player views,
+ * the d-pad and the back arrow that suspends without losing the round, and two
+ * implementations of a live game is two places for it to disagree with itself.
+ */
+function GamesShelf({ code }: { code: string }) {
+  const [games, setGames] = useState<Array<{ id: string; title: string; icon: string; color: string; minPlayers: number; maxPlayers: number }>>([]);
+  const [liveId, setLiveId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!code) return;
+    let alive = true;
+    const load = () => fetch(`${window.location.origin}/api/games?code=${encodeURIComponent(code)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { games?: typeof games; session?: { gameId: string } | null } | null) => {
+        if (!alive || !j) return;
+        setGames(j.games ?? []);
+        setLiveId(j.session?.gameId ?? null);
+      })
+      .catch(() => { /* he may be off the network; the shelf simply stays empty */ });
+    void load();
+    const t = setInterval(load, 5000);
+    return () => { alive = false; clearInterval(t); };
+  }, [code]);
+
+  if (!games.length) return null;
+
+  return (
+    <div>
+      <div className="mb-2 px-0.5 font-mono text-[10px] uppercase tracking-[0.2em] text-primary/40">Games</div>
+      <div className="grid grid-cols-2 gap-2.5">
+        {games.map((g) => {
+          const live = g.id === liveId;
+          return (
+            <a
+              key={g.id}
+              href={`${window.location.origin}/api/remote?code=${encodeURIComponent(code)}&game=${encodeURIComponent(g.id)}`}
+              className="flex min-h-[100px] flex-col justify-between rounded-2xl border px-3.5 py-3 transition-transform active:scale-[0.97]"
+              style={{
+                borderColor: live ? g.color : `${g.color}55`,
+                background: `linear-gradient(180deg, rgba(255,255,255,0.02) 55%, ${g.color}22 100%)`,
+                boxShadow: live ? `0 0 0 1px ${g.color}` : undefined,
+              }}
+            >
+              <span className="text-[26px] leading-none">{g.icon}</span>
+              <span>
+                <span className="block font-mono text-[13px] font-bold text-primary">{g.title}</span>
+                <span className="block font-mono text-[10px]" style={{ color: live ? g.color : undefined }}>
+                  {live ? "In progress · tap to rejoin"
+                    : g.minPlayers === g.maxPlayers ? `${g.minPlayers} players`
+                      : `${g.minPlayers}–${g.maxPlayers} players`}
+                </span>
+              </span>
+            </a>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function RemotePane() {
   const [msg, setMsg] = useState("Tap a button. He does it on his own screen.");
   const [busy, setBusy] = useState<string | null>(null);
@@ -523,6 +591,7 @@ function RemotePane() {
 
   return (
     <div className="space-y-4">
+      <GamesShelf code={code} />
       {REMOTE_GROUPS.map((g) => (
         <div key={g.title}>
           <div className="mb-2 px-0.5 font-mono text-[10px] uppercase tracking-[0.2em] text-primary/40">{g.title}</div>

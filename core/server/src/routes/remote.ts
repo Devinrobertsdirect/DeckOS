@@ -460,6 +460,20 @@ ${g.keys.map((k) => {
     msg.textContent = end ? "Game ended." : "Saved. Pick it up any time.";
     loadGames();
   }
+
+  // ?game=<id> opens straight into that game. This is how the phone app's
+  // games shelf hands off: tap a tile there, land in the game here, rather than
+  // arriving at the top of the remote and having to find it again.
+  (function () {
+    var want = new URLSearchParams(location.search).get("game");
+    if (!want) return;
+    fetch("/api/games?code=" + encodeURIComponent(code())).then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        if (!j) return;
+        var known = (j.games || []).some(function (g) { return g.id === want; });
+        if (known) openGame(want, !!(j.session && j.session.gameId === want));
+      }).catch(function () { /* stay on the remote */ });
+  })();
   // Hold-to-repeat, at roughly the rate the game ticks. Each repeat is one
   // turn step, so a long press sweeps the shield and a tap nudges it.
   (function () {

@@ -468,6 +468,141 @@ function CloudAuthGate({ onAuthed }: { onAuthed: () => void }) {
   );
 }
 
+/**
+ * The demo controller — the same command set as the bookmarkable page at
+ * /api/remote, in three bands: what he does, how he feels, where he looks.
+ * The "feel"/"look"/colour buttons are direct face commands with no brain in
+ * the loop, so they land instantly and cannot fail in a loud room.
+ */
+const REMOTE_GROUPS: Array<{ title: string; keys: Array<{ cmd: string; label: string; wide?: boolean; swatch?: string }> }> = [
+  { title: "Do", keys: [
+    { cmd: "demo", label: "Demo", wide: true }, { cmd: "pitch", label: "Introduce" },
+    { cmd: "order", label: "How to buy" }, { cmd: "qr", label: "QR code" }, { cmd: "joke", label: "Joke" },
+    { cmd: "trick", label: "Trick" }, { cmd: "spin", label: "Spin" }, { cmd: "hearts", label: "Hearts" },
+    { cmd: "warp", label: "Warp" }, { cmd: "meet", label: "Say hi" }, { cmd: "shop", label: "Shop" },
+    { cmd: "botno", label: "Bot #" },
+  ] },
+  { title: "Feel", keys: [
+    { cmd: "happy", label: "Happy" }, { cmd: "excited", label: "Excited" }, { cmd: "wink", label: "Wink" },
+    { cmd: "love", label: "Love" }, { cmd: "cool", label: "Cool" }, { cmd: "shocked", label: "Shocked" },
+    { cmd: "think", label: "Thinking" }, { cmd: "sleep", label: "Sleep" },
+  ] },
+  { title: "Look", keys: [
+    { cmd: "lookL", label: "Left" }, { cmd: "lookAt", label: "At you" }, { cmd: "lookR", label: "Right" },
+    { cmd: "lookU", label: "Up" },
+    { cmd: "cIce", label: "Ice", swatch: "#c9dcf0" }, { cmd: "cGold", label: "Gold", swatch: "#f5b83d" },
+    { cmd: "cMint", label: "Mint", swatch: "#5ce0b8" }, { cmd: "cRose", label: "Rose", swatch: "#ff8fb0" },
+    { cmd: "cViolet", label: "Violet", swatch: "#c08bff" }, { cmd: "cEmber", label: "Ember", swatch: "#ff7a3d" },
+    { cmd: "sSpark", label: "Sparkle" }, { cmd: "sConf", label: "Confetti" },
+    { cmd: "sCore", label: "Core" }, { cmd: "sOff", label: "Clear" }, { cmd: "sync", label: "Sync" },
+  ] },
+];
+
+function RemotePane() {
+  const [msg, setMsg] = useState("Tap a button. He does it on his own screen.");
+  const [busy, setBusy] = useState<string | null>(null);
+  const code = localStorage.getItem(PAIRING_KEY) ?? "";
+
+  const run = async (cmd: string) => {
+    setBusy(cmd);
+    setMsg("\u2026");
+    try {
+      const res = await fetch(`${window.location.origin}/api/remote/command`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, command: cmd }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { ran?: string; error?: string };
+      setMsg(res.ok ? `Sent: ${data.ran}` : data.error === "bad code" ? "This phone's pairing code is stale — re-pair." : data.error ?? "Failed");
+      if (res.ok && navigator.vibrate) navigator.vibrate(18);
+    } catch {
+      setMsg("Cannot reach him. Same Wi-Fi?");
+    }
+    setBusy(null);
+  };
+
+  return (
+    <div className="space-y-4">
+      {REMOTE_GROUPS.map((g) => (
+        <div key={g.title}>
+          <div className="mb-2 px-0.5 font-mono text-[10px] uppercase tracking-[0.2em] text-primary/40">{g.title}</div>
+          <div className="grid grid-cols-3 gap-2">
+            {g.keys.map((b) => (
+              <button key={b.cmd} onClick={() => void run(b.cmd)} disabled={busy !== null}
+                className={`flex min-h-[54px] items-center justify-center gap-1.5 rounded-xl border border-primary/25 bg-card/60 px-1 py-3 text-center font-mono text-[12px] leading-tight text-primary transition-transform active:scale-95 disabled:opacity-40 ${b.wide ? "col-span-2" : ""}`}>
+                {b.swatch && <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: b.swatch, boxShadow: "0 0 0 1px rgba(255,255,255,.25)" }} />}
+                {b.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+      <button onClick={() => void run("stop")} disabled={busy !== null}
+        className="w-full rounded-2xl bg-amber-400 py-6 font-mono text-base font-bold text-black transition-transform active:scale-95 disabled:opacity-40">
+        ■ STOP
+      </button>
+      <p className="text-center font-mono text-xs text-primary/50">{msg}</p>
+    </div>
+  );
+}
+
+/** Which unit this is, whether it is linked, and the button that pulls it down. */
+function AccountPane() {
+  const [state, setState] = useState<{ cloud?: { url: string; connected: boolean; email: string | null; botNumber: string | null } } | null>(null);
+  const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const load = () =>
+    fetch(`${window.location.origin}/api/provision`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then(setState)
+      .catch(() => setState(null));
+  useEffect(() => { void load(); }, []);
+
+  const sync = async () => {
+    setBusy(true);
+    setMsg("Collecting from your account\u2026");
+    try {
+      const res = await fetch(`${window.location.origin}/api/provision/sync`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
+      });
+      const j = (await res.json()) as { ok: boolean; error?: string; ownerName?: string; keys?: string[] };
+      setMsg(j.ok
+        ? `Synced${j.ownerName ? ` \u2014 hello, ${j.ownerName}` : ""}. ${j.keys?.length ?? 0} key${(j.keys?.length ?? 0) === 1 ? "" : "s"} in.`
+        : j.error === "not_pushed"
+          ? "Not linked yet. On developmentindustries.org/account press \u201cPush to my Nobi\u201d, then try again."
+          : `Sync failed: ${j.error ?? "unknown"}`);
+      void load();
+    } catch { setMsg("Couldn't reach him."); }
+    setBusy(false);
+  };
+
+  const cloud = state?.cloud;
+  return (
+    <div className="space-y-4 font-mono text-xs text-primary/70">
+      <div className="rounded-xl border border-primary/20 bg-card/60 p-4">
+        <div className="text-[10px] uppercase tracking-widest text-primary/40">This Nobi</div>
+        <div className="mt-1 text-2xl text-primary">{cloud?.botNumber ? `#${cloud.botNumber}` : "\u2014"}</div>
+        <div className="mt-2 leading-relaxed">
+          {!cloud ? "Checking\u2026"
+            : !cloud.url ? "Not hooked up to a cloud yet."
+            : cloud.connected ? `Linked${cloud.email ? ` to ${cloud.email}` : ""}.`
+            : `Hooked up to ${cloud.url.replace(/^https?:\/\//, "")}, not linked to an account yet.`}
+        </div>
+      </div>
+      <button onClick={() => void sync()} disabled={busy}
+        className="w-full rounded-xl border border-primary/40 bg-primary/10 py-4 text-primary transition-transform active:scale-95 disabled:opacity-40">
+        {cloud?.connected ? "\u27F3  SYNC NOW" : "\u27F3  COLLECT FROM MY ACCOUNT"}
+      </button>
+      {msg && <p className="leading-relaxed text-primary/60">{msg}</p>}
+      <p className="leading-relaxed text-primary/40">
+        Keys, the voice picker and your build live on developmentindustries.org/account.
+        Save them there, press \u201cPush to my Nobi\u201d, then sync here.
+      </p>
+    </div>
+  );
+}
+
 export default function App() {
   const [ready, setReady] = useState(() => conn.isReady());
 
@@ -1133,7 +1268,7 @@ function SettingsPanel({
   onClose: () => void;
   onSave: (fields: SaveFields) => Promise<void>;
 }) {
-  const [tab, setTab] = useState<"identity" | "persona" | "channels">("identity");
+  const [tab, setTab] = useState<"remote" | "identity" | "persona" | "channels" | "account">("remote");
   const [draftAiName, setDraftAiName] = useState(aiName);
   const [draftUserName, setDraftUserName] = useState(userName);
   const [draftAttitude, setDraftAttitude] = useState(persona?.attitude ?? "professional");
@@ -1231,20 +1366,30 @@ function SettingsPanel({
 
       {/* Tabs */}
       <div className="shrink-0 flex border-b border-primary/20">
-        {(["identity", "persona", "channels"] as const).map((t) => (
+        {(["remote", "identity", "persona", "channels", "account"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`flex-1 py-2.5 font-mono text-xs uppercase tracking-wider transition-colors ${
+            className={`flex-1 py-2.5 font-mono text-[10px] uppercase tracking-wider transition-colors ${
               tab === t ? "border-b-2 border-primary text-primary bg-primary/5" : "text-primary/30 hover:text-primary/60"
             }`}
           >
-            {t === "identity" ? "Identity" : t === "persona" ? "AI Persona" : "Channels"}
+            {t === "remote" ? "Remote" : t === "identity" ? "Identity" : t === "persona" ? "Persona" : t === "channels" ? "Channels" : "Account"}
           </button>
         ))}
       </div>
 
       <div className="flex-1 overflow-y-auto p-4">
+
+        {/* Remote Tab — the demo controller. Voice loses to a loud room; this
+            does not. Each button fires exactly the event the ears would, so
+            there is no second path to keep in step with the spoken one. */}
+        {tab === "remote" && <RemotePane />}
+
+        {/* Account Tab — what the website's settings do, from your pocket:
+            which unit this is, whether it is linked to the account, and the
+            one button that pulls the keys and settings down. */}
+        {tab === "account" && <AccountPane />}
 
         {/* Identity Tab */}
         {tab === "identity" && (

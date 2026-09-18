@@ -1007,6 +1007,36 @@ export function PetShell({
     setShowOverrides((overridesEv.payload as { overrides?: Parameters<typeof setShowOverrides>[0] } | undefined)?.overrides);
   }, [overridesEv]);
 
+  // ── Direct face commands (the remote) ──────────────────────────────────────
+  // Instant, no brain in the loop: a mood, an eye colour, where he looks, a
+  // trick, a scene. Several of these have no spoken trigger at all, which is
+  // exactly why the remote exists — "look left" is not something you can ask for.
+  const faceCmdEv = useLatestEvent("face.command");
+  const handledFaceCmdAt = useRef<string | null>(null);
+  useEffect(() => {
+    if (!faceCmdEv || faceCmdEv.timestamp === handledFaceCmdAt.current) return;
+    handledFaceCmdAt.current = faceCmdEv.timestamp;
+    const p = (faceCmdEv.payload ?? {}) as {
+      mood?: string; color?: string | null; gaze?: [number, number];
+      trick?: TrickKind; joke?: boolean; scene?: string | null;
+    };
+    touched();
+    // An explicit Clear also stops whatever is mid-flight: a trick sets its own
+    // scene and mood a beat later, which would otherwise land on top of the
+    // reset and leave him wearing the thing you just asked him to drop.
+    if (p.scene === null) { cancelRef.current = true; window.setTimeout(() => { cancelRef.current = false; }, 250); }
+    if (p.color !== undefined) setEyeColor(p.color ? toEyeRgb(p.color) : null);
+    if (p.mood) setFaceState(p.mood as FaceState);
+    if (p.gaze) glanceAt(p.gaze[0], p.gaze[1], 6000);
+    if (p.scene !== undefined) setShowcaseScene((p.scene as ShowcaseScene | null) ?? null);
+    if (p.trick) void runTrick(p.trick);
+    if (p.joke) {
+      const joke = pickJoke(getPersona().id as Persona);
+      setCaption(joke);
+      void speak(joke, { voiceId: personaVoiceId() });
+    }
+  }, [faceCmdEv]);
+
   // Anything a person does resets the booth loop.
   const [lastInteractionAt, setLastInteractionAt] = useState(Date.now());
   const touched = useCallback(() => setLastInteractionAt(Date.now()), []);

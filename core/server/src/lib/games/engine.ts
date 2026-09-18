@@ -45,6 +45,39 @@ const SAVE_VERSION = 2;
 let session: GameSession | null = null;
 let ticker: ReturnType<typeof setInterval> | null = null;
 
+/**
+ * The PLAY code — a throwaway password for this game and nothing else.
+ *
+ * Handing strangers the robot's pairing code so they can play was the wrong
+ * trade: that code also drives the demo and opens the setup band, which writes
+ * API keys. A QR shown to a room at a convention should not be able to reach
+ * any of that.
+ *
+ * So a game mints its own code when it starts, that code opens ONLY the game
+ * routes, and it dies with the game. Four characters because it gets read off a
+ * screen across a table and typed with a thumb — and it is worth nothing once
+ * the game is over, so four is plenty.
+ */
+let playCode: string | null = null;
+
+/** No I/O/0/1 — they are the characters people get wrong reading a screen. */
+function mintPlayCode(): string {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let out = "";
+  for (let i = 0; i < 4; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)];
+  return out;
+}
+
+/** The code for the game currently running, or null when nothing is on. */
+export function currentPlayCode(): string | null {
+  return playCode;
+}
+
+/** True when this code may touch the game routes — and only those. */
+export function isPlayCode(given: string): boolean {
+  return !!playCode && given.trim().toUpperCase().replace(/\s+/g, "") === playCode;
+}
+
 export function listGames() {
   return Object.values(GAMES).map((g) => ({
     id: g.id, title: g.title, blurb: g.blurb, icon: g.icon, color: g.color,
@@ -180,14 +213,16 @@ export function currentSession(): { gameId: string; version: number; players: Ar
   return session ? { gameId: session.gameId, version: session.version, players: session.players.map((p) => ({ id: p.id, name: p.name })) } : null;
 }
 
-export async function startGame(gameId: string): Promise<{ ok: boolean; error?: string }> {
+export async function startGame(gameId: string): Promise<{ ok: boolean; error?: string; playCode?: string }> {
   const d = GAMES[gameId];
   if (!d) return { ok: false, error: "unknown game" };
   stopTicker();
+  // A new code every game, so last week's players cannot wander back in.
+  playCode = mintPlayCode();
   session = { gameId, startedAt: Date.now(), players: [], state: d.create({ players: [] }) as unknown, version: 0 };
   startTicker();
   publish();
-  return { ok: true };
+  return { ok: true, playCode };
 }
 
 /** Leave the game running but take it off the face (the back arrow). */
@@ -207,6 +242,8 @@ export function resumeGame(): boolean {
 export async function endGame(): Promise<void> {
   stopTicker();
   session = null;
+  // The play code dies with the game: it was only ever a key to this table.
+  playCode = null;
   broadcast({ type: "game.frame", source: "games", payload: { gameId: null, version: 0, face: null }, timestamp: new Date().toISOString() });
   await save();
 }

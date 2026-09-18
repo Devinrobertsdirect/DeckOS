@@ -64,6 +64,14 @@ app.get("/remote", (req, res) => {
 // be the shortest thing that could possibly work.
 app.get("/setup", (_req, res) => res.redirect(302, "/api/setup"));
 
+// /play is what gets read off his face when a game starts. It is the same page
+// as the remote, which shows only the games when the code is a play code —
+// one implementation of a live game, not two that can drift apart.
+app.get("/play", (req, res) => {
+  const qs = req.originalUrl.includes("?") ? req.originalUrl.slice(req.originalUrl.indexOf("?")) : "";
+  res.redirect(302, `/api/remote${qs}`);
+});
+
 // The probes iOS and Android fire when they join a network decide whether the
 // phone shows "sign in to this network". While the setup hotspot is up we are
 // that network, and answering these with a redirect is what makes the setup

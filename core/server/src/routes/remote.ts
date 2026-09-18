@@ -267,6 +267,7 @@ ${g.keys.map((k) => {
 </div></div>`).join("\n")}
 <button class="stop" data-cmd="stop">\u25A0 STOP</button>
 
+<div class="msg" id="modeNote" hidden>You're in with a game code — games only.</div>
 <div class="band" id="gamesBand">
   <h2>Games</h2>
   <div class="gamegrid" id="gameList"><button class="b wide" disabled>Loading\u2026</button></div>
@@ -549,8 +550,37 @@ ${g.keys.map((k) => {
     } catch (e) { /* keep polling */ }
   }
 
-  input.addEventListener("change", function () { loadState(); loadGames(); });
-  if (input.value.trim()) loadGames();
+  /**
+   * Owner or guest?
+   *
+   * A game mints its own PLAY code, which opens the game routes and nothing
+   * else. Rather than build a second page for guests — two implementations of
+   * a live game is two places for it to disagree with itself — the one page
+   * asks the robot what this code is worth. /remote/state answers only to the
+   * owner, so a 403 IS the answer: hide everything except the games.
+   *
+   * Nothing here is a security boundary; the server refuses those calls
+   * regardless. This is just not showing someone a wall of buttons that would
+   * all fail for them.
+   */
+  async function applyMode() {
+    var owner = false;
+    try {
+      var r = await fetch("/api/remote/state?code=" + encodeURIComponent(code()));
+      owner = r.ok;
+    } catch (e) { /* offline: assume guest and show the least */ }
+    document.querySelectorAll(".band").forEach(function (b) {
+      if (b.id !== "gamesBand") b.hidden = !owner;
+    });
+    var stop = document.querySelector(".stop");
+    if (stop) stop.hidden = !owner;
+    var gate = document.querySelector(".gate");
+    if (gate) gate.hidden = !owner && !!code();
+    document.getElementById("modeNote").hidden = owner;
+  }
+
+  input.addEventListener("change", function () { applyMode(); loadState(); loadGames(); });
+  if (input.value.trim()) { applyMode(); loadGames(); }
   input.addEventListener("change", loadState);
   if (input.value.trim()) loadState();
 

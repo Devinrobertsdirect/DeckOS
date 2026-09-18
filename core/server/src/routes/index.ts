@@ -45,6 +45,7 @@ import systemNetRouter from "./system-net";
 import agentRouter from "./agent";
 import diagRouter from "./diag";
 import voiceRouter from "./voice";
+import showsRouter from "./shows";
 import provisionRouter from "./provision";
 import youtubeRouter from "./youtube";
 
@@ -96,6 +97,7 @@ router.use(systemNetRouter);
 router.use(agentRouter);
 router.use(diagRouter);
 router.use(voiceRouter);
+router.use(showsRouter);
 router.use(provisionRouter);
 router.use(youtubeRouter);
 

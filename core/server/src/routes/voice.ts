@@ -19,7 +19,9 @@ const router = Router();
 
 // In-memory only: mute is a per-boot "is Nobi speaking" latch and lastHeardAt
 // is a liveness breadcrumb — neither is worth persisting.
-const state: { muted: boolean; lastHeardAt: number | null } = {
+/** What the ears sidecar last told us about itself (undefined = never reported). */
+type EarsReport = { capturing: boolean; mic: string; floor: number; threshold: number; at: number };
+const state: { muted: boolean; lastHeardAt: number | null; ears?: EarsReport } = {
   muted: false,
   lastHeardAt: null,
 };
@@ -96,6 +98,21 @@ router.post("/voice/interrupt", (req, res) => {
   res.json({ ok: true });
 });
 
+// POST /api/voice/ears — the sidecar's heartbeat: is a microphone actually
+// open, which one, and how loud the room is. Loopback only.
+router.post("/voice/ears", (req, res) => {
+  if (!isLoopback(req)) { res.status(403).json({ error: "local only" }); return; }
+  const b = (req.body ?? {}) as Partial<EarsReport>;
+  state.ears = {
+    capturing: b.capturing !== false,
+    mic: typeof b.mic === "string" ? b.mic.slice(0, 120) : "",
+    floor: Number(b.floor) || 0,
+    threshold: Number(b.threshold) || 0,
+    at: Date.now(),
+  };
+  res.json({ ok: true });
+});
+
 // POST /api/voice/listening — { on }. Loopback only. The ears fire this the
 // instant a person STARTS talking, so the face can light up while they speak
 // instead of after the transcript lands. Pure UI signal; nothing depends on it.
@@ -158,7 +175,19 @@ router.post("/voice/transcribe", async (req, res) => {
 // GET /api/voice/state — mute latch + last-heard breadcrumb. Read-only; safe to
 // serve the LAN (lets any face/dashboard show whether the mic is live).
 router.get("/voice/state", (_req, res) => {
-  res.json({ muted: state.muted, lastHeardAt: state.lastHeardAt });
+  // `muted` is the ECHO LATCH (true while he speaks), never "the mic is off".
+  // `ears` is the real microphone state, straight from the sidecar; anything
+  // older than 30s means the sidecar is not running and we simply do not know.
+  const e = state.ears;
+  const fresh = !!e && Date.now() - e.at < 30_000;
+  res.json({
+    muted: state.muted,
+    lastHeardAt: state.lastHeardAt,
+    speaking: state.muted,
+    ears: fresh
+      ? { capturing: e!.capturing, mic: e!.mic, floor: e!.floor, threshold: e!.threshold, ageMs: Date.now() - e!.at }
+      : null,
+  });
 });
 
 export default router;

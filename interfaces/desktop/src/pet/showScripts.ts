@@ -186,6 +186,39 @@ export function buildDemoScript(bot: string, p: Persona): ShowBeat[] {
 }
 
 /**
+ * Live edits from the brain (GET/PUT /api/shows/overrides), merged over a built
+ * script at run time so a line can be reworded or a beat retimed or dropped
+ * without rebuilding the kiosk. Text and timing only: scenes are code.
+ */
+export type BeatOverride = { say?: string; holdMs?: number; skip?: boolean };
+export type ShowOverrides = Partial<Record<"demo" | "pitch" | "order", Record<string, BeatOverride>>>;
+
+let _overrides: ShowOverrides = {};
+export function setShowOverrides(o: ShowOverrides | null | undefined): void { _overrides = o ?? {}; }
+export function getShowOverrides(): ShowOverrides { return _overrides; }
+
+/** Apply the overrides for `kind` to a freshly built script. */
+export function withOverrides(kind: "demo" | "pitch" | "order", beats: ShowBeat[]): ShowBeat[] {
+  const table = _overrides[kind];
+  if (!table) return beats;
+  const out: ShowBeat[] = [];
+  beats.forEach((beat, i) => {
+    const o = table[String(i)];
+    if (!o) { out.push(beat); return; }
+    if (o.skip) return;
+    const next: ShowBeat = { ...beat };
+    if (typeof o.holdMs === "number") next.holdMs = o.holdMs;
+    if (typeof o.say === "string") {
+      // one string replaces the line for every persona — that is the point:
+      // you are editing what he SAYS, not maintaining four voices by hand
+      next.say = { rocky: o.say, jarvis: o.say, friday: o.say, alfred: o.say };
+    }
+    out.push(next);
+  });
+  return out;
+}
+
+/**
  * Being interrupted is not an error, it is a conversation. He stops, says one
  * short thing that shows he noticed, and hands the floor over — rather than
  * going abruptly silent, which reads as a crash.

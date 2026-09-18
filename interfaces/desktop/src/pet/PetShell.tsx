@@ -4,6 +4,8 @@ import { FacesGallery } from "@/collection/FacesGallery";
 import { CapabilitiesPanel } from "@/pet/CapabilitiesPanel";
 import { BuddySettings } from "@/pet/BuddySettings";
 import { FaceCaption } from "@/pet/FaceCaption";
+import { useAttract } from "@/pet/useAttract";
+import { MOTION } from "@/pet/motion";
 import { YouTubeOverlay, type VideoHandle } from "@/components/YouTubeOverlay";
 import { ContentOverlay } from "@/components/ContentOverlay";
 import SurvivorOverlay from "@/components/SurvivorOverlay";
@@ -23,7 +25,7 @@ import ShowcaseOverlay, { SHOP_URL, type ShowcaseScene } from "@/pet/ShowcaseOve
 import { sfx, sfxForScene } from "@/pet/showSfx";
 import {
   buildDemoScript, buildPitchScript, buildOrderScript, meetDirectorNote, meetDetectBeats, guessName, line, asPersona,
-  TRICK_MOODS, TRICK_TADA, TRICK_INTRO, pickTrick, pickJoke, interruptedLine, SAID_TRICK, SAID_JOKE, type TrickKind, type AskSpec, type MeetCtx, type Persona,
+  TRICK_MOODS, TRICK_TADA, TRICK_INTRO, pickTrick, pickJoke, interruptedLine, setShowOverrides, withOverrides, SAID_TRICK, SAID_JOKE, type TrickKind, type AskSpec, type MeetCtx, type Persona,
 } from "@/pet/showScripts";
 import { stripEmoji } from "@/lib/stripText";
 import { dockLines } from "@/genesis/dockGreetings";
@@ -390,7 +392,8 @@ export function PetShell({
     // deferred hand-off, and an unmuted mic would hear the narration itself.
     await setEarsMuted(true);
     const p = asPersona(getPersona().id);
-    const script = kind === "demo" ? buildDemoScript(getBotName(), p) : kind === "order" ? buildOrderScript(getBotName(), p) : buildPitchScript(getBotName(), p);
+    const built = kind === "demo" ? buildDemoScript(getBotName(), p) : kind === "order" ? buildOrderScript(getBotName(), p) : buildPitchScript(getBotName(), p);
+    const script = withOverrides(kind === "demo" ? "demo" : kind === "order" ? "order" : "pitch", built);
     if (kind === "order") setMeetName(getUserName().trim() || "YOURS");   // the studio engraves the owner's name
     const started = performance.now();
     sfx.prime();
@@ -421,8 +424,15 @@ export function PetShell({
           await demoSleep(step.holdMs);
         }
         if (beat.ask) await askAndRespond(beat.ask, p, beat.scene, sayDirect, sayQueued);
-        const remaining = beat.holdMs - (performance.now() - beatStart);
-        if (remaining > 0) await demoSleep(remaining);
+        // holdMs is a FLOOR for beats with no speech, never a mandate. Once a
+        // line has actually been spoken the scene moves on after a breath: the
+        // audio is what the audience is following, and a cached line that plays
+        // in half the scripted time used to leave him staring in silence for
+        // the remainder. Silent beats still hold for their full duration.
+        const elapsed = performance.now() - beatStart;
+        const remaining = beat.holdMs - elapsed;
+        const cap = text ? Math.min(remaining, MOTION.maxDeadAir) : remaining;
+        if (cap > 0) await demoSleep(text ? Math.max(MOTION.afterSpeech, cap) : cap);
       }
     } finally {
       setShowcaseScene(null);
@@ -459,6 +469,7 @@ export function PetShell({
       if (message && pendingAnswerRef.current) { pendingAnswerRef.current(message); return; }
       if (!message || busyRef.current) return;
 
+      touched();
       cancelRef.current = false;
       queueRef.current = [];
       setInput("");
@@ -776,6 +787,7 @@ export function PetShell({
   useEffect(() => {
     if (!voiceInterruptEv || voiceInterruptEv.timestamp === handledInterruptAt.current) return;
     handledInterruptAt.current = voiceInterruptEv.timestamp;
+    touched();
     cancelRef.current = true;          // shows, queued sentences, pending asks all check this
     queueRef.current = [];
     pendingAnswerRef.current = null;
@@ -981,6 +993,24 @@ export function PetShell({
   useEffect(() => { if (overlay) glanceAt(0, 0.35, 2200); }, [overlay, glanceAt]);
   useEffect(() => { if (caption) glanceAt(0, 0.22, 900); }, [caption, glanceAt]);
 
+  // Show overrides: fetched once at boot, then whatever the brain pushes. This
+  // is what makes a demo editable at a stand instead of via a three-minute deploy.
+  useEffect(() => {
+    fetch(`${import.meta.env.BASE_URL}api/shows/overrides`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { overrides?: Parameters<typeof setShowOverrides>[0] } | null) => { if (j?.overrides) setShowOverrides(j.overrides); })
+      .catch(() => { /* built-in scripts are the fallback */ });
+  }, []);
+  const overridesEv = useLatestEvent("shows.overrides");
+  useEffect(() => {
+    if (!overridesEv) return;
+    setShowOverrides((overridesEv.payload as { overrides?: Parameters<typeof setShowOverrides>[0] } | undefined)?.overrides);
+  }, [overridesEv]);
+
+  // Anything a person does resets the booth loop.
+  const [lastInteractionAt, setLastInteractionAt] = useState(Date.now());
+  const touched = useCallback(() => setLastInteractionAt(Date.now()), []);
+
   const listeningEv = useLatestEvent("voice.listening");
   const [earsOpen, setEarsOpen] = useState(false);
   const earsOffTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -988,6 +1018,7 @@ export function PetShell({
     if (!listeningEv) return;
     const on = (listeningEv.payload as { on?: boolean } | undefined)?.on !== false;
     setEarsOpen(on);
+    if (on) touched();
     if (earsOffTimer.current) clearTimeout(earsOffTimer.current);
     if (on) earsOffTimer.current = setTimeout(() => setEarsOpen(false), 6000);
   }, [listeningEv]);
@@ -997,6 +1028,15 @@ export function PetShell({
   // stays the plain per-state hint. Blending amplitude in here pushed activity
   // over the engine's 0.65 auto-morph threshold and replaced his eyes with the
   // neural cluster mid-sentence.
+  // ── The booth loop ─────────────────────────────────────────────────────────
+  const attracting = useAttract({
+    glanceAt,
+    mood: (name, color) => demoMood(name, color),
+    say: (text) => { setCaption(text); void speak(text, { voiceId: personaVoiceId() }); },
+    busy: busy || !!showcaseScene || !!overlay,
+    lastInteractionAt,
+  });
+
   const activity = activityFor(faceState);
   const canSend = input.trim().length > 0 && !busy;
   const hint = listening
@@ -1065,7 +1105,7 @@ export function PetShell({
               eyeColorOverride={eyeColor} discTint={discTint} emoji={emoji} />
           </div>
           <div className="pointer-events-none absolute inset-x-0 top-[63%] flex justify-center px-10">
-            <FaceCaption text={caption} hint={hint} busy={busy} progress={sayProgress} listening={earsOpen} />
+            <FaceCaption text={caption} hint={attracting ? "Say “Hey Nobi”" : hint} busy={busy} progress={sayProgress} listening={earsOpen} />
           </div>
         </div>
       ) : (

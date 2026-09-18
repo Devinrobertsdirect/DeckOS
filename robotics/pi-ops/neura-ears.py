@@ -89,6 +89,8 @@ BARGE_MULT = float(os.environ.get("NEURA_BARGE_MULT", "1.8"))
 BARGE_ANY = os.environ.get("NEURA_BARGE_ANY", "1") != "0"
 BARGE_MIN_MS = int(os.environ.get("NEURA_BARGE_MIN_MS", "420"))
 LISTENING_URL = BASE + "/api/voice/listening"
+EARS_URL = BASE + "/api/voice/ears"
+EARS_BEAT_S = float(os.environ.get("NEURA_EARS_BEAT_S", "10"))
 # The noise floor must not run away in a loud hall: it rises slowly, falls
 # quickly, and the margin it can add to the threshold is capped, so a room full
 # of chatter can never raise the bar past a person speaking to him at arm-length.
@@ -376,6 +378,18 @@ def match_wake(text: str, loose: bool = False):
     return False, text.strip(), None
 
 
+def report_ears(capturing: bool, mic: str, floor: float, threshold: float) -> None:
+    """Tell the brain whether a microphone is actually open. Without this the
+    only mic signal the brain had was the TTS echo latch, so asking "can you
+    hear me" — which necessarily happens while he is about to speak — always
+    answered "my mic is muted"."""
+    try:
+        requests.post(EARS_URL, json={"capturing": capturing, "mic": mic,
+                                      "floor": round(floor), "threshold": round(threshold)}, timeout=2)
+    except requests.RequestException:
+        pass
+
+
 def forward(text: str) -> None:
     try:
         requests.post(HEARD_URL, json={"text": text}, timeout=3)
@@ -401,6 +415,7 @@ def main() -> int:
     muted = False                # is Nobi speaking right now?
     barge_run, barge_silence, barge_buf = 0, 0, bytearray()
     talk_floor = START_RMS       # how loud his own voice reads in this mic
+    last_beat = 0.0
     last_mute_poll = 0.0
     last_target_check = 0.0
 
@@ -413,6 +428,7 @@ def main() -> int:
                     break
             proc = spawn_capture()
             if proc is None:             # no mic yet (headset off) — poll for one
+                report_ears(False, src, floor, max(START_RMS, floor * VAD_MULT))
                 time.sleep(3)
                 continue
             preroll.clear()
@@ -422,9 +438,13 @@ def main() -> int:
         data = read_exact(proc.stdout, FRAME_BYTES)
         if data is None:
             proc = None
+            report_ears(False, src, floor, max(START_RMS, floor * VAD_MULT))
             continue
 
         now = time.monotonic()
+        if now - last_beat >= EARS_BEAT_S:
+            last_beat = now
+            report_ears(True, src, floor, max(START_RMS, min(floor * VAD_MULT, floor + FLOOR_MARGIN_MAX)))
 
         # If the mic we were recording vanished (headset switched off), stop —
         # WirePlumber would otherwise re-link the stream to the default source,

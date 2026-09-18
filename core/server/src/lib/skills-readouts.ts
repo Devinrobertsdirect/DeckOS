@@ -314,7 +314,22 @@ export const READOUT_SKILLS: Skill[] = [
       const d = await getJson("/api/voice/state");
       if (d == null) return { speak: "I can't check my microphone state right now." };
       try {
-        const __r: any = (() => { const muted = d?.muted === true; const last = d?.lastHeardAt; const asksHear = /\b(can you hear me|are you listening)\b/.test(lower); if (muted) return asksHear ? `Not right now — my mic's muted. Unmute me and I'll hear you again.` : `My mic is muted right now, so I'm not listening.`; if (!last) return asksHear ? `Yes — I can hear you. My mic's live and I'm listening.` : `My mic is live and listening; I just haven't logged a phrase yet this session.`; const secs = Math.max(0, Math.round((Date.now() - Number(last)) / 1000)); const when = secs < 60 ? `${secs} second${secs===1?'':'s'} ago` : `${Math.round(secs/60)} minute${Math.round(secs/60)===1?'':'s'} ago`; return asksHear ? `Loud and clear — my mic's live and I last heard you ${when}.` : `My mic is live and I last heard you ${when}.`; })();
+        const __r: any = (() => {
+        // HAND-EDITED (see header): `muted` is the echo latch that is true while
+        // he is speaking — and he is always about to speak when answering this —
+        // so keying off it made him claim his mic was muted every single time.
+        // The sidecar's own report is the only honest source.
+        const ears = d?.ears; const last = d?.lastHeardAt;
+        const asksHear = /\b(can you hear me|are you listening)\b/.test(lower);
+        const ago = (t: any) => { const secs = Math.max(0, Math.round((Date.now() - Number(t)) / 1000)); return secs < 60 ? `${secs} second${secs === 1 ? "" : "s"} ago` : `${Math.round(secs / 60)} minute${Math.round(secs / 60) === 1 ? "" : "s"} ago`; };
+        if (ears && ears.capturing === false) return asksHear ? `Not at the moment — I have no microphone open. Check my speaker is connected.` : `No microphone is open right now.`;
+        if (ears && ears.capturing) {
+          if (last) return asksHear ? `Loud and clear. I last heard you ${ago(last)}.` : `My mic is live; I last heard you ${ago(last)}.`;
+          return asksHear ? `Yes, I can hear you. My mic is live.` : `My mic is live and listening.`;
+        }
+        if (last) return asksHear ? `Yes, I can hear you. I last heard you ${ago(last)}.` : `My mic is live; I last heard you ${ago(last)}.`;
+        return asksHear ? `I believe so, though I have not heard a phrase yet.` : `Listening, but nothing heard yet this session.`;
+      })();
         const speak = __r == null ? "" : String(__r).trim();
         return { speak: speak || "I can't check my microphone state right now." };
       } catch { return { speak: "I can't check my microphone state right now." }; }

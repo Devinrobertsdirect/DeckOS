@@ -863,6 +863,58 @@ const PORT = Number(process.env["PORT"] ?? 8080);
  * the table. Placed before phone-link so "remote" never lands on the app QR.
  */
 /**
+ * "Hey Nobi, what games do you have?" — the table, out loud.
+ *
+ * Asking him this used to go to the brain, which knows nothing about the game
+ * engine and would cheerfully invent five games that do not exist. He has the
+ * real list right here, so he reads it.
+ *
+ * Naming one starts it. That is the whole point of asking — nobody wants a
+ * catalogue, they want to play — and starting a game puts the join code on his
+ * face by itself, so "get your phone out" comes with the QR already up behind
+ * it rather than being a thing he says and leaves you to work out.
+ */
+const gamesSkill: Skill = {
+  id: "games",
+  async handle({ lower }) {
+    const asksList = /\b(what|which|any|got any|list)\b[^.?]*\bgames?\b/.test(lower)
+      || /\bgames?\b.*\b(do you have|can we play|have you got|are there)\b/.test(lower)
+      || /\b(what can we play|can we play (a game|something)|let'?s play (a game|something)|play a game)\b/.test(lower);
+    const wantsPlay = /\b(play|start|launch|open|put on|fire up)\b/.test(lower);
+    if (!asksList && !wantsPlay) return null;
+
+    const engine = await import("./games/engine.js");
+    const games = engine.listGames();
+
+    // Naming one starts it — that is what asking is usually for.
+    if (wantsPlay) {
+      const named = games.find((g) => {
+        const t = g.title.toLowerCase();
+        const bare = t.replace(/[^a-z0-9 ]/g, "");           // dev's dungeon -> devs dungeon
+        return lower.includes(t) || lower.includes(bare) || lower.includes(g.id.replace(/-/g, " "));
+      });
+      if (named) {
+        const r = await engine.startGame(named.id);
+        if (!r.ok) return { speak: `I could not start ${named.title}.` };
+        const players = named.minPlayers === named.maxPlayers
+          ? `${named.minPlayers} players`
+          : `${named.minPlayers} to ${named.maxPlayers} players`;
+        return { speak: `${named.title}. ${named.blurb} Grab your phone and scan the code on my face. It takes ${players}.` };
+      }
+    }
+    if (!asksList) return null;
+
+    const titles = games.map((g) => g.title);
+    const spoken = titles.length > 1
+      ? `${titles.slice(0, -1).join(", ")}, and ${titles[titles.length - 1]}`
+      : titles[0] ?? "none yet";
+    return {
+      speak: `I have ${games.length}. ${spoken}. They all play on your phone, so get it out, say the one you want, and I'll put a code on my face for you to scan.`,
+    };
+  },
+};
+
+/**
  * "Hey Nobi, get me a new code" — rotate the pairing code by voice.
  *
  * The code is the only thing in front of the remote, the games and the setup
@@ -1126,7 +1178,7 @@ const shopSkill: Skill = {
 };
 
 const SKILLS: Skill[] = [
-  meetSomeone, pitchShow, demoShow, orderShow, syncAccount, botNumberSkill, qrSkill, newCodeSkill, remoteSkill, phoneLink, wifiSetupSkill, myAddress, shopSkill,
+  meetSomeone, pitchShow, demoShow, orderShow, syncAccount, botNumberSkill, qrSkill, gamesSkill, newCodeSkill, remoteSkill, phoneLink, wifiSetupSkill, myAddress, shopSkill,
   releaseEstop, emergencyStop, spinSkill, wanderSkill, setSpeedSkill, stopSkill,
   experienceModeSkill, uiModeSkill, describeScreenSkill, survivorSkill, videoControlSkill, playVideoSkill,
   closeSkill, openSkill, controlDevice, readSensor, listDevices,

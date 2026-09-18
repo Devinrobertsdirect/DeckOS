@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import os from "node:os";
 import { broadcast } from "../ws-server.js";
 import { getConfig, setConfig } from "../app-config.js";
 import { logger } from "../logger.js";
@@ -59,6 +60,8 @@ let ticker: ReturnType<typeof setInterval> | null = null;
  * the game is over, so four is plenty.
  */
 let playCode: string | null = null;
+/** A game that is loaded but put away — off the face, and not ticking. */
+let suspended = false;
 
 /** No I/O/0/1 — they are the characters people get wrong reading a screen. */
 function mintPlayCode(): string {
@@ -76,6 +79,35 @@ export function currentPlayCode(): string | null {
 /** True when this code may touch the game routes — and only those. */
 export function isPlayCode(given: string): boolean {
   return !!playCode && given.trim().toUpperCase().replace(/\s+/g, "") === playCode;
+}
+
+
+/** The address a phone on the same Wi-Fi can actually reach him on. */
+function lanIp(): string | null {
+  for (const list of Object.values(os.networkInterfaces())) {
+    for (const n of list ?? []) if (n.family === "IPv4" && !n.internal) return n.address;
+  }
+  return null;
+}
+
+/** Put the join QR and the play code on his face. */
+function inviteToJoin(code: string): void {
+  const port = process.env["PORT"] ?? 8080;
+  const ip = lanIp();
+  const host = ip ? `${ip}:${port}` : `${os.hostname()}.local:${port}`;
+  broadcast({
+    type: "face.command",
+    source: "games",
+    payload: {
+      showLink: {
+        title: "Join the game",
+        url: `http://${host}/api/remote?code=${encodeURIComponent(code)}`,
+        code,
+        hint: `Scan, or go to ${host}/play and enter ${code}`,
+      },
+    },
+    timestamp: new Date().toISOString(),
+  });
 }
 
 export function listGames() {
@@ -219,24 +251,45 @@ export async function startGame(gameId: string): Promise<{ ok: boolean; error?: 
   stopTicker();
   // A new code every game, so last week's players cannot wander back in.
   playCode = mintPlayCode();
+  suspended = false;
   session = { gameId, startedAt: Date.now(), players: [], state: d.create({ players: [] }) as unknown, version: 0 };
   startTicker();
   publish();
+  // The invitation belongs to STARTING a game, not to the HTTP route that
+  // happened to ask for it — a game started by voice needs the join code on his
+  // face just as much as one started from the remote, and more so, because the
+  // person who asked out loud has no screen in their hand yet.
+  inviteToJoin(playCode);
   return { ok: true, playCode };
 }
 
 /** Leave the game running but take it off the face (the back arrow). */
 export function suspendGame(): void {
   if (!session) return;
+  // Stop the clock as well as the picture. Without this a ticking game — Meteor
+  // ticks fourteen times a second — simply publishes another frame a moment
+  // later and puts itself straight back on his face, so "put it away" did not
+  // work at all for the one kind of game that most needed it. Stopping the
+  // ticker also means the round is exactly where you left it when you return,
+  // which is what the back arrow has always promised.
+  suspended = true;
+  stopTicker();
   broadcast({ type: "game.frame", source: "games", payload: { gameId: null, version: session.version, face: null }, timestamp: new Date().toISOString() });
-  void save();
+  void save(true);
 }
 
 /** Put a suspended game back on the face. */
 export function resumeGame(): boolean {
   if (!session) return false;
+  suspended = false;
+  startTicker();
   publish();
   return true;
+}
+
+/** True when a game is loaded but deliberately off the face. */
+export function isSuspended(): boolean {
+  return !!session && suspended;
 }
 
 export async function endGame(): Promise<void> {
@@ -244,6 +297,7 @@ export async function endGame(): Promise<void> {
   session = null;
   // The play code dies with the game: it was only ever a key to this table.
   playCode = null;
+  suspended = false;
   broadcast({ type: "game.frame", source: "games", payload: { gameId: null, version: 0, face: null }, timestamp: new Date().toISOString() });
   await save();
 }

@@ -1,8 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import os from "node:os";
 import { getOrCreatePairingCode } from "../lib/pairing.js";
-import { broadcast } from "../lib/ws-server.js";
 import {
   listGames, startGame, joinGame, actInGame, viewFor,
   currentSession, suspendGame, resumeGame, endGame, isPlayCode, currentPlayCode,
@@ -30,15 +28,6 @@ import {
  * game they were invited to, not choose a different one or close the table.
  */
 const router = Router();
-
-/** The address a phone on the same Wi-Fi can actually reach him on. */
-function lanIp(): string | null {
-  for (const list of Object.values(os.networkInterfaces())) {
-    for (const n of list ?? []) if (n.family === "IPv4" && !n.internal) return n.address;
-  }
-  return null;
-}
-
 
 function given(req: { body?: unknown; query?: unknown }): string {
   const b = (req.body ?? {}) as { code?: string };
@@ -71,28 +60,7 @@ router.post("/games/start", async (req, res) => {
   if (!(await isOwner(req))) { res.status(403).json({ error: "bad code" }); return; }
   const p = StartSchema.safeParse(req.body);
   if (!p.success) { res.status(400).json({ error: "gameId required" }); return; }
-  const started = await startGame(p.data.gameId);
-  // The play code goes up on his face the moment the game starts, and only
-  // then. That is the invitation: point a camera at the robot and you are at
-  // the table — with a code that is worth this one game and nothing else.
-  if (started.ok && started.playCode) {
-    const ip = lanIp();
-    const host = ip ? `${ip}:${process.env["PORT"] ?? 8080}` : `${os.hostname()}.local:${process.env["PORT"] ?? 8080}`;
-    broadcast({
-      type: "face.command",
-      source: "games",
-      payload: {
-        showLink: {
-          title: "Join the game",
-          url: `http://${host}/api/remote?code=${encodeURIComponent(started.playCode)}`,
-          code: started.playCode,
-          hint: `Scan, or go to ${host}/play and enter ${started.playCode}`,
-        },
-      },
-      timestamp: new Date().toISOString(),
-    });
-  }
-  res.json(started);
+  res.json(await startGame(p.data.gameId));
 });
 
 router.post("/games/join", async (req, res) => {

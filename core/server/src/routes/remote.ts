@@ -4,6 +4,7 @@ import { broadcast } from "../lib/ws-server.js";
 import { getOrCreatePairingCode } from "../lib/pairing.js";
 import { getConfig, setConfig } from "../lib/app-config.js";
 import { cancelRotation } from "../lib/code-rotation.js";
+import { currentSession, suspendGame } from "../lib/games/engine.js";
 
 /**
  * remote.ts — the demo remote: a page you bookmark on your phone.
@@ -129,6 +130,11 @@ router.post("/remote/command", async (req, res) => {
 
   if ("stop" in cmd) {
     broadcast({ type: "voice.interrupt", source: "remote", payload: { text: "" }, timestamp: new Date().toISOString() });
+    // STOP means "stop what you are doing and go back to being a face". It used
+    // to only cut the speech, so pressing it during a game left the game sitting
+    // on his face and looked like the button was broken. The game is PUT AWAY,
+    // not ended — press the game again and the round is where you left it.
+    if (currentSession()) suspendGame();
   } else if ("face" in cmd) {
     broadcast({ type: "face.command", source: "remote", payload: cmd.face, timestamp: new Date().toISOString() });
   } else {

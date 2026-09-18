@@ -1096,7 +1096,17 @@ export function PetShell({
     if (!gameFrameEv) return;
     const p = (gameFrameEv.payload ?? {}) as { face?: typeof gameFace };
     setGameFace(p.face ?? null);
-    if (!p.face) { lastSpoken.current = ""; return; }
+    if (!p.face) {
+      lastSpoken.current = "";
+      // A game just ended or was put away. It may have left a SCENE and an eye
+      // colour on him, and nothing else ever takes them off: Dev's Dungeon ends
+      // on the lab, so he would sit there holding a bubbling test tube for the
+      // rest of the day, long after the game was over. Hand the face back.
+      setShowcaseScene(null);
+      clearMood();
+      setFaceState("idle");
+      return;
+    }
     touched();
     if (p.face.mood) setFaceState(p.face.mood as FaceState);
     if (p.face.color) setEyeColor(toEyeRgb(p.face.color));

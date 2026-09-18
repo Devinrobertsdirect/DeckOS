@@ -591,7 +591,6 @@ function RemotePane() {
 
   return (
     <div className="space-y-4">
-      <GamesShelf code={code} />
       {REMOTE_GROUPS.map((g) => (
         <div key={g.title}>
           <div className="mb-2 px-0.5 font-mono text-[10px] uppercase tracking-[0.2em] text-primary/40">{g.title}</div>
@@ -610,6 +609,10 @@ function RemotePane() {
         className="w-full rounded-2xl bg-amber-400 py-6 font-mono text-base font-bold text-black transition-transform active:scale-95 disabled:opacity-40">
         ■ STOP
       </button>
+      {/* Games sit BELOW the demo controls: the shelf grows every time a game
+          is added, and the demo buttons must not drift further down the page
+          each time that happens. */}
+      <GamesShelf code={code} />
       <p className="text-center font-mono text-xs text-primary/50">{msg}</p>
     </div>
   );

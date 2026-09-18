@@ -108,6 +108,60 @@ function terseFields(line: string): string[] {
   return fields;
 }
 
+/**
+ * Make the setup page open BY ITSELF when a phone joins the hotspot.
+ *
+ * Every phone, on joining a network, fetches a known URL to decide whether it
+ * is behind a sign-in page — captive.apple.com on iOS, connectivitycheck on
+ * Android. If that fetch returns a redirect, the phone pops the setup page up
+ * on its own with no URL to read out and nothing to type. If it fails instead,
+ * the phone just says "no internet" and the customer is stuck.
+ *
+ * Two things have to be true, and neither is true by default:
+ *
+ *   1. DNS has to answer for every name, because there is no upstream resolver
+ *      out here. NetworkManager runs a private dnsmasq for shared connections
+ *      only, and honours drop-ins — so this affects the hotspot and nothing else.
+ *   2. The probe goes to port 80, and he listens on 8080. An nftables redirect
+ *      in a table of our own bridges that, and the table is torn down with the
+ *      hotspot so it cannot linger on a normal network.
+ *
+ * This is done in CODE rather than left as a setup step because the person who
+ * needs it is a customer holding a new robot. They cannot run a command.
+ */
+const CAPTIVE_CONF = "/etc/NetworkManager/dnsmasq-shared.d/nobi-captive.conf";
+/** NetworkManager always gives a shared connection this address. */
+const HOTSPOT_IP = "10.42.0.1";
+
+async function ensureCaptiveDns(): Promise<void> {
+  try {
+    // Written before the hotspot starts, because dnsmasq reads it at launch.
+    await run("sudo", ["-n", "sh", "-c",
+      `printf 'address=/#/${HOTSPOT_IP}\\n' > ${CAPTIVE_CONF}`], { timeout: 10_000 });
+  } catch (err) {
+    // Not fatal: without it he simply falls back to reading the URL aloud.
+    logger.warn({ err }, "net-setup: could not install captive DNS — the page will not auto-open");
+  }
+}
+
+async function openCaptivePort(port: number): Promise<void> {
+  try {
+    await run("sudo", ["-n", "nft", "add", "table", "ip", "nobi"], { timeout: 10_000 });
+    await run("sudo", ["-n", "nft", "add", "chain", "ip", "nobi", "prerouting",
+      "{ type nat hook prerouting priority dstnat ; }"], { timeout: 10_000 });
+    await run("sudo", ["-n", "nft", "add", "rule", "ip", "nobi", "prerouting",
+      "iifname", "wlan0", "tcp", "dport", "80", "redirect", "to", `:${port}`], { timeout: 10_000 });
+  } catch (err) {
+    logger.warn({ err }, "net-setup: could not redirect port 80 — the page will not auto-open");
+  }
+}
+
+async function closeCaptivePort(): Promise<void> {
+  // The whole table is ours, so dropping it cannot disturb anyone else's rules.
+  await run("sudo", ["-n", "nft", "delete", "table", "ip", "nobi"], { timeout: 10_000 })
+    .catch(() => undefined);
+}
+
 /** A name a customer can read off the screen and find in their phone's list. */
 export async function hotspotName(): Promise<string> {
   const code = await getOrCreatePairingCode().catch(() => "0000");
@@ -197,6 +251,9 @@ export async function startHotspot(opts: { revertAfterMs?: number; reason?: "aut
     setupReason = opts.reason ?? "auto";
     previousSsid = await currentSsid();
     if (opts.revertAfterMs) armRevert(opts.revertAfterMs);
+    // dnsmasq reads its config when the shared connection comes up, so this has
+    // to be in place BEFORE the hotspot starts, not after.
+    await ensureCaptiveDns();
     const ssid = await hotspotName();
     const password = await hotspotPassword();
     await nmcli(["device", "wifi", "hotspot", "ifname", "wlan0", "con-name", HOTSPOT_CON, "ssid", ssid, "password", password], 30_000);
@@ -206,6 +263,7 @@ export async function startHotspot(opts: { revertAfterMs?: number; reason?: "aut
     await nmcli(["con", "modify", HOTSPOT_CON, "connection.autoconnect", "no"], 10_000).catch(() => undefined);
     setupMode = true;
     lastError = undefined;
+    await openCaptivePort(Number(process.env["PORT"] ?? 8080));
     logger.info({ ssid }, "net-setup: setup hotspot is up");
     announce();
     startWatchdog();
@@ -220,6 +278,9 @@ export async function startHotspot(opts: { revertAfterMs?: number; reason?: "aut
 export async function stopHotspot(): Promise<void> {
   if (!setupMode) return;
   try { await nmcli(["con", "down", HOTSPOT_CON], 20_000); } catch { /* already down */ }
+  // Take the port-80 redirect back out with the hotspot. It must never survive
+  // onto a normal network, where it would quietly capture ordinary traffic.
+  await closeCaptivePort();
   setupMode = false;
   // Leaving setup clears why he entered it, so a later automatic fallback is
   // not still treated as something a person asked for. Callers that are only
@@ -266,7 +327,11 @@ function armRevert(ms: number): void {
     const script =
       `sleep ${seconds}; ` +
       `if nmcli -t -f NAME con show --active | grep -qx ${HOTSPOT_CON}; then ` +
-      `nmcli con down ${HOTSPOT_CON}; nmcli con up '${back}'; fi`;
+      `nmcli con down ${HOTSPOT_CON}; ` +
+      // Drop the port-80 capture too. If the brain died while the hotspot was
+      // up, this is the only thing left that will take it off a live network.
+      `sudo -n nft delete table ip nobi 2>/dev/null; ` +
+      `nmcli con up '${back}'; fi`;
     spawn("sh", ["-c", `( ${script} ) >/dev/null 2>&1`], { detached: true, stdio: "ignore" }).unref();
   }
   logger.info({ ms, previousSsid }, "net-setup: revert armed (in-process and detached)");

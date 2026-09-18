@@ -248,9 +248,6 @@ router.get("/remote", async (_req, res) => {
               border-radius:12px;padding:13px;font:600 18px ui-monospace,Menlo,monospace;letter-spacing:.18em;text-align:center}
 </style></head><body>
 <h1><svg width="20" height="20" viewBox="0 0 48 48"><circle cx="24" cy="24" r="22" fill="#1e2a38"/><g fill="#c9dcf0"><rect x="13" y="15" width="7" height="18" rx="3.5"/><rect x="28" y="15" width="7" height="18" rx="3.5"/></g></svg>Nobi remote</h1>
-<div class="band" id="gamesBand">
-  <h2>Games</h2>
-  <div class="gamegrid" id="gameList"><button class="b wide" disabled>Loading\u2026</button></div>
 </div>
 
 ${GROUPS.map((g) => `<div class="band"><h2>${g.title}</h2><div class="grid">
@@ -263,6 +260,10 @@ ${g.keys.map((k) => {
 }).join("\n")}
 </div></div>`).join("\n")}
 <button class="stop" data-cmd="stop">\u25A0 STOP</button>
+
+<div class="band" id="gamesBand">
+  <h2>Games</h2>
+  <div class="gamegrid" id="gameList"><button class="b wide" disabled>Loading\u2026</button></div>
 
 <div class="band setup">
   <h2>Setup</h2>

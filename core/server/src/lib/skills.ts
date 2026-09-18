@@ -852,6 +852,33 @@ function lanIp(): string | null {
   return null;
 }
 const PORT = Number(process.env["PORT"] ?? 8080);
+/**
+ * "Hey Nobi, bring up the remote" — the controller, on his own screen.
+ *
+ * The remote is gated by his pairing code, which is no use if the only way to
+ * learn the code is to already know it. So he shows it: a QR straight to the
+ * remote with the code already in the URL (scan and you are in), the code in
+ * big type for anyone typing it by hand, and he reads it out for someone across
+ * the table. Placed before phone-link so "remote" never lands on the app QR.
+ */
+const remoteSkill: Skill = {
+  id: "remote",
+  async handle({ lower }) {
+    const asks = /\b(remote|controller|control (you|him|it|the (bot|robot|demo))|drive (you|him|the demo)|demo (buttons|controls?)|control panel)\b/.test(lower)
+      || /\b(what'?s|what is|tell me|show me|bring up|give me) (my |the |your )?(pairing |remote |connection )?code\b/.test(lower)
+      || /\bpairing code\b/.test(lower);
+    if (!asks) return null;
+    const code = await getOrCreatePairingCode();
+    const ip = lanIp();
+    const host = ip ? `${ip}:${PORT}` : `${os.hostname()}.local:${PORT}`;
+    const url = `http://${host}/api/remote?code=${encodeURIComponent(code)}`;
+    return {
+      speak: `Here is the remote. Scan it, or type the code: ${code.split("").join(" ")}.`,
+      ui: { type: "showLink", title: "Nobi remote", url, code, hint: `Same Wi-Fi. ${host}/api/remote` },
+    };
+  },
+};
+
 const phoneLink: Skill = {
   id: "phone-link",
   async handle({ lower }) {
@@ -961,7 +988,7 @@ const shopSkill: Skill = {
 };
 
 const SKILLS: Skill[] = [
-  meetSomeone, pitchShow, demoShow, orderShow, syncAccount, botNumberSkill, qrSkill, phoneLink, myAddress, shopSkill,
+  meetSomeone, pitchShow, demoShow, orderShow, syncAccount, botNumberSkill, qrSkill, remoteSkill, phoneLink, myAddress, shopSkill,
   releaseEstop, emergencyStop, spinSkill, wanderSkill, setSpeedSkill, stopSkill,
   experienceModeSkill, uiModeSkill, describeScreenSkill, survivorSkill, videoControlSkill, playVideoSkill,
   closeSkill, openSkill, controlDevice, readSensor, listDevices,

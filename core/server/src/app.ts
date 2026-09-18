@@ -51,6 +51,14 @@ const staticCacheOptions = {
   },
 };
 
+// /remote is the short URL people actually type and hand to each other, so
+// alias it to the remote page rather than letting it fall through to the
+// dashboard SPA (which answers 200 with the wrong page — worse than a 404).
+app.get("/remote", (req, res) => {
+  const qs = req.originalUrl.includes("?") ? req.originalUrl.slice(req.originalUrl.indexOf("?")) : "";
+  res.redirect(302, `/api/remote${qs}`);
+});
+
 // Serve the installable mobile companion (PWA) at /mobile/. This is the URL the
 // pairing flow hands to a phone; the phone can "Add to Home Screen" and connect
 // back to this brain. Mounted BEFORE the desktop SPA so /mobile/* never falls

@@ -22,12 +22,29 @@ const TOKEN_KEY = "neura_token";
 const PAIRING_KEY = "deckos_pairing_code"; // must match App.tsx
 
 // ── mode + config ─────────────────────────────────────────────────────────────
+/**
+ * True when this page is being served BY a robot rather than by Nobi Cloud:
+ * a private address, a .local name, or localhost. The robot serves the app at
+ * :8080/mobile/ and has no /v1/auth — so defaulting such a visit to cloud mode
+ * showed a login screen whose POST 404'd against the robot. If you reached the
+ * app through the robot, the robot is what you meant to talk to.
+ */
+function servedByRobot(): boolean {
+  if (typeof window === "undefined") return false;
+  const h = window.location.hostname;
+  return (
+    h === "localhost" || h === "127.0.0.1" || h.endsWith(".local") ||
+    /^10\./.test(h) || /^192\.168\./.test(h) || /^172\.(1[6-9]|2\d|3[01])\./.test(h)
+  );
+}
+
 export function getMode(): Mode {
   const explicit = localStorage.getItem(MODE_KEY);
   if (explicit === "local" || explicit === "cloud") return explicit;
-  // No explicit choice yet: Nobi Cloud (login) is the default first screen.
-  // But don't yank someone who's already paired to a local brain.
-  return localStorage.getItem(PAIRING_KEY) ? "local" : "cloud";
+  // Already paired to a local brain, or reached through one → local.
+  if (localStorage.getItem(PAIRING_KEY) || servedByRobot()) return "local";
+  // Otherwise this came from the website, where Nobi Cloud login is right.
+  return "cloud";
 }
 export function isCloud(): boolean {
   return getMode() === "cloud";

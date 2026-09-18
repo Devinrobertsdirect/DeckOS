@@ -21,8 +21,12 @@ const router = Router();
 // is a liveness breadcrumb — neither is worth persisting.
 /** What the ears sidecar last told us about itself (undefined = never reported). */
 type EarsReport = { capturing: boolean; mic: string; floor: number; threshold: number; at: number };
-const state: { muted: boolean; lastHeardAt: number | null; ears?: EarsReport } = {
+const state: { muted: boolean; lastHeardAt: number | null; ears?: EarsReport; armAfterReply: boolean } = {
   muted: false,
+  // Should the mic open for a reply when he stops talking? True for an answer
+  // to a person; false when he spoke unprompted (an attract line), because
+  // nobody asked him anything and nobody is about to answer.
+  armAfterReply: true,
   lastHeardAt: null,
 };
 
@@ -130,6 +134,7 @@ router.post("/voice/mute", (req, res) => {
     res.status(403).json({ error: "local only" });
     return;
   }
+  if (typeof req.body?.arm === "boolean") state.armAfterReply = req.body.arm;
   const parsed = MuteSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Send { on: boolean }" });
@@ -184,6 +189,7 @@ router.get("/voice/state", (_req, res) => {
     muted: state.muted,
     lastHeardAt: state.lastHeardAt,
     speaking: state.muted,
+    armAfterReply: state.armAfterReply,
     ears: fresh
       ? { capturing: e!.capturing, mic: e!.mic, floor: e!.floor, threshold: e!.threshold, ageMs: Date.now() - e!.at }
       : null,

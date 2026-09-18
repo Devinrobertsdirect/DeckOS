@@ -97,6 +97,20 @@ EARS_BEAT_S = float(os.environ.get("NEURA_EARS_BEAT_S", "10"))
 FLOOR_RISE = float(os.environ.get("NEURA_FLOOR_RISE", "0.0015"))
 FLOOR_FALL = float(os.environ.get("NEURA_FLOOR_FALL", "0.08"))
 FLOOR_MARGIN_MAX = float(os.environ.get("NEURA_FLOOR_MARGIN_MAX", "1400"))
+
+# ── Who is he talking to? ────────────────────────────────────────────────────
+# After he answers, the mic opens briefly so you can reply without saying his
+# name again. In a quiet room that is lovely; in a hall it invites every nearby
+# conversation in. So the open window belongs to ONE person: the one who woke
+# him. We remember how loud that person reads in this microphone, and while the
+# window is open only speech at a comparable level is taken as a reply. Someone
+# across the room is quieter and is ignored — and two ignored utterances in a
+# row mean the conversation is over, so the window shuts early rather than
+# waiting out its clock. This is the behaviour people expect from a speaker:
+# it answers you, waits a beat for you, and then goes back to sleep.
+SPEAKER_RATIO = float(os.environ.get("NEURA_SPEAKER_RATIO", "0.55"))
+SPEAKER_MARGIN = float(os.environ.get("NEURA_SPEAKER_MARGIN", "1.3"))
+STRANGERS_BEFORE_CLOSE = int(os.environ.get("NEURA_STRANGERS_CLOSE", "2"))
 INTERRUPT_RE = re.compile(r"\b(stop|wait|hold on|hang on|hold up|pause|quiet|shut up|enough|okay okay|ok ok|hey (nobi|nobee|noby|nobby|noble|nova|novi|no bee|robot)|nobi stop|shush|excuse me)\b")
 HEARD_URL = BASE + "/api/voice/heard"
 STATE_URL = BASE + "/api/voice/state"
@@ -275,6 +289,15 @@ def pcm_to_wav(pcm: bytes) -> bytes:
     return out.getvalue()
 
 
+def state_arm_after_reply() -> bool:
+    """Did the brain ask us to open the mic after this utterance? An attract
+    line says no: he spoke to the room, not to a person, so nobody is replying."""
+    try:
+        return bool(requests.get(STATE_URL, timeout=2).json().get("armAfterReply", True))
+    except requests.RequestException:
+        return True
+
+
 def is_muted() -> bool:
     """True while Nobi is speaking — don't upload (or transcribe) her own voice."""
     try:
@@ -416,6 +439,8 @@ def main() -> int:
     barge_run, barge_silence, barge_buf = 0, 0, bytearray()
     talk_floor = START_RMS       # how loud his own voice reads in this mic
     last_beat = 0.0
+    speaker_level = 0.0          # how loud the person he is talking to reads
+    strangers = 0                # consecutive utterances that were not them
     last_mute_poll = 0.0
     last_target_check = 0.0
 
@@ -462,8 +487,11 @@ def main() -> int:
             last_mute_poll = now
             m = is_muted()
             if muted and not m:          # falling edge — Nobi just finished
-                armed_until = now + ARM_AFTER_REPLY
-                log(f"reply finished — listening {ARM_AFTER_REPLY:.0f}s for a response")
+                if state_arm_after_reply():
+                    armed_until = now + ARM_AFTER_REPLY
+                    log(f"reply finished — listening {ARM_AFTER_REPLY:.0f}s for a response")
+                else:
+                    log("spoke unprompted — mic stays closed")
             muted = m
 
         if muted:
@@ -554,6 +582,7 @@ def main() -> int:
             continue
 
         pcm = bytes(utter)
+        utter_level = frame_rms(pcm)          # how loud this speaker is, in this mic
         speaking, utter, speech_run, silence_run = False, bytearray(), 0, 0
         dur_ms = len(pcm) / 2 / SAMPLE_RATE * 1000.0
         if dur_ms < MIN_UTTER_MS:
@@ -581,6 +610,29 @@ def main() -> int:
             continue
         if matched and how != "wake":
             log(f"({how} wake) {text!r}")
+
+        # Inside the open window with no wake word: is this the person he is
+        # talking to, or the room? Compare against how loud they were.
+        if armed and not matched and speaker_level > 0:
+            near = utter_level >= speaker_level * SPEAKER_RATIO
+            over_room = utter_level >= max(START_RMS, floor * VAD_MULT) * SPEAKER_MARGIN
+            if not (near and over_room):
+                strangers += 1
+                log(f"(not the speaker, {utter_level:.0f} vs {speaker_level:.0f}): {text!r}")
+                if strangers >= STRANGERS_BEFORE_CLOSE:
+                    armed_until = 0.0
+                    speaker_level = 0.0
+                    strangers = 0
+                    log("conversation over — mic closed, say my name to start again")
+                continue
+        strangers = 0
+
+        if matched:
+            # A new wake word means a new main speaker: learn their level.
+            speaker_level = utter_level
+        elif speaker_level:
+            # Ease toward them, so leaning in or back does not lose the thread.
+            speaker_level = 0.7 * speaker_level + 0.3 * utter_level
 
         if matched:
             armed_until = now + ARM_SECONDS

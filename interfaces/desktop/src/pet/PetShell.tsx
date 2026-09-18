@@ -260,8 +260,14 @@ export function PetShell({
   // The moment a show ends; voice transcripts that land in the next couple of
   // seconds are the tail of his own narration, not the user — drop them.
   const showEndedAtRef = useRef(0);
-  const setEarsMuted = (on: boolean) =>
-    fetch("/api/voice/mute", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ on }) }).catch(() => { /* no sidecar here */ });
+  /**
+   * Mute the ears while he speaks. `arm` says whether the mic should open for
+   * a reply afterwards: true when he answered someone, false when he spoke
+   * unprompted — an attract line is not a question, so leaving the mic open
+   * after one just invites the room into the conversation.
+   */
+  const setEarsMuted = (on: boolean, arm = true) =>
+    fetch("/api/voice/mute", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ on, arm }) }).catch(() => { /* no sidecar here */ });
   // Dev/test hook: drive the stage directly (window.__nobiScene("bowl")).
   useEffect(() => {
     (window as unknown as { __nobiScene?: (s: ShowcaseScene | null) => void }).__nobiScene = (s) => setShowcaseScene(s);
@@ -1104,7 +1110,11 @@ export function PetShell({
   const attracting = useAttract({
     glanceAt,
     mood: (name, color) => demoMood(name, color),
-    say: (text) => { setCaption(text); void speak(text, { voiceId: personaVoiceId() }); },
+    say: (text) => {
+      setCaption(text);
+      void setEarsMuted(true, false);          // unprompted: do not open the mic after
+      void speak(text, { voiceId: personaVoiceId() }).finally(() => void setEarsMuted(false, false));
+    },
     busy: busy || !!showcaseScene || !!overlay,
     lastInteractionAt,
   });

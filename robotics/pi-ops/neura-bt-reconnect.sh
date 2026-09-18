@@ -69,6 +69,14 @@ last=""; [ -f "$STATE" ] && last="$(cat "$STATE" 2>/dev/null)"
 prev=""
 in_window=1
 power_fail=0
+last_rebind=0
+# Reloading the firmware is cheap but not free — it drops any live link, so it
+# is rate limited rather than attempted every cycle while a chip stays sick.
+REBIND_COOLDOWN=120
+# Where the UART-attached Broadcom controller binds. Resolved at start so a
+# different Pi model (or an h5-attached chip) still finds its own driver.
+BT_SERIAL="$(basename "$(readlink -f /sys/class/bluetooth/hci0/device 2>/dev/null)" 2>/dev/null)"
+BT_DRIVER="$(readlink -f /sys/class/bluetooth/hci0/device/driver 2>/dev/null)"
 
 while :; do
   # Still inside the boot window? Everything is faster and the robot is discoverable.
@@ -79,14 +87,41 @@ while :; do
   fi
   if [ "$in_window" = 1 ]; then cycle="$BOOT_INTERVAL"; scan_every="$BOOT_SCAN_EVERY"; else cycle="$INTERVAL"; scan_every="$SCAN_EVERY"; fi
 
-  # Controller must be powered. If it will not power on, the chip's firmware has
-  # hung (HCI_Reset times out) and only a reboot brings it back — say so loudly
-  # rather than retrying in silence for hours.
+  # Controller must be powered. If it will not power on, the Broadcom chip has
+  # thrown a hardware error and every HCI_Reset after it times out, so no amount
+  # of `power on` will ever work again.
+  #
+  # This used to say a reboot was the only fix. It is not: the chip is attached
+  # over UART, and unbinding and rebinding its driver re-uploads the firmware
+  # patch and brings it back from scratch. Measured on a wedged robot — the
+  # controller came back UP RUNNING and the speaker reconnected six seconds
+  # later. At a stand that is the difference between a ten second gap and
+  # rebooting the robot in front of people.
   if ! bctl show | grep -q 'Powered: yes'; then
     if bctl power on | grep -q 'Changing power on succeeded'; then power_fail=0
     else
       power_fail=$((power_fail + 1))
-      [ "$power_fail" = 3 ] && log "BLUETOOTH CONTROLLER WEDGED — power on keeps failing; a reboot is the only fix"
+      if [ "$power_fail" -ge 3 ]; then
+        now=$(date +%s)
+        if [ $((now - last_rebind)) -ge "$REBIND_COOLDOWN" ]; then
+          last_rebind=$now
+          log "controller wedged — reloading the chip firmware (driver rebind)"
+          if [ -e "$BT_DRIVER/unbind" ] && [ -n "$BT_SERIAL" ]; then
+            echo "$BT_SERIAL" | sudo -n tee "$BT_DRIVER/unbind" >/dev/null 2>&1
+            sleep 3
+            echo "$BT_SERIAL" | sudo -n tee "$BT_DRIVER/bind" >/dev/null 2>&1
+            sleep 5
+            if bctl show | grep -q 'Powered: yes' || bctl power on | grep -q 'succeeded'; then
+              log "chip recovered after rebind"
+              power_fail=0
+            else
+              log "rebind did not recover it; a reboot is the fallback"
+            fi
+          else
+            log "no UART driver to rebind ($BT_DRIVER); a reboot is the fallback"
+          fi
+        fi
+      fi
       sleep "$cycle"; continue
     fi
   fi

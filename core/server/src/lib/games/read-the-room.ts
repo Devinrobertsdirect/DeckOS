@@ -26,8 +26,22 @@ export interface RoomState {
   round: number;
   /** What everyone except the fraud was given. */
   subject: string;
+  /**
+   * HIS word — one related to the subject, given before anyone speaks and left
+   * on screen all game. Without it the fraud speaking first has literally
+   * nothing, which is not a hard round, it is an unplayable one. One word is
+   * enough to bluff from and nowhere near enough to be safe.
+   */
+  seed: string;
   fraudId: string;
-  /** Turn order, fixed for the game so "the circle" means something. */
+  /**
+   * Turn order, fixed for the round so "the circle" means something.
+   *
+   * Anyone who joins mid-round is deliberately NOT in here. Adding them would
+   * put a player in the naming list who cannot possibly be the fraud, and since
+   * naming wrong hands the fraud the round outright, that is a trap rather than
+   * a welcome. They pick up their points from the next round.
+   */
   order: string[];
   /** Whose turn it is to say a word, as an index into `order`. */
   turn: number;
@@ -50,11 +64,17 @@ export interface RoomState {
 const ACCUSE_FROM_ROUND = 2;
 
 /** Offline subjects: concrete, widely known, and rich in related words. */
-const OFFLINE = [
-  "a hospital", "Batman", "a wedding", "the beach", "a supermarket",
-  "Harry Potter", "a gym", "an aeroplane", "a farm", "a birthday party",
-  "a courtroom", "space", "a barber shop", "Christmas", "a zoo",
-  "a haunted house", "a football match", "a coffee shop", "a library", "a casino",
+const OFFLINE: Array<{ subject: string; seed: string }> = [
+  { subject: "a hospital", seed: "bed" }, { subject: "Batman", seed: "night" },
+  { subject: "a wedding", seed: "dress" }, { subject: "the beach", seed: "sand" },
+  { subject: "a supermarket", seed: "trolley" }, { subject: "Harry Potter", seed: "school" },
+  { subject: "a gym", seed: "sweat" }, { subject: "an aeroplane", seed: "window" },
+  { subject: "a farm", seed: "mud" }, { subject: "a birthday party", seed: "candles" },
+  { subject: "a courtroom", seed: "silence" }, { subject: "space", seed: "cold" },
+  { subject: "a barber shop", seed: "mirror" }, { subject: "Christmas", seed: "lights" },
+  { subject: "a zoo", seed: "fence" }, { subject: "a haunted house", seed: "stairs" },
+  { subject: "a football match", seed: "crowd" }, { subject: "a coffee shop", seed: "queue" },
+  { subject: "a library", seed: "quiet" }, { subject: "a casino", seed: "chips" },
 ];
 
 export const readTheRoom: GameDefinition<RoomState> = {
@@ -67,19 +87,27 @@ export const readTheRoom: GameDefinition<RoomState> = {
   maxPlayers: 10,
 
   create: () => ({
-    phase: "lobby", round: 0, subject: "", fraudId: "", order: [], turn: 0,
+    phase: "lobby", round: 0, subject: "", seed: "", fraudId: "", order: [], turn: 0,
     words: [], accuserId: "", scores: {}, result: null, used: [],
   }),
 
+  // A score entry only. The circle for the round in play is already dealt, so a
+  // late arrival watches this one and is seated when the next one is shuffled.
   join: (state, player) => (state.scores[player.id] === undefined
     ? { ...state, scores: { ...state.scores, [player.id]: 0 } }
     : state),
 
   act: async (state, player, action, value, ctx): Promise<RoomState> => {
     if (action === "start" || action === "again") {
-      const players = Object.keys(state.scores);
+      // Only ever from the two phases that offer it. Without this a stale phone
+      // holding the lobby frame can reshuffle the circle mid-round, which reads
+      // as the game randomly forgetting itself.
+      if (state.phase !== "lobby" && state.phase !== "reveal") return state;
+      // The roster, not the score table: someone who has drifted off still has
+      // a score, and seating a phone that is no longer there stalls the circle.
+      const players = ctx.players.length ? ctx.players.map((p) => p.id) : Object.keys(state.scores);
       if (players.length < 3) return state;
-      const subject = await freshSubject(state.used, ctx);
+      const { subject, seed } = await freshSubject(state.used, ctx);
       // Shuffle the speaking order: who goes first is most of the luck, so it
       // should not be the same person every game.
       const order = [...players];
@@ -87,14 +115,21 @@ export const readTheRoom: GameDefinition<RoomState> = {
         const j = Math.floor(ctx.random() * (i + 1));
         [order[i], order[j]] = [order[j]!, order[i]!];
       }
+      // Everyone at the table starts the round on a score, including anyone who
+      // sat the last one out. A missing entry is not the same as zero here:
+      // `scores` is also the list of who may be named.
+      const scores = { ...state.scores };
+      for (const id of players) if (scores[id] === undefined) scores[id] = 0;
       return {
         ...state,
         phase: "speaking",
         round: 1,
         subject,
+        seed,
         used: [...state.used, subject].slice(-20),
         fraudId: players[Math.floor(ctx.random() * players.length)]!,
         order,
+        scores,
         turn: 0,
         words: [],
         accuserId: "",
@@ -105,43 +140,58 @@ export const readTheRoom: GameDefinition<RoomState> = {
     if (action === "word" && state.phase === "speaking") {
       // Only the player whose turn it is, so the circle stays a circle.
       if (state.order[state.turn] !== player.id) return state;
-      const word = (value ?? "").trim().slice(0, 24);
+      // ONE word. A phone keyboard will happily send a sentence, and a sentence
+      // from an honest player gives the fraud the whole subject for free.
+      const word = (value ?? "").trim().split(/\s+/)[0]?.slice(0, 24) ?? "";
       if (!word) return state;
-      const words = [...state.words, { playerId: player.id, word }];
-      const nextTurn = state.turn + 1;
-      if (nextTurn < state.order.length) return { ...state, words, turn: nextTurn };
-      // The circle closed. One full round of words is not enough to accuse on —
-      // the table is only asked from the SECOND completed circle onwards, and
-      // after every circle after that.
-      const completed = state.round;
-      return {
-        ...state,
-        words,
-        turn: 0,
-        round: completed + 1,
-        phase: completed >= ACCUSE_FROM_ROUND ? "accusing" : "speaking",
-      };
+      return advance(state, [...state.words, { playerId: player.id, word }]);
+    }
+
+    if (action === "skip" && state.phase === "speaking") {
+      // A phone that has locked, gone flat or left the room stops the circle
+      // dead, and nothing in the engine removes a player from the table. So the
+      // rest of the table can move past whoever is up. Only THEY cannot press
+      // it: if you are the one holding everyone up, type your word.
+      if (state.order[state.turn] === player.id) return state;
+      return advance(state, state.words);
     }
 
     // "I think I know" — from here it is a bet, not a vote.
     if (action === "accuse" && state.phase === "accusing") {
+      // First hand up owns the call. Without this the second presser silently
+      // takes the bet off the first, who is left watching someone else stake
+      // the round on their behalf.
+      if (state.accuserId) return state;
       return { ...state, accuserId: player.id };
     }
 
-    if (action === "keep-going" && state.phase === "accusing") {
-      return { ...state, phase: "speaking", accuserId: "" };
+    if (action === "unaccuse" && state.phase === "accusing" && state.accuserId) {
+      // Anyone can hand the call back — the accuser having second thoughts, or
+      // the table when the accuser has gone quiet. The alternative is a phase
+      // where everybody else has no button at all and the round never ends.
+      return { ...state, accuserId: "" };
+    }
+
+    if (action === "keep-going" && state.phase === "accusing" && !state.accuserId) {
+      // Another circle, and the accusation is offered again when it closes.
+      return { ...state, phase: "speaking", round: state.round + 1, turn: 0, accuserId: "" };
     }
 
     if (action === "name" && state.phase === "accusing" && state.accuserId === player.id) {
       const accusedId = (value ?? "").trim();
       // `!scores[id]` would be true for anyone on ZERO points, quietly making
-      // the players most likely to be accused unaccusable.
-      if (!accusedId || state.scores[accusedId] === undefined) return state;
+      // the players most likely to be accused unaccusable. And the name must be
+      // someone in the circle: a player who joined mid-round was never dealt a
+      // card, so naming them could only ever lose.
+      if (!accusedId || accusedId === player.id) return state;
+      if (state.scores[accusedId] === undefined || !state.order.includes(accusedId)) return state;
       const correct = accusedId === state.fraudId;
       const scores = { ...state.scores };
       if (correct) {
-        // Everyone but the fraud takes a point; the caller takes an extra.
-        for (const id of Object.keys(scores)) if (id !== state.fraudId) scores[id] = (scores[id] ?? 0) + 1;
+        // Everyone in the circle but the fraud takes a point; the caller takes
+        // an extra. Scoring off `scores` instead would pay somebody who joined
+        // after the cards were dealt and never said a word.
+        for (const id of state.order) if (id !== state.fraudId) scores[id] = (scores[id] ?? 0) + 1;
         scores[player.id] = (scores[player.id] ?? 0) + 1;
       } else {
         // A wrong call ends it and hands the fraud the round outright.
@@ -169,7 +219,7 @@ export const readTheRoom: GameDefinition<RoomState> = {
         state.phase === "lobby"
           ? players.length < 3 ? `Three phones needed. ${players.length} so far.` : "Everyone has a phone. Press Start."
           : state.phase === "speaking"
-            ? `${nameOf(speaker ?? "")}, say one word.`
+            ? `${nameOf(speaker ?? "")}, say one word.${lastWord ? `   (last: ${lastWord.word})` : ""}`
             : state.phase === "accusing"
               ? state.accuserId ? `${nameOf(state.accuserId)} is naming someone.` : "Anyone got it? Or go round again."
               : state.result
@@ -177,7 +227,9 @@ export const readTheRoom: GameDefinition<RoomState> = {
                   ? `Got them. It was ${nameOf(state.fraudId)}. The thing was ${state.result.subject}.`
                   : `Wrong. ${nameOf(state.result.accusedId)} was innocent — the fraud was ${nameOf(state.fraudId)}.`
                 : "",
-      big: state.phase === "speaking" && lastWord ? lastWord.word : undefined,
+      // The seed word stays on his face for the whole round, next to the round
+      // number. It is the one thing everybody — fraud included — can see.
+      big: state.phase !== "lobby" && state.seed ? state.seed.toUpperCase() : undefined,
       mood: state.phase === "reveal"
         ? (state.result?.correct ? "excited" : "mischievous")
         : state.phase === "accusing" ? "suspicious" : "curious",
@@ -187,7 +239,7 @@ export const readTheRoom: GameDefinition<RoomState> = {
       // strangers moving without anyone having to take charge.
       speak:
         state.phase === "speaking" && state.words.length === 0 && state.round === 1
-          ? "Everyone has the same thing, except one of you. Say one word each. Go."
+          ? `Everyone has the same thing, except one of you. I will start. My word is ${state.seed}. Now one word each.`
           : state.phase === "speaking" ? `${nameOf(speaker ?? "")}.`
             : state.phase === "reveal" && state.result
               ? state.result.correct
@@ -209,6 +261,15 @@ export const readTheRoom: GameDefinition<RoomState> = {
             : "Everyone gets the same thing. One of you gets FRAUD, and has to fake it.",
           choices: players.length >= 3 ? [{ action: "start", label: "Start" }] : [],
         };
+      } else if (!state.order.includes(p.id)) {
+        // Joined after the cards were dealt. They watch the words go past with
+        // no secret of their own, and they are told WHY they have no buttons —
+        // a phone with nothing on it just looks broken.
+        phones[p.id] = {
+          title: "You are in next round",
+          body: "This one was dealt before you sat down. Watch the words — you are in from the next round.",
+          secret: trail.length ? trail.join("  ·  ") : undefined,
+        };
       } else if (state.phase === "speaking") {
         const mine = state.order[state.turn] === p.id;
         phones[p.id] = {
@@ -217,11 +278,14 @@ export const readTheRoom: GameDefinition<RoomState> = {
           title: isFraud ? "You are the FRAUD" : state.subject,
           body: mine
             ? isFraud
-              ? "Your turn. Say something that sounds like you know."
+              ? `His word was "${state.seed}". Say something that sounds like you know.`
               : "Your turn. One word related to it — not too obvious."
-            : `${nameOf(speaker ?? "")} is up.`,
+            : `${nameOf(speaker ?? "")} is up.   His word: ${state.seed}`,
           secret: trail.length ? trail.join("  ·  ") : undefined,
           input: mine ? { action: "word", placeholder: "one word", maxLength: 24 } : undefined,
+          // The rest of the table can move past a phone that has died or left.
+          // Nothing else can: the robot has no way of knowing a player has gone.
+          choices: mine ? [] : [{ action: "skip", label: `Skip ${nameOf(speaker ?? "")}` }],
           yourTurn: mine,
         };
       } else if (state.phase === "accusing") {
@@ -229,15 +293,29 @@ export const readTheRoom: GameDefinition<RoomState> = {
           phones[p.id] = {
             title: "Name the fraud",
             body: "Right, and everyone but them scores. Wrong, and the fraud takes the round.",
-            choices: players.filter((o) => o.id !== p.id).map((o) => ({ action: "name", label: o.name, value: o.id })),
+            // Only players in the circle: naming a late arrival is a guaranteed
+            // loss, and a button that can only lose should not be on the phone.
+            choices: [
+              ...players
+                .filter((o) => o.id !== p.id && state.order.includes(o.id))
+                .map((o) => ({ action: "name", label: o.name, value: o.id })),
+              { action: "unaccuse", label: "Actually, not sure" },
+            ],
             yourTurn: true,
           };
         } else if (state.accuserId) {
-          phones[p.id] = { title: "Hold on", body: `${nameOf(state.accuserId)} thinks they have it.`, secret: trail.join("  ·  ") };
+          phones[p.id] = {
+            title: "Hold on",
+            body: `${nameOf(state.accuserId)} thinks they have it.`,
+            secret: trail.join("  ·  "),
+            // One button, so a call nobody follows through on cannot freeze the
+            // table on a screen with nothing to press.
+            choices: [{ action: "unaccuse", label: "Take it back" }],
+          };
         } else {
           phones[p.id] = {
             title: isFraud ? "You are the FRAUD" : state.subject,
-            body: "Do you know who it is? Calling it wrong hands them the round.",
+            body: `His word was "${state.seed}". Do you know who it is? Calling it wrong hands them the round.`,
             secret: trail.join("  ·  "),
             choices: [
               { action: "accuse", label: "I know who it is" },
@@ -246,13 +324,19 @@ export const readTheRoom: GameDefinition<RoomState> = {
           };
         }
       } else {
+        const thing = state.result?.subject || state.subject;
         phones[p.id] = {
           title: state.result?.correct ? "Caught" : "Got away with it",
-          body: isFraud
-            ? `You were the fraud. The thing was ${state.result?.subject}.`
-            : `It was ${nameOf(state.fraudId)}. The thing was ${state.result?.subject}.`,
+          body: (isFraud
+            ? `You were the fraud. The thing was ${thing}.`
+            : `It was ${nameOf(state.fraudId)}. The thing was ${thing}.`)
+            + (players.length < 3 ? " Another phone is needed for another round." : ""),
           secret: trail.join("  ·  "),
-          choices: [{ action: "again", label: "Another round" }],
+          // Three phones or the button would do nothing when pressed, which
+          // looks exactly like a broken game rather than a short table.
+          choices: players.length >= 3
+            ? [{ action: "again", label: "Another round" }]
+            : [],
         };
       }
     }
@@ -260,22 +344,59 @@ export const readTheRoom: GameDefinition<RoomState> = {
   },
 };
 
-/** Something concrete enough that everyone can find a word for it. */
-async function freshSubject(used: string[], ctx: GameContext): Promise<string> {
+/**
+ * Hand the turn on, and close the circle when it comes back round.
+ *
+ * A word and a skip share this because the two have to agree on when a circle
+ * has ended: two copies of the same arithmetic is how you end up in "speaking"
+ * with the turn pointing off the end of the order and not one phone able to do
+ * anything.
+ *
+ * The round number is the circle being SPOKEN, so it is bumped when another
+ * circle starts rather than when one finishes — otherwise his face announces
+ * round three while the table is still being asked about circle two.
+ */
+function advance(state: RoomState, words: RoomState["words"]): RoomState {
+  const nextTurn = state.turn + 1;
+  if (nextTurn < state.order.length) return { ...state, words, turn: nextTurn };
+  // A circle has closed. One circle of words is not enough to bet on, so the
+  // table is only asked from the SECOND completed circle onwards — and then
+  // after every circle, so "go round again" can never loop away from the offer.
+  if (state.round >= ACCUSE_FROM_ROUND) return { ...state, words, turn: 0, phase: "accusing", accuserId: "" };
+  return { ...state, words, turn: 0, round: state.round + 1, phase: "speaking" };
+}
+
+/**
+ * A subject, and HIS opening word for it.
+ *
+ * Both come from one call because they have to agree: a seed word that does not
+ * actually relate to the subject would mislead the honest players as much as
+ * the fraud, and two separate calls can disagree.
+ */
+async function freshSubject(used: string[], ctx: GameContext): Promise<{ subject: string; seed: string }> {
   try {
     const raw = await ctx.narrate(
       [
-        "Name ONE thing for a party guessing game: a place, a well known fictional character, or an event.",
+        "Pick ONE thing for a party guessing game: a place, a well known fictional character, or an event.",
         "It must be something almost anyone could say a related word about — 'a hospital', 'Batman', 'a wedding'.",
         `Do not pick any of these: ${used.join(", ") || "none yet"}.`,
-        "Reply with the thing only, under four words, no punctuation.",
+        "Then give ONE word related to it that a player might say — obvious is fine, it is the opening word.",
+        "Reply in exactly this form and nothing else:",
+        "THING: <the thing, under four words>",
+        "WORD: <one single word>",
       ].join("\n"),
-      12,
+      30,
     );
-    const s = raw.trim().replace(/^["']|["'.]+$/g, "");
-    if (s && s.length <= 30 && !used.includes(s)) return s;
+    const subject = raw.match(/^THING:\s*(.+)$/im)?.[1]?.trim().replace(/^["']|["'.]+$/g, "") ?? "";
+    // First token only, THEN strip punctuation. Stripping first turned a
+    // two-word answer into one run-on word, which is a rotten seed to bluff off.
+    const seed = (raw.match(/^WORD:\s*(.+)$/im)?.[1]?.trim().split(/\s+/)[0] ?? "").replace(/[^A-Za-z-]/g, "");
+    const seen = used.map((u) => u.toLowerCase());
+    if (subject && seed && subject.length <= 30 && !seen.includes(subject.toLowerCase())) return { subject, seed };
   } catch { /* fall through */ }
-  const spare = OFFLINE.filter((o) => !used.includes(o));
+  // The brain being unreachable must never leave a blank subject on the phones,
+  // so the offline pool is the floor rather than a nicety.
+  const spare = OFFLINE.filter((o) => !used.includes(o.subject));
   const pool = spare.length ? spare : OFFLINE;
-  return pool[Math.floor(Math.random() * pool.length)]!;
+  return pool[Math.floor(ctx.random() * pool.length)]!;
 }

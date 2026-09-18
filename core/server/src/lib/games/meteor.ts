@@ -54,8 +54,28 @@ export interface MeteorState {
 const SHIELD_ARC = 46;
 /** A meteor is blocked when it crosses this radius under a shield. */
 const SHIELD_RADIUS = 0.84;
-/** Turn rate per button press, in degrees. */
-const TURN_STEP = 16;
+/**
+ * Turn rate per button press, in degrees.
+ *
+ * A phone d-pad held down repeats at roughly ten presses a second, so this is
+ * really a rate: ten degrees a press is a hundred degrees a second, which walks
+ * the whole rim in about three and a half seconds and still lets a single tap
+ * nudge the arc by less than half its own width. The old sixteen swept a
+ * hundred and sixty degrees a second — hold the pad for a quarter of a second
+ * and you had already gone past the thing you were aiming at, which reads as
+ * the game ignoring you rather than as you overshooting.
+ */
+const TURN_STEP = 10;
+/**
+ * A hard ceiling on how many meteors may be alive at once.
+ *
+ * Nothing in the ramp should ever reach this — at the fastest wave the spawn
+ * gap and the flight time settle at about five on screen — but tick() is the
+ * one function here that runs fourteen times a second forever, and an arcade
+ * game that quietly grows its own workload is how a robot at a stand ends up
+ * unresponsive an hour in. Cheap insurance against a future tuning mistake.
+ */
+const MAX_METEORS = 24;
 /**
  * Five, not three. Tested undefended, three lives was gone in ten seconds — and
  * the person playing this is usually a stranger holding a phone they have never
@@ -82,21 +102,34 @@ export const meteor: GameDefinition<MeteorState> = {
 
   join: (state, player) => (state.shields[player.id] === undefined
     // New shields start spread around the rim rather than stacked on top of
-    // each other, so a second player is instantly useful without moving.
-    ? { ...state, shields: { ...state.shields, [player.id]: (Object.keys(state.shields).length * 90) % 360 } }
+    // each other, so a second player is instantly useful without moving. The
+    // spread comes off the SEAT, not off how many shields happen to be in the
+    // record: a shield left behind by an earlier roster used to shift everyone
+    // after it, so the third person to pick up a phone could be handed the same
+    // stretch of rim as the second and neither of them would know why they were
+    // both failing to cover the other side.
+    ? { ...state, shields: { ...state.shields, [player.id]: seatAngle(player) } }
     : state),
 
   act: (state, player, action, value): MeteorState => {
     if (action === "start" || action === "again") {
+      // Only ever from the lobby or the game-over card. Phones poll, so a phone
+      // that was a beat behind could still be showing the Start button while
+      // the round is already running, and one stale tap would wipe everybody
+      // else's score mid-game with no way to tell what had happened.
+      if (state.phase === "playing") return state;
       return {
         ...state,
         phase: "playing", wave: 1, score: 0, lives: START_LIVES,
-        meteors: [], spawnIn: 6, flash: undefined, ticks: 0,
+        meteors: [], nextId: 1, spawnIn: 6, flash: undefined, ticks: 0,
       };
     }
     if (state.phase !== "playing") return state;
 
-    const at = state.shields[player.id] ?? 0;
+    // Falling back to the seat rather than to zero: if a player somehow has no
+    // shield yet, their first press should move the arc they are about to be
+    // drawn holding, not teleport it to the top of the circle.
+    const at = state.shields[player.id] ?? seatAngle(player);
     // A held d-pad sends repeats; each one is a step, which makes fine aiming
     // possible without needing a real analogue control on a phone.
     if (action === "left") return { ...state, shields: { ...state.shields, [player.id]: (at - TURN_STEP + 360) % 360 } };
@@ -114,7 +147,25 @@ export const meteor: GameDefinition<MeteorState> = {
 
     let { score, lives, wave, nextId, spawnIn } = state;
     let flash: MeteorState["flash"];
-    const shieldAngles = Object.values(state.shields);
+
+    // Only shields belonging to somebody still at the table may block anything.
+    // The record is keyed by player id and nothing ever took an entry out of it,
+    // so a phone that dropped off left an arc behind that the face no longer
+    // draws — render() maps over the live roster — but that tick() still counted.
+    // The result was meteors visibly bouncing off empty rim, which looks like
+    // the game cheating rather than like a bug. An empty roster is left alone:
+    // there is nobody to defend, and wiping the record on a spurious empty
+    // frame would throw away angles the players had already set.
+    const liveIds = ctx.players.length ? new Set(ctx.players.map((p) => p.id)) : null;
+    const shieldEntries = Object.entries(state.shields)
+      .filter(([id]) => !liveIds || liveIds.has(id));
+    const shieldAngles = shieldEntries.map(([, angle]) => angle);
+    // And drop the dead keys for good, so the record cannot creep upwards over
+    // a long uptime. Only rebuilt when something actually went stale.
+    const shields = shieldEntries.length === Object.keys(state.shields).length
+      ? state.shields
+      : Object.fromEntries(shieldEntries);
+
     const meteors: Meteor[] = [];
 
     for (const m of state.meteors) {
@@ -139,31 +190,53 @@ export const meteor: GameDefinition<MeteorState> = {
       meteors.push({ ...m, radius });
     }
 
-    // Spawning. Waves get faster and denser, and every fifth wave is announced.
+    // Spawning. Waves get faster and denser.
     spawnIn -= 1;
-    if (spawnIn <= 0) {
+    if (spawnIn <= 0 && meteors.length >= MAX_METEORS) {
+      // At the ceiling. Hold the counter at one rather than letting it run off
+      // downwards for as long as the sky is full, because a counter sitting at
+      // minus four hundred would then fire a meteor on every single tick the
+      // moment one was cleared.
+      spawnIn = 1;
+    } else if (spawnIn <= 0) {
       const size: 1 | 2 = wave >= 3 && ctx.random() < 0.22 ? 2 : 1;
       meteors.push({
         id: nextId,
         angle: Math.floor(ctx.random() * 360),
         radius: 1,
-        // Slow enough at wave 1 to cross in about nine seconds, which is time to
-        // see it, decide, and turn. The ramp does the work after that.
+        // Slow enough at wave 1 to cross in about seven seconds, which is time
+        // to see it, decide, and turn. The ramp does the work after that.
         speed: 0.0065 + Math.min(wave, 12) * 0.0015 + ctx.random() * 0.003,
         size,
         hp: size,
       });
       nextId += 1;
-      spawnIn = Math.max(7, 34 - wave * 1.8);
+      // The gap between meteors is what actually sets how long a round lasts
+      // with nobody defending, and that number matters more than it sounds:
+      // the first person to hold this phone is a stranger at a stand who has
+      // not worked out which button turns which way yet. At 34 - wave * 1.8 the
+      // five lives were gone in about sixteen seconds, and a good part of that
+      // was spent discovering that the game had already started. Widened so an
+      // undefended round runs a little over twenty seconds, which is long
+      // enough to lose two lives learning the controls and still play. The ramp
+      // is steeper to pay for the wider start, so the pressure at the top end
+      // arrives at the same point in the round it always did.
+      spawnIn = Math.max(8, 54 - wave * 3);
     }
 
     const ticks = state.ticks + 1;
     // A wave is just a difficulty step on a clock. No lulls: the pressure only
     // ever goes up, which is what makes a twenty second game worth replaying.
-    if (ticks % 170 === 0) { wave += 1; flash = "wave"; }
+    // A hit and a wave step can land on the same tick, and only one flash fits
+    // on a face. The hit wins: one of them costs a life and the other is
+    // bookkeeping, and a red rim is the only warning the room gets.
+    if (ticks % 170 === 0) { wave += 1; flash = flash ?? "wave"; }
 
-    if (lives <= 0) return { ...state, phase: "over", meteors: [], lives: 0, score, wave, flash: "hit", ticks };
-    return { ...state, meteors, score, lives, wave, nextId, spawnIn, flash, ticks };
+    // Several meteors can land on the same tick, so lives can step past zero on
+    // the way down; the room must never be shown a negative heart count and the
+    // phones must never be asked to repeat "♥" a negative number of times.
+    if (lives <= 0) return { ...state, shields, phase: "over", meteors: [], lives: 0, score, wave, flash: "hit", ticks };
+    return { ...state, shields, meteors, score, lives, wave, nextId, spawnIn, flash, ticks };
   },
 
   render: (state, players) => {
@@ -193,11 +266,15 @@ export const meteor: GameDefinition<MeteorState> = {
       canvas: {
         kind: "meteor",
         phase: state.phase,
-        lives: state.lives,
+        lives: Math.max(0, state.lives),
         flash: state.flash ?? null,
         shieldArc: SHIELD_ARC,
         shieldRadius: SHIELD_RADIUS,
-        shields: players.map((p) => ({ name: p.name, angle: state.shields[p.id] ?? 0 })),
+        // Drawn from the live roster, which is also what tick() blocks with, so
+        // every arc on the rim is one that can actually stop something. The seat
+        // fallback matches act(): a player mid-join is drawn where their first
+        // press will move from, not parked at twelve o'clock on top of seat one.
+        shields: players.map((p) => ({ name: p.name, angle: state.shields[p.id] ?? seatAngle(p) })),
         meteors: state.meteors.map((m) => ({ id: m.id, angle: m.angle, radius: m.radius, size: m.size })),
       },
     };
@@ -222,6 +299,19 @@ export const meteor: GameDefinition<MeteorState> = {
     return { face, phones };
   },
 };
+
+/**
+ * Where a player's shield starts, from their seat.
+ *
+ * Four seats, four quarters of the rim. Seats are handed out in join order and
+ * never reused within a session, so the same phone always comes back to the
+ * same quarter — which matters more than it looks, because the first thing a
+ * returning player does is look for their own colour on the circle.
+ */
+function seatAngle(player: Player): number {
+  const seat = Number.isFinite(player.seat) ? Math.max(0, Math.floor(player.seat)) : 0;
+  return (seat * 90) % 360;
+}
 
 /** Smallest angle between two bearings, in degrees. */
 function angularGap(a: number, b: number): number {

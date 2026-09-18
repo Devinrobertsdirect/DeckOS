@@ -14,6 +14,9 @@ import { quickColors } from "./quick-colors.js";
 import { wouldYouRather } from "./would-you-rather.js";
 import { hotPotato } from "./hot-potato.js";
 import { madLibrarian } from "./mad-librarian.js";
+import { quizbee } from "./quizbee.js";
+import { triviaNight } from "./trivia-night.js";
+import { wavelength } from "./wavelength.js";
 
 /**
  * games/engine.ts — one live game at a time, owned by the robot.
@@ -37,6 +40,9 @@ const GAMES: Record<string, GameDefinition<never>> = {
   [wouldYouRather.id]: wouldYouRather as unknown as GameDefinition<never>,
   [hotPotato.id]: hotPotato as unknown as GameDefinition<never>,
   [madLibrarian.id]: madLibrarian as unknown as GameDefinition<never>,
+  [quizbee.id]: quizbee as unknown as GameDefinition<never>,
+  [triviaNight.id]: triviaNight as unknown as GameDefinition<never>,
+  [wavelength.id]: wavelength as unknown as GameDefinition<never>,
 };
 
 const SAVE_KEY = "NOBI_GAME_SESSION";
@@ -194,6 +200,25 @@ function context(): GameContext {
     now: Date.now(),
     random: Math.random,
     players: session ? session.players : [],
+    /**
+     * The same brain, asked for a SHAPE rather than a speech.
+     *
+     * No narrator framing at all. narrate() wraps everything in "you are
+     * narrating aloud, reply with the narration only", which is right for a
+     * line of story and actively harmful for structured output: asked for five
+     * questions as Q:/A:/C: through narrate(), the model returned a warm
+     * welcome to quiz night followed by the questions in prose. Nothing parsed.
+     */
+    ask: async (prompt: string, maxWords = 200) => {
+      const framed = [
+        prompt,
+        "",
+        "Answer in EXACTLY the form above. No preamble, no commentary, no markdown, " +
+          `no explanation, nothing else. At most ${maxWords} words.`,
+      ].join("\n");
+      const out = await runInference({ prompt: framed, mode: "fast", task: "chat" });
+      return String(out?.response ?? "").trim();
+    },
     narrate: async (prompt: string, maxWords = 60) => {
       // A narrator, not an assistant: the rules go in the prompt because
       // runInference takes a single prompt, and a game that gets "Sure! Here's
@@ -333,13 +358,48 @@ export function joinGame(name: string, existingId?: string): { playerId: string 
   return { playerId: player.id };
 }
 
+/**
+ * One press at a time, per table.
+ *
+ * `act()` may await — a brain call for a clue, a question, a story — and this
+ * function read the state, awaited, then wrote it back. Two presses landing
+ * either side of that await therefore BOTH built on the state from before
+ * either of them, and the second write silently threw the first away. With six
+ * phones at a table that is not a rare race: it is two people tapping at once,
+ * which is what a party game is.
+ *
+ * The symptom was never a crash. It was a vote that did not count, a word that
+ * vanished, a seat that would not take — the sort of thing that gets blamed on
+ * the Wi-Fi. Three separate audits of three separate games arrived at this same
+ * line, which is the clearest possible sign it belongs here and not in them.
+ *
+ * So presses queue. Each waits for the one before it, reads the state that
+ * press actually produced, and writes on top of it.
+ */
+let actQueue: Promise<unknown> = Promise.resolve();
+
 export async function actInGame(playerId: string, action: string, value?: string): Promise<{ ok: boolean; error?: string }> {
+  const mine = actQueue.then(() => applyAction(playerId, action, value));
+  // The queue must survive a failed press, or one error would wedge the table.
+  actQueue = mine.catch(() => undefined);
+  return mine;
+}
+
+async function applyAction(playerId: string, action: string, value?: string): Promise<{ ok: boolean; error?: string }> {
+  // Re-read everything INSIDE the queue: the game may have ended, or the state
+  // moved on, while this press waited its turn.
   const d = def();
   if (!session || !d) return { ok: false, error: "no game running" };
   const player = session.players.find((p) => p.id === playerId);
   if (!player) return { ok: false, error: "not at this table" };
+  const before = session;
   try {
-    session.state = (await d.act(session.state as never, player, action, value, context())) as unknown;
+    const next = (await d.act(session.state as never, player, action, value, context())) as unknown;
+    // The table can be ended or restarted mid-await by a voice command or the
+    // remote. Writing our result onto a session we no longer hold would
+    // resurrect a round that is already over.
+    if (session !== before) return { ok: false, error: "that game has moved on" };
+    session.state = next;
   } catch {
     return { ok: false, error: "that did not work" };
   }

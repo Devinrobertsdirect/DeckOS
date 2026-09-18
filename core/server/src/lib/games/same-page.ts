@@ -70,6 +70,27 @@ const OFFLINE: Array<{ word: string; clue: string; hints: string[] }> = [
 // Defensive on purpose: state can arrive from a save written by another build.
 const seatOf = (state: SamePageState, id: string) => state.seats?.[id] ?? 0;
 const seatedPlayers = (state: SamePageState, players: Player[]) => players.filter((p) => seatOf(state, p.id) > 0);
+const seatsOf = (state: SamePageState) => state.seats ?? {};
+
+/**
+ * Close a race round and hand the point to the first correct lock.
+ *
+ * Both ways out of a round end here. The timeout used to flip the phase and
+ * nothing else, so a player who locked the right word and then sat waiting for a
+ * partner who never locked was named the winner on the face and given nothing on
+ * the scoreboard — the one case where you win by being fastest and score zero.
+ */
+function settleRace(state: SamePageState, locks: Lock[]): SamePageState {
+  const winner = locks.filter((l) => l.correct).sort((a, b) => a.ms - b.ms)[0];
+  return {
+    ...state,
+    phase: "round-over",
+    locks,
+    scores: winner
+      ? { ...state.scores, [winner.playerId]: (state.scores?.[winner.playerId] ?? 0) + 1 }
+      : (state.scores ?? {}),
+  };
+}
 
 export const samePage: GameDefinition<SamePageState> = {
   id: "same-page",
@@ -86,7 +107,7 @@ export const samePage: GameDefinition<SamePageState> = {
     misses: [], used: [], loading: false,
   }),
 
-  join: (state, player) => (state.scores[player.id] === undefined
+  join: (state, player) => (state.scores?.[player.id] === undefined
     ? { ...state, scores: { ...state.scores, [player.id]: 0 } }
     : state),
 
@@ -94,9 +115,11 @@ export const samePage: GameDefinition<SamePageState> = {
   tick: (state) => {
     if (state.phase !== "clue") return state;
     const now = Date.now();
-    if (state.mode === "team" && now >= state.teamEndsAt) return { ...state, phase: "team-over" };
+    // The `> 0` matters: a clock that was never wound reads as already expired,
+    // which would end a team game on its very first tick.
+    if (state.mode === "team" && state.teamEndsAt > 0 && now >= state.teamEndsAt) return { ...state, phase: "team-over" };
     const elapsed = now - state.startedAt;
-    if (state.mode === "race" && elapsed >= ROUND_MS) return { ...state, phase: "round-over" };
+    if (state.mode === "race" && elapsed >= ROUND_MS) return settleRace(state, state.locks ?? []);
     const due = Math.min(HINT_AT.filter((t) => elapsed >= t).length, (state.hints ?? []).length);
     return due > (state.hintsShown ?? 0) ? { ...state, hintsShown: due } : state;
   },
@@ -107,23 +130,44 @@ export const samePage: GameDefinition<SamePageState> = {
       const seat = Number(value);
       if (seat !== 1 && seat !== 2) return state;
       // A seat belongs to one phone; taking a taken seat is simply ignored.
-      if (Object.entries(state.seats).some(([id, s]) => s === seat && id !== player.id)) return state;
-      return { ...state, seats: { ...state.seats, [player.id]: seat } };
+      if (Object.entries(seatsOf(state)).some(([id, s]) => s === seat && id !== player.id)) return state;
+      return { ...state, seats: { ...seatsOf(state), [player.id]: seat } };
     }
 
     if (action === "mode") {
+      // Not mid-round: swapping the rules under a live clue changes how the
+      // round is scored and, worse, which clock the phones are counting down.
+      if (state.phase === "clue") return state;
       const mode: Mode = value === "team" ? "team" : "race";
       return { ...state, mode };
     }
 
     if (action === "start" || action === "next") {
+      // A stale phone or a double-tap must not pull a second word up on top of
+      // a round that is already running — that costs a brain call and hands the
+      // room a new clue with the old one half-answered.
+      if (state.phase === "clue") return state;
       const fresh = await freshWord(state.used, ctx);
       const now = Date.now();
-      const startingTeam = state.mode === "team" && (action === "start" || state.phase === "team-over");
+      /**
+       * A team round only ever begins from a standstill — while the clock is
+       * running the next word arrives from a correct lock, not from this button
+       * — so any start or next in team mode opens a fresh sixty seconds. Keying
+       * it off the action name instead meant a game that reached team mode by
+       * any route other than the lobby inherited a stale (or never-set)
+       * deadline, and the first tick ended it before anybody read the clue.
+       */
+      const startingTeam = state.mode === "team";
+      // Start from the lobby is a fresh match, so the scoreboard starts fresh
+      // too; otherwise last game's totals ride along into this one.
+      const scores = action === "start"
+        ? Object.fromEntries(Object.keys(state.scores ?? {}).map((id) => [id, 0]))
+        : state.scores;
       return {
         ...state,
         phase: "clue",
-        round: state.round + 1,
+        round: action === "start" ? 1 : state.round + 1,
+        scores,
         word: fresh.word,
         clue: fresh.clue,
         hints: fresh.hints,
@@ -147,6 +191,10 @@ export const samePage: GameDefinition<SamePageState> = {
       const correct = guess === state.word;
 
       if (state.mode === "team") {
+        // The tick owns the whistle, but it only looks twice a second, so a lock
+        // can land after time is up. Honour the clock here rather than scoring a
+        // late point and spending a brain call on a word nobody will ever see.
+        if (state.teamEndsAt > 0 && Date.now() >= state.teamEndsAt) return { ...state, phase: "team-over" };
         // Either of you getting it pulls the next word up at once.
         if (correct) {
           const fresh = await freshWord(state.used, ctx);
@@ -156,7 +204,7 @@ export const samePage: GameDefinition<SamePageState> = {
             word: fresh.word, clue: fresh.clue, hints: fresh.hints, hintsShown: 0,
             startedAt: Date.now(),
             teamScore: state.teamScore + 1,
-            scores: { ...state.scores, [player.id]: (state.scores[player.id] ?? 0) + 1 },
+            scores: { ...state.scores, [player.id]: (state.scores?.[player.id] ?? 0) + 1 },
             locks: [], misses: [],
             used: [...(state.used ?? []), fresh.word].slice(-40),
           };
@@ -167,17 +215,11 @@ export const samePage: GameDefinition<SamePageState> = {
       // RACE: one lock each. The round ends when the second one lands.
       if ((state.locks ?? []).some((l) => l.playerId === player.id)) return state;
       const locks = [...(state.locks ?? []), { playerId: player.id, guess, correct, ms: Date.now() - state.startedAt }];
-      const seatedCount = Object.keys(state.seats).length || 1;
+      const seatedCount = Object.keys(seatsOf(state)).length || 1;
       if (locks.length < seatedCount) return { ...state, locks };
 
       // Both in: the point goes to the first CORRECT lock, if there was one.
-      const winner = locks.filter((l) => l.correct).sort((a, b) => a.ms - b.ms)[0];
-      return {
-        ...state,
-        phase: "round-over",
-        locks,
-        scores: winner ? { ...state.scores, [winner.playerId]: (state.scores[winner.playerId] ?? 0) + 1 } : state.scores,
-      };
+      return settleRace(state, locks);
     }
 
     if (action === "reseat") return { ...state, phase: "seats", locks: [], misses: [] };
@@ -193,6 +235,10 @@ export const samePage: GameDefinition<SamePageState> = {
         : Math.max(0, Math.ceil((ROUND_MS - (now - state.startedAt)) / 1000));
     const hints = (state.hints ?? []).slice(0, state.hintsShown ?? 0);
     const bySeat = (n: number) => seated.find((p) => seatOf(state, p.id) === n);
+    const word = (state.word ?? "").toUpperCase();
+    /** A seat is free when no OTHER phone is sitting in it. */
+    const takenBySomeoneElse = (n: number, me: string) =>
+      Object.entries(seatsOf(state)).some(([id, s]) => s === n && id !== me);
 
     const winner = (state.locks ?? []).filter((l) => l.correct).sort((a, b) => a.ms - b.ms)[0];
     const faceBody =
@@ -203,8 +249,8 @@ export const samePage: GameDefinition<SamePageState> = {
           : state.phase === "team-over"
             ? `Time. Together you got ${state.teamScore}.`
             : winner
-              ? `${bySeat(seatOf(state, winner.playerId))?.name ?? `Player ${seatOf(state, winner.playerId)}`} had it in ${(winner.ms / 1000).toFixed(1)}s — ${state.word.toUpperCase()}`
-              : `Neither of you. It was ${state.word.toUpperCase()}.`;
+              ? `${bySeat(seatOf(state, winner.playerId))?.name ?? `Player ${seatOf(state, winner.playerId)}`} had it in ${(winner.ms / 1000).toFixed(1)}s — ${word}`
+              : `Neither of you. It was ${word}.`;
 
     const face = {
       title: state.phase === "seats"
@@ -223,7 +269,7 @@ export const samePage: GameDefinition<SamePageState> = {
         ? [{ name: "Together", score: state.teamScore }]
         : seated.map((p) => ({
             name: `${seatOf(state, p.id)}· ${p.name}`,
-            score: state.scores[p.id] ?? 0,
+            score: state.scores?.[p.id] ?? 0,
             active: state.phase === "clue" && !(state.locks ?? []).some((l) => l.playerId === p.id),
           })),
     };
@@ -233,7 +279,7 @@ export const samePage: GameDefinition<SamePageState> = {
       const seat = seatOf(state, p.id);
 
       if (state.phase === "seats") {
-        const taken = (n: number) => Object.entries(state.seats).some(([id, s]) => s === n && id !== p.id);
+        const taken = (n: number) => takenBySomeoneElse(n, p.id);
         phones[p.id] = {
           title: seat ? `You are Player ${seat}` : "Pick your number",
           body: seat
@@ -251,7 +297,22 @@ export const samePage: GameDefinition<SamePageState> = {
       }
 
       if (!seat) {
-        phones[p.id] = { title: "Watching", body: "Two phones are playing. Ask for a turn." };
+        /**
+         * A phone that arrives after Start, or that never got round to picking a
+         * number, used to be handed a dead end: no buttons, no box, and no way
+         * back in unless somebody already playing thought to press "change
+         * numbers". So a watcher always sees whichever seat is free, and takes
+         * it the moment there is one.
+         */
+        const free = [1, 2].filter((n) => !takenBySomeoneElse(n, p.id));
+        phones[p.id] = {
+          title: "Watching",
+          body: free.length
+            ? "There is a free number. Take it and you are in from here."
+            : "Both numbers are taken. You are up when one of them frees a seat.",
+          ...(state.phase !== "clue" && state.word ? { secret: `Last word: ${word}` } : {}),
+          choices: free.map((n) => ({ action: "seat", label: `Take Player ${n}`, value: String(n) })),
+        };
         continue;
       }
 
@@ -278,7 +339,7 @@ export const samePage: GameDefinition<SamePageState> = {
           : winner
             ? (winner.playerId === p.id ? "You had it first" : `Player ${seatOf(state, winner.playerId)} got it`)
             : "Neither of you",
-        body: `The word was ${state.word.toUpperCase()}.` + (mine && !mine.correct ? ` You locked "${mine.guess}".` : ""),
+        body: `The word was ${word}.` + (mine && !mine.correct ? ` You locked "${mine.guess}".` : ""),
         choices: [
           { action: "next", label: state.mode === "team" ? "Play again" : "Next word" },
           { action: "reseat", label: "Change numbers or mode" },

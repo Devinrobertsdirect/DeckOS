@@ -1,4 +1,4 @@
-import type { GameDefinition, GameContext, Player } from "./types.js";
+import type { GameDefinition, Player } from "./types.js";
 
 /**
  * Dev's Dungeon — a co-op adventure told out loud.
@@ -33,7 +33,12 @@ interface Character {
 
 export interface DungeonState {
   phase: Phase;
-  /** Whose turn, as an index into the seated players. */
+  /**
+   * Whose turn, as an index into the seated players — kept IN RANGE rather than
+   * counted up forever. A running count that is modded at render time quietly
+   * hands the turn to somebody else the moment a seventh phone changes the
+   * length of the table, so the count is wrapped when the turn advances instead.
+   */
   turn: number;
   round: number;
   /** The last thing Nobi narrated — shown on the face and spoken. */
@@ -72,7 +77,15 @@ function seatOrder(players: Player[]): Player[] {
 
 function current(state: DungeonState, players: Player[]): Player | undefined {
   const seated = seatOrder(players);
-  return seated.length ? seated[state.turn % seated.length] : undefined;
+  if (!seated.length) return undefined;
+  // The modulo is belt and braces: turn is kept in range, but a save from a
+  // fuller table must never index past the end and leave the phones blank.
+  return seated[state.turn % seated.length];
+}
+
+/** Turn gate. Everything that moves the story on has to pass this first. */
+function isCurrent(state: DungeonState, players: Player[], player: Player): boolean {
+  return current(state, players)?.id === player.id;
 }
 
 export const devsDungeon: GameDefinition<DungeonState> = {
@@ -108,27 +121,50 @@ export const devsDungeon: GameDefinition<DungeonState> = {
   },
 
   act: async (state, player, action, value, ctx): Promise<DungeonState> => {
-    // Begin: the narrator sets the scene once everyone is in.
-    if (action === "begin" && state.phase === "intro") {
-      return { ...state, phase: "turn", pendingRoll: undefined };
+    // Begin: the narrator sets the scene once everyone is in. Accepts any
+    // waiting phase, not just "intro", so the Begin button on a phone always
+    // does the thing it says — a restored lobby used to swallow the press.
+    if (action === "begin" && state.phase !== "turn" && state.phase !== "over") {
+      return { ...state, phase: "turn", turn: 0, pendingRoll: undefined };
     }
 
     // Rolling is private and happens BEFORE choosing, so the player knows their
     // odds while they decide — and can lie about them to the table.
-    if (action === "roll" && state.phase === "turn" && !state.pendingRoll) {
-      const value = 1 + Math.floor(ctx.random() * 6);
-      return { ...state, pendingRoll: { playerId: player.id, value } };
+    //
+    // Two gates, both learned the hard way. The turn gate stops a phone that is
+    // a frame behind rolling out of order; and a pending roll left over by
+    // somebody who is no longer the current player is thrown away rather than
+    // blocking, because the old `!state.pendingRoll` test meant one stale press
+    // froze the whole table with no button that could unfreeze it.
+    if (action === "roll" && state.phase === "turn" && isCurrent(state, ctx.players, player)) {
+      if (state.pendingRoll?.playerId === player.id) return state;  // no re-rolling until you like it
+      const rolled = 1 + Math.floor(ctx.random() * 6);
+      return { ...state, pendingRoll: { playerId: player.id, value: rolled } };
     }
 
-    if (action === "choose" && state.phase === "turn") {
+    // Someone wandered off mid-turn. Anyone else may move the story past them,
+    // otherwise a table of six waits forever on a phone that is in a pocket.
+    if (action === "skip" && state.phase === "turn" && !isCurrent(state, ctx.players, player)) {
+      const seats = Math.max(1, ctx.players.length);
+      const wrapped = (state.turn + 1) % seats;
+      return {
+        ...state,
+        turn: wrapped,
+        round: wrapped === 0 ? state.round + 1 : state.round,
+        pendingRoll: undefined,
+      };
+    }
+
+    if (action === "choose" && state.phase === "turn" && isCurrent(state, ctx.players, player)) {
       const choice = (value ?? "").slice(0, 120).trim();
       if (!choice) return state;
       const roll = state.pendingRoll?.playerId === player.id ? state.pendingRoll.value : 1 + Math.floor(ctx.random() * 6);
       const char = state.chars[player.id];
       const outcome = roll >= 5 ? "it goes well" : roll >= 3 ? "it half works" : "it goes badly";
 
-      const thinking = { ...state, thinking: true };
-      void thinking; // the caller re-renders before awaiting; kept for clarity
+      // No "thinking" frame is published here: act() returns once, at the end,
+      // so setting the flag on a throwaway copy fooled nobody. The phone keeps
+      // the last scene for the second or two the brain is writing.
 
       // One call, not two. Narration and the next four options come back
       // together: a second round trip doubled the wait between someone choosing
@@ -170,11 +206,15 @@ export const devsDungeon: GameDefinition<DungeonState> = {
 
       const options = parsed.length === 4 ? parsed : FALLBACK_OPTIONS;
       const alive = Object.values(chars).some((c) => c.hp > 0);
+      // A round is once around the table, not once per person — the face says
+      // "round 3" to a room, and a room counts the way people count.
+      const seats = Math.max(1, ctx.players.length);
+      const wrapped = (state.turn + 1) % seats;
       return {
         ...state,
         phase: torch <= 0 || !alive ? "over" : "turn",
-        turn: state.turn + 1,
-        round: state.round + 1,
+        turn: wrapped,
+        round: wrapped === 0 ? state.round + 1 : state.round,
         scene: told,
         log: [...state.log, told].slice(-12),
         chars,
@@ -185,8 +225,15 @@ export const devsDungeon: GameDefinition<DungeonState> = {
       };
     }
 
-    if (action === "restart") {
-      return { ...devsDungeon.create({ players: [] }), chars: state.chars, phase: "turn" };
+    // Only from the ending. Unguarded, one stale press from a pocket wiped a
+    // story the table was halfway through telling.
+    if (action === "restart" && state.phase === "over") {
+      // The party comes back whole. Carrying the old hit points over meant a
+      // wiped party restarted dead and the next choice ended the game again,
+      // which reads as a broken button rather than a new adventure.
+      const chars: Record<string, Character> = {};
+      for (const [id, c] of Object.entries(state.chars)) chars[id] = { ...c, hp: 3 };
+      return { ...devsDungeon.create({ players: [] }), chars, phase: "turn" };
     }
     return state;
   },
@@ -194,10 +241,15 @@ export const devsDungeon: GameDefinition<DungeonState> = {
   render: (state, players) => {
     const seated = seatOrder(players);
     const active = current(state, players);
+    // Anything that is not a live turn or the ending is the waiting room. Saying
+    // it once here means a phase nobody thought about — a restored "lobby", the
+    // reserved "resolving" — still draws a card with a button on it instead of
+    // an empty screen.
+    const waiting = state.phase !== "turn" && state.phase !== "over";
     const torchMood = state.torch > 60 ? "happy" : state.torch > 30 ? "curious" : "suspicious";
     const face = {
       title: state.phase === "over" ? "The torch is out" : `Dev's Dungeon · round ${state.round}`,
-      body: state.phase === "intro"
+      body: waiting
         ? "Everyone with a phone is in. Press Begin when you are ready."
         : state.thinking ? "…" : state.scene,
       mood: state.phase === "over" ? "sad" : torchMood,
@@ -216,7 +268,7 @@ export const devsDungeon: GameDefinition<DungeonState> = {
     for (const p of seated) {
       const char = state.chars[p.id];
       const mine = active?.id === p.id;
-      if (state.phase === "intro") {
+      if (waiting) {
         phones[p.id] = {
           title: char ? `${char.name}, ${char.role}` : "Waiting",
           body: "When everyone has joined, someone presses Begin.",
@@ -239,6 +291,9 @@ export const devsDungeon: GameDefinition<DungeonState> = {
           body: "Talk to them. Lie if you like.",
           secret: char?.secret,
           yourTurn: false,
+          // The one button a waiting player needs: the way out of a turn that
+          // belongs to a phone somebody has put in their pocket.
+          choices: [{ action: "skip", value: "skip", label: `Move on without ${active?.name ?? "them"}`, detail: "Only if they have wandered off" }],
         };
         continue;
       }
@@ -248,28 +303,19 @@ export const devsDungeon: GameDefinition<DungeonState> = {
         body: state.thinking ? "Nobi is telling it…" : state.scene,
         yourTurn: true,
         secret: char?.secret,
+        // act() reads the choice as the words themselves, so label and value are
+        // the same thing here — set explicitly all the same, because a button
+        // whose value is implied is one refactor away from being unplayable.
         choices: roll === null
-          ? [{ action: "roll", label: "Roll in secret", detail: "Only you will see it" }]
-          : state.options.map((o) => ({ action: "choose", label: o, detail: `You rolled ${roll}` })),
+          ? [{ action: "roll", value: "roll", label: "Roll in secret", detail: "Only you will see it" }]
+          : (state.options.length ? state.options : FALLBACK_OPTIONS)
+              .map((o) => ({ action: "choose", value: o, label: o, detail: `You rolled ${roll}` })),
+        // The text box comes with the options and not before them: without it, a
+        // turn whose options failed to generate would be a screen with nothing
+        // on it to press.
         input: roll === null ? undefined : { action: "choose", placeholder: "…or say what you do", maxLength: 100 },
       };
     }
     return { face, phones };
   },
 };
-
-/** Four short options for the next turn. Falls back to the standing set. */
-async function nextOptions(scene: string, ctx: GameContext): Promise<string[]> {
-  try {
-    const raw = await ctx.narrate(
-      `A dungeon adventure just reached this moment: "${scene}"\n` +
-      `Give exactly four things a player could try next. Two to four words each. ` +
-      `One per line, no numbering, no punctuation at the end.`,
-      40,
-    );
-    const lines = raw.split("\n").map((l) => l.replace(/^[-*\d.\s]+/, "").trim()).filter((l) => l && l.length <= 28).slice(0, 4);
-    return lines.length === 4 ? lines : FALLBACK_OPTIONS;
-  } catch {
-    return FALLBACK_OPTIONS;
-  }
-}

@@ -194,6 +194,48 @@ async function main() {
     if (!(await phone(other)).yourTurn) throw new Error("the bomb did not change hands");
   });
 
+  await play("quizbee", async () => {
+    const a = await join("Ann");
+    // Write a one question quiz, save it, then play it. This also proves the
+    // durable store round-trips, which is the whole point of Quizbee.
+    await tap(a, "Write a new quiz");
+    await type(a, "Smoke Test Quiz");
+    await type(a, "What colour is the sky?");
+    for (const ans of ["Blue", "Green", "Red", "Yellow"]) { await type(a, ans); await wait(120); }
+    const marks = await labels(a);
+    if (marks.length !== 4) throw new Error(`expected 4 answers to mark, saw ${marks.length}`);
+    await tap(a, marks[0]);                       // first answer is correct
+    await wait(150);
+    await tap(a, "Save and finish");
+    await wait(600);
+    const menu = await labels(a);
+    if (!menu.some((l) => l.startsWith("Smoke Test Quiz"))) throw new Error(`saved quiz not in the menu (saw: ${menu.join(", ")})`);
+    await tap(a, menu.find((l) => l.startsWith("Smoke Test Quiz")));
+    await wait(300);
+    await tap(a, "Go");
+    await wait(400);
+    const shapes = (await phone(a)).choices ?? [];
+    if (shapes.length !== 4) throw new Error("no four answer buttons while asking");
+    await tap(a, shapes[0].label);
+    await wait(400);
+    if (!(await labels(a)).some((l) => /Next question|Final scores/.test(l))) throw new Error("question never resolved");
+  });
+
+  await play("trivia-night", async () => {
+    const a = await join("Ann");
+    await type(a, "basic general knowledge");
+    await wait(300);
+    if (!(await labels(a)).includes("Short — 5")) throw new Error("never asked how long");
+    await tap(a, "Short — 5");
+    // He writes the first batch here, which is a real brain call.
+    await wait(15000);
+    const p = await phone(a);
+    if ((p.choices ?? []).length !== 4) throw new Error(`no question came back (title: ${p.title})`);
+    await tap(a, (p.choices ?? [])[0].label);
+    await wait(500);
+    if (!(await labels(a)).some((l) => /Next question|Final scores/.test(l))) throw new Error("question never resolved");
+  });
+
   await play("devs-dungeon", async () => {
     const a = await join("Ann");
     await tap(a, (await labels(a))[0]);

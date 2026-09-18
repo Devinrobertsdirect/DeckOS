@@ -81,8 +81,19 @@ export interface GameRender {
 
 /** Everything a game may do besides changing its own state. */
 export interface GameContext {
-  /** Ask the brain for prose. Costs credits, so games use it sparingly. */
+  /** Ask the brain for PROSE, to be read aloud. Costs credits, so use sparingly. */
   narrate: (prompt: string, maxWords?: number) => Promise<string>;
+  /**
+   * Ask the brain for DATA — a list, a set of fields, anything with a shape.
+   *
+   * Not the same job as narrate(), which wraps every prompt in "you are
+   * narrating aloud, reply with the narration only". That framing is right for
+   * a line of story and actively harmful for a structured answer: asked for
+   * five questions as `Q:/A:/C:` through narrate(), the model returned a warm
+   * paragraph welcoming everyone to quiz night and then the questions in prose.
+   * Nothing parsed, and the game fell back to "I could not think of anything".
+   */
+  ask: (prompt: string, maxWords?: number) => Promise<string>;
   /** Deterministic within a turn, so a replay of the same state matches. */
   random: () => number;
   now: number;

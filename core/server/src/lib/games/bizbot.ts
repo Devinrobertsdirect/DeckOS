@@ -76,6 +76,25 @@ const OPENERS: Array<{ q: string; options: string[] }> = [
   },
 ];
 
+/**
+ * The brain is allowed to be slow. It is not allowed to be silent forever.
+ *
+ * The engine awaits act() before it publishes a new frame, so a narrate() that
+ * never settles does not merely lose a line of prose — it freezes the whole
+ * table on the previous question with the client's press apparently ignored,
+ * and there is no button anywhere that can rescue it. Every brain call in this
+ * game therefore races a clock and falls through to the written material.
+ */
+const NARRATE_MS = 8_000;
+
+/**
+ * A hard ceiling on the intake. It cannot be reached at the default budget of
+ * seven, but nothing outside this file guarantees the budget stays seven, and a
+ * transcript that grows without bound is both a memory leak in a session that is
+ * never ended and an ever-growing prompt that quietly costs more every question.
+ */
+const MAX_HISTORY = 24;
+
 const FALLBACK_QUESTIONS = [
   "What have you already tried that did not work?",
   "Who else is affected if nothing changes?",
@@ -85,6 +104,17 @@ const FALLBACK_QUESTIONS = [
 ];
 
 const nameOf = (players: Player[], id: string) => players.find((p) => p.id === id)?.name ?? "friend";
+
+/**
+ * Is the person being consulted still at the table? A phone can lock and a
+ * player can walk off, and every path through the middle of this game is gated
+ * on the client: only they may type the topic, only they may answer, only their
+ * phone carries the skip button. If they leave, the room is left staring at a
+ * question nobody is allowed to answer with no button between them and the end
+ * of the game. When the chair is empty the room may take it, or move him along.
+ */
+const clientSeated = (players: Player[], state: BizState) =>
+  !!state.clientId && players.some((p) => p.id === state.clientId);
 
 export const bizbot: GameDefinition<BizState> = {
   id: "bizbot",
@@ -103,16 +133,29 @@ export const bizbot: GameDefinition<BizState> = {
   join: (state) => state,
 
   act: async (state, player, action, value, ctx): Promise<BizState> => {
-    if (action === "consult" && (state.phase === "lobby" || state.phase === "insight")) {
+    if (action === "consult") {
       // Whoever presses the button is the client. Everyone else is the audience,
       // which is most of the fun — being consulted at is a spectator sport.
+      //
+      // The chair is only up for grabs between sessions, or when the person
+      // sitting in it has left the table. Without that second clause a walked-off
+      // client strands the room; without the first, a second player pressing
+      // "Consult me" a beat after the first would wipe a session already in
+      // progress — the topic, the intake and all — out from under them.
+      const free = state.phase === "lobby" || state.phase === "insight" || !clientSeated(ctx.players, state);
+      if (!free) return state;
       return { ...state, phase: "topic", clientId: player.id, topic: "", history: [], current: "", options: [], askedCount: 0, insight: undefined, applause: {}, error: undefined };
     }
 
     if (action === "topic" && state.phase === "topic") {
+      // Only the client's phone shows the box, but the route behind it is open
+      // to anyone who can name the action, so the rule lives here too.
+      if (player.id !== state.clientId) return state;
       const topic = (value ?? "").trim().slice(0, 120);
       if (!topic) return state;
-      const opener = OPENERS[Math.floor(ctx.random() * OPENERS.length)]!;
+      // Math.random() never returns exactly 1, but a ctx.random() that did would
+      // index past the end and the non-null assertion would hand us undefined.
+      const opener = OPENERS[Math.min(OPENERS.length - 1, Math.floor(ctx.random() * OPENERS.length))]!;
       return {
         ...state,
         phase: "asking",
@@ -127,7 +170,7 @@ export const bizbot: GameDefinition<BizState> = {
       if (player.id !== state.clientId) return state;
       const answer = (value ?? "").trim().slice(0, 200);
       if (!answer) return state;
-      const history = [...state.history, { q: state.current, a: answer }];
+      const history = [...state.history, { q: state.current, a: answer }].slice(-MAX_HISTORY);
 
       // Out of questions: time for the part with the slide.
       if (state.askedCount >= state.budget) {
@@ -151,13 +194,19 @@ export const bizbot: GameDefinition<BizState> = {
     }
 
     // "Skip to the answer" — because sometimes the room has had enough of the bit.
+    // It works from ANY question, including before the opener is answered: the
+    // reveal only ever needed the topic, and the intake it does have.
     if (action === "cut-to-it" && state.phase === "asking") {
+      if (player.id !== state.clientId && clientSeated(ctx.players, state)) return state;
       return { ...state, phase: "thinking", current: "", options: [] };
     }
 
     if (action === "applaud" && state.phase === "insight") {
-      // A choice button sends its LABEL as the value, so match on the words.
-      const vote = /stage|no/i.test(value ?? "") ? "no" : "yes";
+      // The buttons set an explicit value, so match on that — but a button whose
+      // value went missing would otherwise fall through as applause, so accept
+      // the printed label as well and only then default to the kind reading.
+      const said = (value ?? "").trim().toLowerCase();
+      const vote: "yes" | "no" = said === "no" || said === "get off the stage" ? "no" : "yes";
       return { ...state, applause: { ...state.applause, [player.id]: vote } };
     }
 
@@ -166,6 +215,7 @@ export const bizbot: GameDefinition<BizState> = {
 
   render: (state, players) => {
     const client = nameOf(players, state.clientId);
+    const seated = clientSeated(players, state);
     const yes = Object.values(state.applause).filter((v) => v === "yes").length;
     const no = Object.values(state.applause).filter((v) => v === "no").length;
 
@@ -218,7 +268,13 @@ export const bizbot: GameDefinition<BizState> = {
             input: { action: "topic", placeholder: "e.g. nobody is buying the thing", maxLength: 120 },
             yourTurn: true,
           }
-          : { title: "BizBot is engaged", body: `${client} has the floor. Enjoy this.` };
+          : seated
+            ? { title: "BizBot is engaged", body: `${client} has the floor. Enjoy this.` }
+            : {
+              title: "The chair is empty",
+              body: "Whoever he was sizing up has wandered off. He has not noticed yet.",
+              choices: [{ action: "consult", label: "Take the chair" }],
+            };
       } else if (state.phase === "asking") {
         phones[p.id] = isClient
           ? {
@@ -234,7 +290,14 @@ export const bizbot: GameDefinition<BizState> = {
           : {
             title: "BizBot asks",
             body: state.current,
-            secret: `${client} is on question ${state.askedCount} of ${state.budget}.`,
+            secret: seated ? `${client} is on question ${state.askedCount} of ${state.budget}.` : undefined,
+            // The audience watches and no more, right up until the client walks
+            // off. Then the only two buttons in the game that can reach the end
+            // are on a phone nobody is holding, so the room gets them instead.
+            choices: seated ? undefined : [
+              { action: "cut-to-it", label: "Skip to the insight" },
+              { action: "consult", label: "Take the chair" },
+            ],
           };
       } else if (state.phase === "thinking") {
         phones[p.id] = {
@@ -261,6 +324,27 @@ export const bizbot: GameDefinition<BizState> = {
 };
 
 /**
+ * ctx.narrate with a deadline. It rejects rather than resolving empty, so the
+ * callers' existing catch blocks are the single place the written material takes
+ * over — a slow brain and a dead one now look identical from the game's side.
+ */
+async function narrateBy(ctx: GameContext, prompt: string, maxWords: number): Promise<string> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      ctx.narrate(prompt, maxWords),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("narrate timed out")), NARRATE_MS);
+      }),
+    ]);
+  } finally {
+    // The loser of the race is abandoned, not cancelled; at least do not leave a
+    // pending timer holding the process open after the brain came back in time.
+    if (timer) clearTimeout(timer);
+  }
+}
+
+/**
  * The next question. One short brain call, and a real fallback — a consultant
  * who stops mid-interrogation because the network blinked is not in character.
  */
@@ -271,7 +355,8 @@ async function nextQuestion(
 ): Promise<{ question: string; options: string[] }> {
   const transcript = history.map((h) => `Q: ${h.q}\nA: ${h.a}`).join("\n");
   try {
-    const raw = await ctx.narrate(
+    const raw = await narrateBy(
+      ctx,
       [
         PERSONA,
         `The person wants advice about: ${topic}`,
@@ -301,9 +386,14 @@ async function buildInsight(
   history: Exchange[],
   ctx: GameContext,
 ): Promise<BizState["insight"]> {
-  const transcript = history.map((h) => `Q: ${h.q}\nA: ${h.a}`).join("\n");
+  // Skipping to the insight on question one is allowed, so the intake can be
+  // empty. Saying so beats handing the brain a blank heading and hoping.
+  const transcript = history.length
+    ? history.map((h) => `Q: ${h.q}\nA: ${h.a}`).join("\n")
+    : "(none — they cut you off before you got an answer out of them, so work from the topic alone and be decisive about it)";
   try {
-    const raw = await ctx.narrate(
+    const raw = await narrateBy(
+      ctx,
       [
         PERSONA,
         `Topic: ${topic}`,

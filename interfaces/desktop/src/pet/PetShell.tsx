@@ -30,6 +30,7 @@ import {
 import { stripEmoji } from "@/lib/stripText";
 import { dockLines } from "@/genesis/dockGreetings";
 import MeteorCanvas, { type MeteorCanvasData } from "@/pet/MeteorCanvas";
+import WavelengthCanvas, { type WavelengthCanvasData } from "@/pet/WavelengthCanvas";
 import { useHideCursor } from "@/pet/useHideCursor";
 import {
   appendTurn, ingestUserMessage, buildContext,
@@ -1321,6 +1322,9 @@ export function PetShell({
                 his eyes. Only Meteor uses this so far. */}
             {gameFace?.canvas?.["kind"] === "meteor" && (
               <MeteorCanvas data={gameFace.canvas as unknown as MeteorCanvasData} />
+            )}
+            {gameFace?.canvas?.["kind"] === "wavelength" && (
+              <WavelengthCanvas data={gameFace.canvas as unknown as WavelengthCanvasData} />
             )}
             {/* The countdown sits under his eyes, big enough to read across a
                 room — the whole point is that someone notices in time. */}

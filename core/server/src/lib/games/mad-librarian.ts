@@ -27,8 +27,14 @@ export interface MadState {
   /** The story, split into pieces with SLOTS between them. */
   parts: string[];
   slots: Slot[];
-  /** Which slot each player is currently being asked for. */
-  assigned: Record<string, number>;
+  /**
+   * There is deliberately no per-player gap reservation here. It was in the
+   * state as `assigned` and never written or read, which is worse than absent:
+   * it reads like a promise that the game hands each phone its own gap, and it
+   * never did. The gap a phone is showing travels on the ACTION instead (see
+   * `word:<index>` below), which is the only place it can travel, because
+   * render() is pure and cannot book a gap out to anybody.
+   */
   /** How far through reading it aloud we are. */
   readIndex: number;
   /** The finished lines, built once everything is in. */
@@ -112,6 +118,67 @@ const STORIES: Array<{ title: string; parts: string[]; asks: string[] }> = [
   },
 ];
 
+/** The input action carries the gap it was showing: "word:3". */
+const WORD_ACTION = /^word(?::(\d+))?$/;
+
+/**
+ * Tidy a submitted word before it goes into the story.
+ *
+ * Sentence punctuation has to come out, because the finished story is split
+ * into sentences to be read aloud: a player typing "Mr. Blobby" would otherwise
+ * cut a line in half and leave him solemnly announcing "MR." on its own.
+ */
+function cleanWord(value: string | undefined): string {
+  return (value ?? "").replace(/[.!?]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 30).trim();
+}
+
+/**
+ * Which gap this word should go in, given the gap the phone was showing.
+ *
+ * Every phone is shown the SAME next gap at the same time, so two people
+ * answering at once is the normal case, not the rare one. The old code put each
+ * arriving word into whatever gap happened to be free, which meant the second
+ * person was asked for a body part and had their elbow filed under "a number" —
+ * silently, and only visible thirty seconds later when he read it out.
+ *
+ * So the phone says which gap it was asking about. If somebody got there first
+ * we look for another OPEN gap asking for exactly the same thing (stories
+ * repeat "an adjective" often enough that this usually works). Failing that the
+ * word answers a question that is no longer open, so it is dropped and the
+ * phone simply re-asks with the gap that is.
+ */
+function placeFor(slots: Slot[], wanted: number): number {
+  if (wanted < 0) return slots.findIndex((s) => !s.word);  // a voice answer, or an older phone
+  if (slots[wanted] && !slots[wanted]!.word) return wanted;
+  const asked = slots[wanted]?.prompt;
+  return asked ? slots.findIndex((s) => !s.word && s.prompt === asked) : -1;
+}
+
+/**
+ * All the words are in: stitch the story up and break it into SENTENCES.
+ *
+ * Splitting on the gaps instead was the obvious thing and it read badly: every
+ * line ended on the inserted word and the next began mid-clause ("...warming
+ * your ELBOW" / "over a low heat. Add JUGGLING"). Read out loud that is a
+ * stammer. Sentences are the unit he should speak in.
+ */
+function stitch(state: MadState): MadState {
+  const whole = state.parts
+    .map((part, i) => part + (state.slots[i] ? state.slots[i]!.word.toUpperCase() : ""))
+    .join("")
+    // The gaps leave a space before punctuation — but not before an ellipsis,
+    // which is a pause somebody wrote on purpose and wants the room to hear.
+    .replace(/\s+(?!\.\.)([.,!?])/g, "$1")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  // An ellipsis is not the end of a sentence. "Any questions? ... You would
+  // like to be paid in BEES." used to split into a line reading "Any
+  // questions?..." and nothing else, which is a beat with no joke on the end of
+  // it. The two lookarounds keep both halves of the pause on the same line.
+  const lines = whole.split(/(?<=[.!?])(?<!\.\.)\s+(?!\.)/).map((l) => l.trim()).filter(Boolean);
+  return { ...state, lines, phase: "reading", readIndex: 0 };
+}
+
 export const madLibrarian: GameDefinition<MadState> = {
   id: "mad-librarian",
   title: "Mad Librarian",
@@ -122,13 +189,20 @@ export const madLibrarian: GameDefinition<MadState> = {
   maxPlayers: 8,
 
   create: () => ({
-    phase: "lobby", parts: [], slots: [], assigned: {}, readIndex: 0, lines: [], title: "", round: 0,
+    phase: "lobby", parts: [], slots: [], readIndex: 0, lines: [], title: "", round: 0,
   }),
 
   join: (state) => state,
 
+  // Nothing in here awaits anything, and it should stay that way. The engine
+  // does read-modify-write on the session state around `await act(...)`, so the
+  // moment this function suspends, two phones pressing together can have one of
+  // them write over the other's word. A madlib does not need the brain.
   act: async (state, player, action, value, ctx): Promise<MadState> => {
-    if (action === "start" || action === "again") {
+    // Only from a standing start. A straggler's phone can be a round behind and
+    // still be showing "Start"; pressing it used to throw away everybody's
+    // words and deal a fresh story out from under them.
+    if ((action === "start" && state.phase === "lobby") || (action === "again" && state.phase === "done")) {
       const story = STORIES[Math.floor(ctx.random() * STORIES.length)]!;
       const slots: Slot[] = story.asks.map((prompt) => ({ prompt, word: "", byId: "" }));
       return {
@@ -138,41 +212,42 @@ export const madLibrarian: GameDefinition<MadState> = {
         title: story.title,
         parts: story.parts,
         slots,
-        assigned: {},
         readIndex: 0,
         lines: [],
       };
     }
 
-    if (action === "word" && state.phase === "collecting") {
-      const word = (value ?? "").trim().slice(0, 30);
+    const asked = WORD_ACTION.exec(action);
+    if (asked && state.phase === "collecting") {
+      const word = cleanWord(value);
       if (!word) return state;
-      // Fill the first gap nobody has taken. Players are handed gaps as they
-      // answer rather than assigned up front, so one fast person can carry a
-      // quiet table and nothing stalls waiting on somebody who wandered off.
-      const idx = state.slots.findIndex((s) => !s.word);
+      // Gaps are taken as people answer rather than dealt out up front, so one
+      // fast person can carry a quiet table and nothing stalls waiting on
+      // somebody who wandered off. That is deliberate, and it costs a slow
+      // player at most the current story: the next one starts wide open, and
+      // everybody still hears the read-out either way.
+      const idx = placeFor(state.slots, asked[1] ? Number(asked[1]) : -1);
       if (idx < 0) return state;
       const slots = state.slots.map((s, i) => (i === idx ? { ...s, word, byId: player.id } : s));
 
       if (slots.some((s) => !s.word)) return { ...state, slots };
-
-      // All in. Stitch the story together, then break it into SENTENCES.
-      //
-      // Splitting on the gaps instead was the obvious thing and it read badly:
-      // every line ended on the inserted word and the next began mid-clause
-      // ("...warming your ELBOW" / "over a low heat. Add JUGGLING"). Read out
-      // loud that is a stammer. Sentences are the unit he should speak in.
-      const whole = state.parts
-        .map((part, i) => part + (slots[i] ? slots[i]!.word.toUpperCase() : ""))
-        .join("")
-        .replace(/\s+([.,!?])/g, "$1")   // the gaps leave gaps before punctuation
-        .replace(/\s{2,}/g, " ")
-        .trim();
-      const lines = whole.split(/(?<=[.!?])\s+/).map((l) => l.trim()).filter(Boolean);
-      return { ...state, slots, lines, phase: "reading", readIndex: 0 };
+      return stitch({ ...state, slots });
     }
 
-    if (action === "read-next" && state.phase === "reading") {
+    if (action === "read-next") {
+      // A safety valve, not a normal path: if a state ever arrives with every
+      // gap filled but still in collecting — an older save, a restore that
+      // landed mid-stitch — the phones would have no button and no box and the
+      // table would be stuck. This is the way out.
+      if (state.phase === "collecting" && state.slots.length > 0 && state.slots.every((s) => s.word)) {
+        return stitch(state);
+      }
+      if (state.phase !== "reading") return state;
+      // The button carries the line it was showing. Everyone gets a Next, so
+      // two people pressing on the same beat used to advance twice and eat a
+      // line of the story — the one thing this game cannot afford to lose.
+      const at = Number(value);
+      if (Number.isInteger(at) && at !== state.readIndex) return state;
       const next = state.readIndex + 1;
       return next >= state.lines.length
         ? { ...state, readIndex: next, phase: "done" }
@@ -182,9 +257,9 @@ export const madLibrarian: GameDefinition<MadState> = {
   },
 
   render: (state, players) => {
-    const nameOf = (id: string) => players.find((p) => p.id === id)?.name ?? "someone";
     const filled = state.slots.filter((s) => s.word).length;
-    const nextGap = state.slots.find((s) => !s.word);
+    const nextIdx = state.slots.findIndex((s) => !s.word);
+    const nextGap = nextIdx < 0 ? undefined : state.slots[nextIdx];
     const line = state.lines[state.readIndex];
 
     const face = {
@@ -216,9 +291,15 @@ export const madLibrarian: GameDefinition<MadState> = {
       } else if (state.phase === "collecting") {
         phones[p.id] = {
           title: nextGap ? nextGap.prompt : "All in",
-          // The prompt is ALL they see. No story, no context, no hint.
+          // The prompt is ALL they see. No story, no context, no hint. This is
+          // also the whole view a phone that joins mid-round gets, which is
+          // exactly right: a latecomer is no worse informed than anybody else.
           body: nextGap ? "Type it and send. No clues, that is the point." : "Waiting for the last word.",
-          input: nextGap ? { action: "word", placeholder: nextGap.prompt, maxLength: 30 } : undefined,
+          // The gap number rides along with the answer, so a word typed while
+          // somebody else was submitting cannot land under the wrong question.
+          input: nextGap ? { action: `word:${nextIdx}`, placeholder: nextGap.prompt, maxLength: 30 } : undefined,
+          // Never leave a phone with nothing to press and nothing to type.
+          choices: nextGap ? undefined : [{ action: "read-next", label: "Read it out" }],
           secret: mine.length ? `You gave: ${mine.join(", ")}` : undefined,
           yourTurn: !!nextGap,
         };
@@ -226,7 +307,14 @@ export const madLibrarian: GameDefinition<MadState> = {
         phones[p.id] = {
           title: `${state.readIndex + 1} of ${state.lines.length}`,
           body: line ?? "",
-          choices: [{ action: "read-next", label: state.readIndex + 1 >= state.lines.length ? "Finish" : "Next line" }],
+          // The value is the line this button was drawn for. A phone button
+          // sends its LABEL unless told otherwise, and "Next line" tells act()
+          // nothing about which line the presser could actually see.
+          choices: [{
+            action: "read-next",
+            label: state.readIndex + 1 >= state.lines.length ? "Finish" : "Next line",
+            value: String(state.readIndex),
+          }],
         };
       } else {
         phones[p.id] = {

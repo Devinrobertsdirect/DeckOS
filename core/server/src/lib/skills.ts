@@ -915,18 +915,37 @@ const wifiSetupSkill: Skill = {
   id: "wifi-setup",
   async handle({ lower }) {
     const asksOnline = /\b(are you (on ?line|connected|on (the )?(wi-?fi|internet|network))|what (wi-?fi|network) are you on|which network)\b/.test(lower);
-    const asksSetup = /\b((set ?up|setup|change|switch|connect|join|fix|configure) (my |the |your |to )?(wi-?fi|wifi|network|internet)|wi-?fi setup|get (you )?on ?line|new wi-?fi)\b/.test(lower);
+    /**
+     * Starting the hotspot takes him OFF the network he is on, which is a real
+     * consequence to hang on a phrase someone might say in passing. "Can you fix
+     * my wifi?" is a complaint, not an instruction to disconnect himself, and it
+     * used to match. So while he is already online it takes an unambiguous
+     * phrase — the kind you only say if you mean it — and anything vaguer gets
+     * told how instead. Offline, the bar drops: there is nothing left to lose
+     * and the person is probably standing there wondering why he is quiet.
+     */
+    const explicit = /\b(set ?up|configure)\s+(my |the |your )?(wi-?fi|wifi|network)\b|\b(wi-?fi|wifi|network)\s+set ?up\b|\bsetup mode\b|\b(start|enter|begin|go into)\s+(the\s+)?(wi-?fi\s+|wifi\s+)?set ?up\b|\b(switch|change|move|join|connect)\s+(me |you |us )?(to |onto )?(a |the )?(new|different|another)\s+(wi-?fi|wifi|network)\b/.test(lower);
+    // A vaguer phrase still opens the conversation; it just will not pull him
+    // off the network on its own (see above). An explicit phrase always counts.
+    const asksSetup = explicit
+      || /\b((set ?up|setup|change|switch|connect|join|configure) (my |the |your |to )?(wi-?fi|wifi|network|internet)|wi-?fi setup|get (you )?on ?line|new wi-?fi)\b/.test(lower);
     if (!asksOnline && !asksSetup) return null;
 
     const net = await import("./net-setup.js");
     const s = await net.status();
 
     if (asksOnline && !asksSetup) {
+      // "Are you online?" takes a yes. "What network are you on?" does not —
+      // answering that one with "Yes." is the kind of small wrongness that
+      // makes a machine sound like it is not listening.
+      // Keyed off the question WORD, not "are you" — which also appears in
+      // "what wifi are you on", so that check answered a wh-question with "Yes."
+      const yesNo = !/\b(what|which|where)\b/.test(lower);
       return {
         speak: s.setupMode
           ? `Not yet. I'm in setup mode — join my network, ${s.hotspotName}, and I'll walk you through it.`
           : s.ssid
-            ? `Yes. I'm on ${s.ssid}.`
+            ? (yesNo ? `Yes. I'm on ${s.ssid}.` : `I'm on ${s.ssid}.`)
             : "Not right now. I can't see a network I know. Say set up my wifi and I'll help.",
       };
     }
@@ -939,11 +958,18 @@ const wifiSetupSkill: Skill = {
       };
     }
 
-    // He is online and someone wants to move him. Starting a hotspot takes him
-    // off the network he is on, so it is armed to come back by itself: ten
-    // minutes is long enough to type a password and short enough that a robot
-    // abandoned mid-setup is on the old Wi-Fi again before anyone worries.
-    const started = await net.startHotspot({ revertAfterMs: 600_000 });
+    // Online, and the phrase was not unambiguous. Say how, do nothing.
+    if (s.ssid && !explicit) {
+      return {
+        speak: `I'm on ${s.ssid} right now. If you want to move me to a different network, say "set up wifi" and I'll put my own network in the air for you to join.`,
+      };
+    }
+
+    // Starting a hotspot takes him off the network he is on, so it is armed to
+    // come back by itself: ten minutes is long enough to type a password and
+    // short enough that a robot abandoned mid-setup is back on the old Wi-Fi
+    // before anyone starts worrying about it.
+    const started = await net.startHotspot({ revertAfterMs: 600_000, reason: "requested" });
     if (!started) return { speak: "I couldn't start setup mode. My Wi-Fi radio wouldn't do it." };
     const fresh = await net.status();
     return {

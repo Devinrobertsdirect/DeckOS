@@ -90,8 +90,11 @@ export function localTts(text: string, gender?: string | null): Promise<Buffer> 
       // buy from espeak: consonants at the edges of words stop being eaten by
       // the word next to them.
       "-g", "3",
-      // Capitals get a touch of emphasis rather than being spelled out.
-      "-k", "1",
+      // NOTE: do not add -k here. It looks like an emphasis control and is not:
+      // `-k 1` plays an audible TONE on every capital letter, which means a
+      // click at the start of every sentence and inside every name. Only values
+      // around 20 mean "raise the pitch", and even that fires on each letter of
+      // an acronym, so "NOBI" comes out as four separate emphases.
       "--stdout",
     ]);
 

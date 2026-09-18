@@ -29,9 +29,11 @@ const run = promisify(execFile);
  * somebody's shelf:
  *   · a saved network is NEVER deleted, so a wrong password cannot orphan him
  *   · joining is attempted with a timeout, and failure returns to the hotspot
- *   · a watchdog keeps looking for known networks the whole time the hotspot is
- *     up, so carrying him back into range fixes him with no interaction at all
- *   · the hotspot only ever starts when nothing known is reachable
+ *   · while he fell into setup on his own, a watchdog keeps looking for known
+ *     networks, so carrying him back into range fixes him with no interaction
+ *   · he only falls into setup on his own when nothing known is reachable; a
+ *     person can ask for it at any time, and then the watchdog stands down so
+ *     it cannot end their session while they are still typing
  */
 
 const HOTSPOT_CON = "nobi-setup";
@@ -48,6 +50,8 @@ export interface NetStatus {
   ssid: string | null;
   /** True while the setup hotspot is being served. */
   setupMode: boolean;
+  /** Why he is in setup — "requested" sessions are never ended by the watchdog. */
+  setupReason: "auto" | "requested";
   hotspotName: string;
   hotspotPassword: string;
   /** Networks he can see, freshest first. */
@@ -56,6 +60,21 @@ export interface NetStatus {
 }
 
 let setupMode = false;
+/**
+ * WHY he is in setup mode, which decides whether he is allowed to leave it.
+ *
+ * "auto" means he could not find a network he knows, so falling back to one the
+ * moment it appears is the kindest thing he can do — carry him into range and he
+ * fixes himself with no interaction at all.
+ *
+ * "requested" means a person asked for setup while he was perfectly online, and
+ * the old network is therefore still sitting right there in range. Auto-recovery
+ * would abandon setup within one watchdog tick — measured at twenty-five seconds
+ * on real hardware — which is not enough time for anyone to pick a network and
+ * type a password. A person who asked keeps setup mode until they finish or the
+ * armed revert fires.
+ */
+let setupReason: "auto" | "requested" = "auto";
 let lastError: string | undefined;
 let watchdog: ReturnType<typeof setInterval> | null = null;
 /** The network he was on before setup mode, so a manual test can put it back. */
@@ -67,23 +86,54 @@ async function nmcli(args: string[], timeoutMs = 20_000): Promise<string> {
   return stdout.trim();
 }
 
+/**
+ * Split one line of `nmcli -t` output into fields.
+ *
+ * Terse mode uses ':' as the separator and escapes any ':' or '\' that appears
+ * INSIDE a value as '\:' and '\\'. Splitting on ':' naively therefore corrupts
+ * every network whose name contains a colon — and people really do name a
+ * network "Floor 2: Guest". The old code split naively and would have shown
+ * that network under a mangled name it could then never connect to.
+ */
+function terseFields(line: string): string[] {
+  const fields: string[] = [];
+  let cur = "";
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === "\\" && i + 1 < line.length) { cur += line[++i]; continue; }
+    if (c === ":") { fields.push(cur); cur = ""; continue; }
+    cur += c;
+  }
+  fields.push(cur);
+  return fields;
+}
+
 /** A name a customer can read off the screen and find in their phone's list. */
 export async function hotspotName(): Promise<string> {
   const code = await getOrCreatePairingCode().catch(() => "0000");
   return `Nobi-Setup-${code.replace(/[^A-Za-z0-9]/g, "").slice(-4).toUpperCase()}`;
 }
 
-/** The hotspot's own password: derived from the pairing code he already shows. */
+/**
+ * The hotspot's own password, derived from the pairing code he already shows.
+ *
+ * WPA2 refuses anything shorter than 8 characters, and nmcli reports that as a
+ * generic failure to start — so a short or unusual stored pairing code would
+ * mean a customer's robot simply never offers setup, with nothing on screen to
+ * say why. Today's codes are 7 alphanumerics so this cannot bite, which is
+ * exactly the kind of assumption that stops being true quietly.
+ */
 export async function hotspotPassword(): Promise<string> {
   const code = (await getOrCreatePairingCode().catch(() => "nobi0000")).replace(/[^A-Za-z0-9]/g, "").toLowerCase();
-  return (`nobi${code}`).slice(0, Math.max(SETUP_PASSWORD_MIN, 12));
+  const pw = `nobi${code}`.padEnd(SETUP_PASSWORD_MIN, "0");
+  return pw.slice(0, 20);
 }
 
 export async function currentSsid(): Promise<string | null> {
   try {
     const out = await nmcli(["-t", "-f", "DEVICE,TYPE,STATE,CONNECTION", "device"]);
     for (const line of out.split("\n")) {
-      const [, type, state, con] = line.split(":");
+      const [, type, state, con] = terseFields(line);
       if (type === "wifi" && state === "connected" && con && con !== HOTSPOT_CON) return con;
     }
   } catch { /* nmcli unavailable — treat as offline */ }
@@ -97,12 +147,10 @@ export async function scanNetworks(rescan = true): Promise<NetStatus["networks"]
     const seen = new Map<string, { ssid: string; signal: number; secure: boolean }>();
     const hs = await hotspotName();
     for (const line of out.split("\n")) {
-      // SSIDs can contain colons, so split from the right.
-      const parts = line.split(":");
-      if (parts.length < 3) continue;
-      const security = parts.pop()!;
-      const signal = Number(parts.pop() ?? 0);
-      const ssid = parts.join(":").trim();
+      const [rawSsid, rawSignal, security] = terseFields(line);
+      if (security === undefined) continue;
+      const ssid = (rawSsid ?? "").trim();
+      const signal = Number(rawSignal ?? 0);
       if (!ssid || ssid === hs) continue;
       const prev = seen.get(ssid);
       if (!prev || signal > prev.signal) seen.set(ssid, { ssid, signal, secure: security !== "" && security !== "--" });
@@ -120,6 +168,7 @@ export async function status(): Promise<NetStatus> {
     online: !!ssid,
     ssid,
     setupMode,
+    setupReason,
     hotspotName: await hotspotName(),
     hotspotPassword: await hotspotPassword(),
     networks: setupMode ? await scanNetworks(false) : [],
@@ -142,9 +191,10 @@ function announce(): void {
  * was on. If everything I do after that fails, including the server dying, the
  * worst case is a robot that reconnects by itself a minute later.
  */
-export async function startHotspot(opts: { revertAfterMs?: number } = {}): Promise<boolean> {
+export async function startHotspot(opts: { revertAfterMs?: number; reason?: "auto" | "requested" } = {}): Promise<boolean> {
   if (setupMode) return true;
   try {
+    setupReason = opts.reason ?? "auto";
     previousSsid = await currentSsid();
     if (opts.revertAfterMs) armRevert(opts.revertAfterMs);
     const ssid = await hotspotName();
@@ -171,6 +221,10 @@ export async function stopHotspot(): Promise<void> {
   if (!setupMode) return;
   try { await nmcli(["con", "down", HOTSPOT_CON], 20_000); } catch { /* already down */ }
   setupMode = false;
+  // Leaving setup clears why he entered it, so a later automatic fallback is
+  // not still treated as something a person asked for. Callers that are only
+  // passing THROUGH setup (a join attempt) pass their reason back explicitly.
+  setupReason = "auto";
   announce();
 }
 
@@ -231,6 +285,11 @@ function clearRevert(): void {
 export async function joinNetwork(ssid: string, password: string): Promise<{ ok: boolean; error?: string }> {
   if (!ssid) return { ok: false, error: "pick a network" };
   const wasSetup = setupMode;
+  // Remember WHY he was in setup: a wrong password must put him back into the
+  // same kind of setup he was in, or a person who explicitly asked for setup
+  // mode gets silently downgraded to the automatic one and the watchdog then
+  // ends their session out from under them on the next tick.
+  const wasReason = setupReason;
   try {
     if (wasSetup) await stopHotspot();
     const args = ["device", "wifi", "connect", ssid, "ifname", "wlan0"];
@@ -259,7 +318,7 @@ export async function joinNetwork(ssid: string, password: string): Promise<{ ok:
       : `Could not join ${ssid}.`;
     logger.warn({ err, ssid }, "net-setup: join failed");
     // Back to setup so they can try again — never leave him unreachable.
-    if (wasSetup || !(await currentSsid())) await startHotspot();
+    if (wasSetup || !(await currentSsid())) await startHotspot({ reason: wasReason });
     announce();
     return { ok: false, error: lastError };
   }
@@ -270,10 +329,16 @@ function startWatchdog(): void {
   watchdog = setInterval(() => {
     void (async () => {
       if (!setupMode) return;
+      // A person asked for setup while he was online, so the network he came
+      // from is still in range and this would end setup within one tick —
+      // measured at 25 seconds on real hardware, which is nowhere near enough
+      // time to pick a network and type a password. Their safety net is the
+      // armed revert, not this.
+      if (setupReason === "requested") return;
       // Carried back into range of a network he knows? Take it, quietly.
       try {
         const known = await nmcli(["-t", "-f", "NAME,TYPE", "con", "show"]);
-        const names = known.split("\n").map((l) => l.split(":")[0]).filter((n): n is string => !!n && n !== HOTSPOT_CON);
+        const names = known.split("\n").map((l) => terseFields(l)[0]).filter((n): n is string => !!n && n !== HOTSPOT_CON);
         const inRange = new Set((await scanNetworks(true)).map((n) => n.ssid));
         const match = names.find((n) => inRange.has(n));
         if (match) {
@@ -299,9 +364,16 @@ function stopWatchdog(): void {
 export function beginNetworkWatch(): void {
   setTimeout(() => {
     void (async () => {
+      // Already serving setup — which is what currentSsid() reads as "offline",
+      // because his own hotspot is not a network he joined. Seen for real: a
+      // deploy restarted the brain while a setup session was live, and 45s later
+      // this fired and announced "no known network" over a hotspot that was
+      // working perfectly. It was harmless only because startHotspot() returns
+      // early, which is far too subtle a thing to be relying on.
+      if (setupMode) return;
       if (await currentSsid()) { announce(); return; }
       logger.info("net-setup: no known network after the boot grace period — offering setup");
-      await startHotspot();
+      await startHotspot({ reason: "auto" });
     })();
   }, BOOT_GRACE_MS);
 }

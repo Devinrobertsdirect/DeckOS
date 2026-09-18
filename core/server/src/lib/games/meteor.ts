@@ -184,9 +184,10 @@ export const meteor: GameDefinition<MeteorState> = {
         state.phase === "lobby" ? "Meteors. Coming for my face. Turn your shield, friend, and keep them off me."
           : state.phase === "over" ? `That is that. ${state.score} points. Eureka is not the word I would use.`
             : undefined,
-      scores: Object.keys(state.shields).length > 1
-        ? players.map((p) => ({ name: p.name, score: Math.round(state.shields[p.id] ?? 0) }))
-        : undefined,
+      // No score strip. This is co-op — there is ONE score and it is already the
+      // big number, and the previous version put each player's shield ANGLE in
+      // the score column, so the face cheerfully announced "Devin 274".
+      scores: undefined,
       // Everything the face needs to draw the round playfield. Polar, because
       // the screen is a circle and pretending otherwise wastes the hardware.
       canvas: {

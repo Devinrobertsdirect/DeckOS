@@ -78,7 +78,9 @@ router.post("/setup/wifi/hotspot", async (req, res) => {
   const parsed = Hotspot.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ ok: false, error: parsed.error.message }); return; }
   if (parsed.data.on) {
-    const ok = await startHotspot({ revertAfterMs: parsed.data.revertAfterMs });
+    // Somebody pressed a button to get here, so this is never the automatic
+    // fallback: he must stay in setup until they finish or the revert fires.
+    const ok = await startHotspot({ revertAfterMs: parsed.data.revertAfterMs, reason: "requested" });
     res.json({ ok, ...(await status()), url: `http://${localAddress()}:${port()}/setup` });
     return;
   }
@@ -153,12 +155,38 @@ function list() {
     return '<button class="net" data-i="' + i + '"><b>' + esc(n.ssid) + '</b>' +
            (n.secure ? '<span class="lock">&#128274;</span>' : '') +
            '<span class="bars">' + bars(n.signal) + '</span></button>';
-  }).join('') + '</div>' + rescan();
+  }).join('') +
+    // A hidden network broadcasts no name, so it can never appear in a scan and
+    // was simply unreachable from this page. nmcli can still join one by name.
+    '<button class="net" data-other="1"><b>Other network…</b>' +
+    '<span class="bars">&#8594;</span></button>' +
+    '</div>' + rescan();
   [].forEach.call(view.querySelectorAll('.net'), function (b) {
-    b.onclick = function () { pick(nets[+b.dataset.i]); };
+    b.onclick = function () {
+      if (b.dataset.other) return pickOther();
+      pick(nets[+b.dataset.i]);
+    };
   });
 }
 function rescan() { return '<button class="ghost" onclick="scan()">Look again</button>'; }
+
+/** Type a network name by hand — for a hidden network, or one too weak to see. */
+function pickOther() {
+  sub.textContent = 'Type the exact network name.';
+  view.innerHTML =
+    '<input id="ssid" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Network name">' +
+    '<input id="pw" type="password" autocomplete="current-password" autocapitalize="off" autocorrect="off" placeholder="Wi-Fi password (leave blank if open)">' +
+    '<button class="go" id="go">Connect Nobi</button>' +
+    '<button class="ghost" onclick="list()">Back to the list</button>';
+  var ssid = document.getElementById('ssid');
+  setTimeout(function () { ssid.focus(); }, 60);
+  document.getElementById('go').onclick = function () {
+    var name = ssid.value.trim();
+    if (!name) { ssid.focus(); return; }
+    chosen = { ssid: name, secure: true };
+    join();
+  };
+}
 
 function pick(n) {
   chosen = n;

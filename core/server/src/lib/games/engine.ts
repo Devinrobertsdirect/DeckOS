@@ -6,6 +6,7 @@ import { runInference } from "../inference.js";
 import type { GameDefinition, GameSession, Player, GameContext } from "./types.js";
 import { devsDungeon } from "./devs-dungeon.js";
 import { samePage } from "./same-page.js";
+import { readTheRoom } from "./read-the-room.js";
 
 /**
  * games/engine.ts — one live game at a time, owned by the robot.
@@ -22,6 +23,7 @@ import { samePage } from "./same-page.js";
 const GAMES: Record<string, GameDefinition<never>> = {
   [devsDungeon.id]: devsDungeon as unknown as GameDefinition<never>,
   [samePage.id]: samePage as unknown as GameDefinition<never>,
+  [readTheRoom.id]: readTheRoom as unknown as GameDefinition<never>,
 };
 
 const SAVE_KEY = "NOBI_GAME_SESSION";

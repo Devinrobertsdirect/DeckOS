@@ -23,8 +23,12 @@ import { useEffect, useRef, useState } from "react";
 const IDLE_BEFORE_MS = 60_000;
 /** How often he does something small and visual. */
 const GESTURE_EVERY_MS = 14_000;
-/** How often he actually says something. Rare on purpose. */
-const INVITE_EVERY_MS = 150_000;
+/**
+ * How often he actually says something. Rare on purpose, and rarer than it was:
+ * at a stand the same people are often within earshot for ten minutes, and at
+ * 150s they would hear him four times. Charm does not survive that.
+ */
+const INVITE_EVERY_MS = 210_000;
 
 export interface AttractHooks {
   /** Look somewhere (-1..1 of the face radius). */
@@ -41,11 +45,27 @@ export interface AttractHooks {
   enabled?: boolean;
 }
 
+/**
+ * What he says when he is trying to catch an eye.
+ *
+ * None of these instruct anyone. Half the old set did — "say hey Nobi and I
+ * will wake up properly" — and being told what to say by a machine on a table
+ * wears out in about two repetitions. It also was not needed: the screen
+ * already shows "Say Hey Nobi" as a hint the whole time he is attracting, so
+ * the instruction is there to be read by anyone who wants it, without being
+ * said out loud at people who did not ask.
+ *
+ * So these are just a small robot being pleased you walked past. They are a
+ * fixed set on purpose: fixed lines stay in the on-device voice cache and cost
+ * nothing after the first run.
+ */
 const INVITES = [
-  "Hello. I am Nobi. Say hello back.",
-  "Hi. Ask me anything.",
-  "I am Nobi. Try saying, hey Nobi.",
-  "Say hey Nobi, and I will wake up properly.",
+  "Oh. Hello.",
+  "Hello. I am Nobi.",
+  "I live on this desk. It is a good desk.",
+  "Hello there. You have a nice face.",
+  "I am Nobi. Small robot, big day.",
+  "Hello. I was hoping someone would come by.",
 ];
 
 const GESTURES: Array<{ x: number; y: number; mood?: string }> = [
@@ -58,6 +78,7 @@ export function useAttract({ glanceAt, mood, say, busy, lastInteractionAt, enabl
   const [attracting, setAttracting] = useState(false);
   const gestureAt = useRef(0);
   const inviteAt = useRef(0);
+  const lastInvite = useRef(-1);
   const step = useRef(0);
   // Keep the callbacks fresh without restarting the timer every render.
   const cbs = useRef({ glanceAt, mood, say });
@@ -84,7 +105,12 @@ export function useAttract({ glanceAt, mood, say, busy, lastInteractionAt, enabl
       }
       if (now - inviteAt.current >= INVITE_EVERY_MS) {
         inviteAt.current = now;
-        cbs.current.say(INVITES[Math.floor(Math.random() * INVITES.length)]!);
+        // Never the same line twice running. Random alone will repeat, and a
+        // repeat is the exact moment a charming robot becomes a broken one.
+        let pick = Math.floor(Math.random() * INVITES.length);
+        if (INVITES.length > 1 && pick === lastInvite.current) pick = (pick + 1) % INVITES.length;
+        lastInvite.current = pick;
+        cbs.current.say(INVITES[pick]!);
       }
     }, 1000);
     return () => window.clearInterval(id);

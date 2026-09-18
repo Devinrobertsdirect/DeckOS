@@ -4,7 +4,9 @@ import { broadcast } from "../lib/ws-server.js";
 import { getOrCreatePairingCode } from "../lib/pairing.js";
 import { getConfig, setConfig } from "../lib/app-config.js";
 import { cancelRotation } from "../lib/code-rotation.js";
-import { currentSession, suspendGame } from "../lib/games/engine.js";
+import { currentSession, endGame } from "../lib/games/engine.js";
+import { running, setShow, type RunningKind } from "../lib/running.js";
+import { isSpeaking } from "./voice.js";
 
 /**
  * remote.ts — the demo remote: a page you bookmark on your phone.
@@ -111,7 +113,12 @@ const COMMANDS: Record<string, Command> = {
   stop:     { label: "Stop",       stop: true },
 };
 
-const Body = z.object({ code: z.string().min(1).max(40), command: z.string().min(1).max(40) });
+const Body = z.object({
+  code: z.string().min(1).max(40),
+  command: z.string().min(1).max(40),
+  /** Which running thing to stop, when more than one is going. */
+  target: z.enum(["show", "game", "speech", "all"]).optional(),
+});
 
 router.post("/remote/command", async (req, res) => {
   const parsed = Body.safeParse(req.body);
@@ -129,12 +136,41 @@ router.post("/remote/command", async (req, res) => {
   const stoppedRotation = cancelRotation();
 
   if ("stop" in cmd) {
-    broadcast({ type: "voice.interrupt", source: "remote", payload: { text: "" }, timestamp: new Date().toISOString() });
-    // STOP means "stop what you are doing and go back to being a face". It used
-    // to only cut the speech, so pressing it during a game left the game sitting
-    // on his face and looked like the button was broken. The game is PUT AWAY,
-    // not ended — press the game again and the round is where you left it.
-    if (currentSession()) suspendGame();
+    /**
+     * STOP asks, when there is anything to ask about.
+     *
+     * A demo playing while a game sits on the table is an ordinary state at a
+     * stand, and "stop" has no single obvious meaning there — so with two or
+     * more things running the remote is told to put up a chooser naming them.
+     * With one, it just stops. With none, it is still a fine panic button and
+     * cuts whatever he was saying.
+     *
+     * A game that a person stops is ENDED, not put away. Saving a round is for
+     * when the app dies under them, not for when they deliberately said stop.
+     */
+    const live = running({ speaking: isSpeaking() });
+    const target = parsed.data.target
+      ?? (live.length === 1 ? live[0]!.kind : live.length === 0 ? "all" : undefined);
+
+    if (!target) {
+      res.json({ ok: true, ran: "stop", needsChoice: true, running: live });
+      return;
+    }
+
+    if (target === "speech" || target === "all" || target === "show") {
+      broadcast({ type: "voice.interrupt", source: "remote", payload: { text: "" }, timestamp: new Date().toISOString() });
+    }
+    if (target === "show" || target === "all") {
+      // The show lives in the face; the interrupt above is what actually stops
+      // it. Clear our record so it does not linger in the chooser.
+      setShow(null);
+      broadcast({ type: "face.command", source: "remote", payload: { scene: null, mood: "idle", color: null }, timestamp: new Date().toISOString() });
+    }
+    if ((target === "game" || target === "all") && currentSession()) {
+      await endGame();
+    }
+    res.json({ ok: true, ran: "stop", stopped: target, ...(stoppedRotation ? { stoppedCodeChange: true } : {}) });
+    return;
   } else if ("face" in cmd) {
     broadcast({ type: "face.command", source: "remote", payload: cmd.face, timestamp: new Date().toISOString() });
   } else {
@@ -159,6 +195,12 @@ async function checkCode(req: Parameters<typeof router.post>[1] extends never ? 
   const expected = (await getOrCreatePairingCode()).toUpperCase().replace(/\s+/g, "");
   return !!given && given === expected;
 }
+
+/** What is running right now, so the remote can name it on a STOP chooser. */
+router.get("/remote/running", async (req, res) => {
+  if (!(await checkCode(req))) { res.status(403).json({ error: "bad code" }); return; }
+  res.json({ running: running({ speaking: isSpeaking() }) });
+});
 
 router.get("/remote/state", async (req, res) => {
   if (!(await checkCode(req))) { res.status(403).json({ error: "bad code" }); return; }
@@ -268,6 +310,18 @@ router.get("/remote", async (_req, res) => {
   .gsecret{margin-top:12px;padding-top:12px;border-top:1px dashed var(--line);font-size:14px;color:var(--stop)}
   .gsecret::before{content:"Only you know: ";color:#5d6b86}
   .gplayers{margin-top:14px;font-size:12px;color:#5d6b86;text-align:center}
+  /* [hidden] MUST come with an explicit display:none. The attribute works by
+     setting display:none in the UA stylesheet, and an author rule that sets
+     display:flex beats it — which left this sheet permanently on screen with
+     a "Never mind" button that could not dismiss it. */
+  .sheet[hidden]{display:none}
+  .sheet{position:fixed;inset:0;z-index:50;background:rgba(4,8,15,.72);display:flex;
+         align-items:flex-end;justify-content:center;padding:16px}
+  .sheetcard{width:100%;max-width:520px;background:var(--card);border:1px solid var(--line);
+             border-radius:20px;padding:18px 16px calc(18px + env(safe-area-inset-bottom))}
+  .sheetcard h3{font:700 17px system-ui,sans-serif;margin:0 0 12px;text-align:center}
+  .sheetcard #stopChoices{display:grid;gap:9px;margin-bottom:12px}
+  .sheetcard .b{width:100%;min-height:58px}
   .pad{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;margin-top:12px}
   .padb{min-height:96px;font-size:34px;border-radius:20px;background:var(--card)}
   .padb:active{background:#25344a;transform:scale(.97)}
@@ -306,6 +360,15 @@ ${g.keys.map((k) => {
 }).join("\n")}
 </div></div>`).join("\n")}
 <button class="stop" data-cmd="stop">\u25A0 STOP</button>
+
+<!-- Shown only when more than one thing is running, so STOP has to ask. -->
+<div class="sheet" id="stopSheet" hidden>
+  <div class="sheetcard">
+    <h3>Stop what?</h3>
+    <div id="stopChoices"></div>
+    <button class="b wide" id="stopCancel">Never mind</button>
+  </div>
+</div>
 
 <div class="msg" id="modeNote" hidden>You're in with a game code — games only.</div>
 <div class="band" id="gamesBand">
@@ -624,6 +687,33 @@ ${g.keys.map((k) => {
   input.addEventListener("change", loadState);
   if (input.value.trim()) loadState();
 
+  // STOP: if the robot says more than one thing is running, ask which.
+  var sheet = document.getElementById("stopSheet");
+  document.getElementById("stopCancel").addEventListener("click", function () { sheet.hidden = true; });
+  function askWhich(list) {
+    var box = document.getElementById("stopChoices");
+    box.innerHTML = list.map(function (r) {
+      return '<button class="b" data-stop="' + r.kind + '">Stop ' + r.label + '</button>';
+    }).join("") + '<button class="b" data-stop="all">Stop everything</button>';
+    box.querySelectorAll("[data-stop]").forEach(function (b) {
+      b.addEventListener("click", function () { sheet.hidden = true; sendStop(b.dataset.stop); });
+    });
+    sheet.hidden = false;
+  }
+  async function sendStop(target) {
+    try {
+      var r = await fetch("/api/remote/command", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: code(), command: "stop", target: target })
+      });
+      var j = await r.json();
+      if (j.needsChoice && j.running && j.running.length) { askWhich(j.running); return; }
+      msg.textContent = j.stopped === "all" ? "Stopped." : "Stopped: " + (j.stopped || "");
+      if (navigator.vibrate) navigator.vibrate(18);
+      loadGames();
+    } catch (e) { msg.textContent = "Cannot reach him. Same Wi-Fi?"; }
+  }
+
   document.querySelectorAll("button[data-cmd]").forEach(function (b) {
     b.addEventListener("click", async function () {
       var code = input.value.trim();
@@ -636,8 +726,12 @@ ${g.keys.map((k) => {
           body: JSON.stringify({ code: code, command: b.dataset.cmd }),
         });
         var j = await r.json();
-        msg.textContent = r.ok ? "Sent: " + j.ran : (j.error === "bad code" ? "That code is not right." : (j.error || "Failed"));
+        // STOP may come back asking which of several things to stop.
+        if (j.needsChoice && j.running && j.running.length) { askWhich(j.running); b.disabled = false; return; }
+        msg.textContent = r.ok ? (j.stopped ? "Stopped: " + j.stopped : "Sent: " + j.ran)
+                               : (j.error === "bad code" ? "That code is not right." : (j.error || "Failed"));
         if (r.ok && navigator.vibrate) navigator.vibrate(18);
+        if (r.ok && j.stopped) loadGames();
       } catch (e) { msg.textContent = "Cannot reach him. Same Wi-Fi?"; }
       b.disabled = false;
     });

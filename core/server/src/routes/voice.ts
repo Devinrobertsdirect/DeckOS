@@ -2,6 +2,7 @@ import { Router, type Request } from "express";
 import { z } from "zod/v4";
 import { broadcast } from "../lib/ws-server.js";
 import { getConfig } from "../lib/app-config.js";
+import { setShow } from "../lib/running.js";
 
 /**
  * /api/voice — the Pi's local speech-to-text sidecar hands finished utterances
@@ -70,6 +71,11 @@ async function elevenLabsScribe(audio: Buffer, filename: string, apiKey: string)
 // wire envelope mirrors atlas.faceInput (index.ts): nest the text under payload
 // and include a timestamp — the frontend rebuilds events from whitelisted fields
 // and silently drops any message missing timestamp / carrying loose props.
+/** True while he is speaking — the same latch the mic uses to ignore its own voice. */
+export function isSpeaking(): boolean {
+  return state.muted;
+}
+
 router.post("/voice/heard", (req, res) => {
   if (!isLoopback(req)) {
     res.status(403).json({ error: "local only" });
@@ -179,6 +185,16 @@ router.post("/voice/transcribe", async (req, res) => {
 
 // GET /api/voice/state — mute latch + last-heard breadcrumb. Read-only; safe to
 // serve the LAN (lets any face/dashboard show whether the mic is live).
+/**
+ * The face telling us what it is playing, so STOP can name it. Shows run in the
+ * browser, so this is the only way the robot knows a demo is on.
+ */
+router.post("/voice/activity", (req, res) => {
+  const show = (req.body as { show?: unknown } | undefined)?.show;
+  setShow(typeof show === "string" && show ? show : null);
+  res.json({ ok: true });
+});
+
 router.get("/voice/state", (_req, res) => {
   // `muted` is the ECHO LATCH (true while he speaks), never "the mic is off".
   // `ears` is the real microphone state, straight from the sidecar; anything

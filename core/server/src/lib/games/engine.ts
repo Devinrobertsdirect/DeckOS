@@ -110,6 +110,7 @@ function inviteToJoin(code: string): void {
   });
 }
 
+
 export function listGames() {
   return Object.values(GAMES).map((g) => ({
     id: g.id, title: g.title, blurb: g.blurb, icon: g.icon, color: g.color,

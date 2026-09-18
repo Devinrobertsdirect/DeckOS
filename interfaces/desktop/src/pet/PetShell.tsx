@@ -98,6 +98,21 @@ function activityFor(state: FaceState): number {
   }
 }
 
+/**
+ * Tell the robot which show is playing, so STOP can name it.
+ *
+ * Shows run here in the face, so without this the server has no idea a demo is
+ * on and a "stop what?" chooser could only ever offer the game. Best effort on
+ * purpose — a failed report must never interrupt a show already running.
+ */
+function reportShow(show: string | null): void {
+  void fetch(`${import.meta.env.BASE_URL}api/voice/activity`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ show }),
+  }).catch(() => undefined);
+}
+
 export function PetShell({
   onOpenDeveloper,
   robotMode = false,
@@ -432,6 +447,7 @@ export function PetShell({
   const runShow = useCallback(async (kind: "demo" | "pitch" | "order") => {
     if (showRef.current) return;
     showRef.current = true;
+    reportShow(kind);
     cancelRef.current = false;
     queueRef.current = [];
     setBusy(true);
@@ -497,6 +513,7 @@ export function PetShell({
       showEndedAtRef.current = Date.now();
       setBusy(false);
       showRef.current = false;
+      reportShow(null);
       void setEarsMuted(false);
       if (kind === "order") {
         setOverlay({ kind: "link", src: SHOP_URL, caption: "Design your Nobi", hint: "developmentindustries.org/build" });

@@ -157,6 +157,18 @@ export interface SpeakOptions {
   voiceSettings?: TtsStyle;
 }
 
+/**
+ * How far through the current line the audio actually is, and how loud it is
+ * right now. Published as a module-level store rather than React state so a
+ * 60fps consumer (the face, the caption) can poll it without re-rendering the
+ * tree sixty times a second.
+ */
+const _progress = { at: 0, of: 0 };
+export function speechProgress(): number {
+  return _progress.of > 0 ? Math.min(1, _progress.at / _progress.of) : 0;
+}
+export function speechHasProgress(): boolean { return _progress.of > 0; }
+
 interface AtlasVoice {
   speaking: boolean;
   /** Speak text; resolves when finished. Empty text resolves immediately. */
@@ -185,6 +197,7 @@ export function useAtlasVoice(): AtlasVoice {
       audioRef.current.src = "";
       audioRef.current = null;
     }
+    _progress.at = 0; _progress.of = 0;
     setSpeaking(false);
   }, []);
 
@@ -247,12 +260,16 @@ export function useAtlasVoice(): AtlasVoice {
         const el = new Audio(`data:audio/${format ?? "mp3"};base64,${audio}`);
         audioRef.current = el;
         attachAmplitudeAnalyser(el);
+        const clearProgress = () => { _progress.at = 0; _progress.of = 0; };
+        el.onloadedmetadata = () => { if (Number.isFinite(el.duration)) _progress.of = el.duration; };
+        el.ontimeupdate = () => { _progress.at = el.currentTime; if (!_progress.of && Number.isFinite(el.duration)) _progress.of = el.duration; };
         el.onended = () => {
+          clearProgress();
           if (audioRef.current === el) audioRef.current = null;
           resolve();
         };
-        el.onerror = () => resolve();
-        void el.play().catch(() => resolve());
+        el.onerror = () => { clearProgress(); resolve(); };
+        void el.play().catch(() => { clearProgress(); resolve(); });
       });
     },
     [speakBrowser],

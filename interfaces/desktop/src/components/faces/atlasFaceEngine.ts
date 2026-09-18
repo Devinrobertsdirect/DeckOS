@@ -483,6 +483,10 @@ export interface EngineDrawOpts {
   /** "Bare" = no disc/rim: the eyes float on the screen itself (robot: the whole
    *  round display IS the face). The disc + glass rim are skipped; eyes only. */
   bare?: boolean;
+  /** Where he is LOOKING, on top of the pose's own bias: -1..1 of the face
+   *  radius. Something appearing on screen nudges this, so his eyes go to it and
+   *  you follow them. Eased in the engine, so callers can set it in one step. */
+  gaze?: { x: number; y: number };
   theme: FaceTheme;
 }
 
@@ -651,6 +655,9 @@ export class AtlasFaceEngine {
 
   // ── Companion eyes ─────────────────────────────────────────────────────────
 
+  private glanceX = 0;
+  private glanceY = 0;
+
   private drawEyes(
     ctx: CanvasRenderingContext2D,
     now: number,
@@ -692,7 +699,7 @@ export class AtlasFaceEngine {
     if (this.state === "talking") {
       bounce =
         amplitude > 0.015
-          ? -Math.min(amplitude * 2.2, 1) * 0.02 * D
+          ? -Math.min(amplitude * 2.2, 1) * 0.028 * D
           : Math.sin(now * 0.012) * 0.008 * D;
     } else if (this.state === "happy") {
       bounce = -Math.abs(Math.sin(now * 0.01)) * 0.015 * D;
@@ -702,7 +709,15 @@ export class AtlasFaceEngine {
     ctx.globalAlpha *= layerAlpha;
     ctx.translate(cx, cy + bounce);
     ctx.rotate(pose.tilt);
-    ctx.translate(pose.gazeX * D + driftX, pose.gazeY * D + driftY);
+    // Ease toward whatever the caller wants him looking at, so a glance is a
+    // movement of the eyes rather than a jump cut.
+    const wantGaze = opts.gaze ?? { x: 0, y: 0 };
+    this.glanceX += (wantGaze.x - this.glanceX) * 0.12;
+    this.glanceY += (wantGaze.y - this.glanceY) * 0.12;
+    ctx.translate(
+      (pose.gazeX + this.glanceX * 0.06) * D + driftX,
+      (pose.gazeY + this.glanceY * 0.06) * D + driftY,
+    );
 
     ctx.fillStyle = `rgb(${eyeRgb})`;
     ctx.strokeStyle = `rgb(${eyeRgb})`;

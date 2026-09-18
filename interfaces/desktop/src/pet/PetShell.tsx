@@ -8,7 +8,8 @@ import { YouTubeOverlay, type VideoHandle } from "@/components/YouTubeOverlay";
 import { ContentOverlay } from "@/components/ContentOverlay";
 import SurvivorOverlay from "@/components/SurvivorOverlay";
 import { AtlasFace, saveFaceTheme, type FaceState } from "@/components/faces/AtlasFace";
-import { useAtlasVoice, nudgeVoiceRate, setVoiceEngine } from "@/genesis/useAtlasVoice";
+import { useAtlasVoice, nudgeVoiceRate, setVoiceEngine, speechProgress, speechHasProgress } from "@/genesis/useAtlasVoice";
+import { readAmplitude } from "@/lib/audioAnalyser";
 import { useLatestEvent } from "@/contexts/WebSocketContext";
 import { useAtlasListening } from "@/genesis/useAtlasListening";
 import { useWake } from "@/hooks/useWake";
@@ -22,7 +23,7 @@ import ShowcaseOverlay, { SHOP_URL, type ShowcaseScene } from "@/pet/ShowcaseOve
 import { sfx, sfxForScene } from "@/pet/showSfx";
 import {
   buildDemoScript, buildPitchScript, buildOrderScript, meetDirectorNote, meetDetectBeats, guessName, line, asPersona,
-  TRICK_MOODS, TRICK_TADA, TRICK_INTRO, pickTrick, pickJoke, SAID_TRICK, SAID_JOKE, type TrickKind, type AskSpec, type MeetCtx, type Persona,
+  TRICK_MOODS, TRICK_TADA, TRICK_INTRO, pickTrick, pickJoke, interruptedLine, SAID_TRICK, SAID_JOKE, type TrickKind, type AskSpec, type MeetCtx, type Persona,
 } from "@/pet/showScripts";
 import { stripEmoji } from "@/lib/stripText";
 import { dockLines } from "@/genesis/dockGreetings";
@@ -779,9 +780,15 @@ export function PetShell({
     queueRef.current = [];
     pendingAnswerRef.current = null;
     stop();                            // cut the audio that is playing right now
+    setShowcaseScene(null);
     setCaption("");
     setFaceState("listening");
     void setEarsMuted(false);
+    // Acknowledge it. Going abruptly silent reads as a crash; one short line
+    // reads as a person stopping mid-sentence because you started talking.
+    const ack = interruptedLine(getPersona().id as Persona);
+    setCaption(ack);
+    void speak(ack, { voiceId: personaVoiceId() });
   }, [voiceInterruptEv, stop]);
 
   const voiceHeardEv = useLatestEvent("voice.heard");
@@ -939,6 +946,57 @@ export function PetShell({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  // ── The face breathes with the actual voice ────────────────────────────────
+  // activityFor() gives a flat number per state, so "talking" looked identical
+  // whether he was whispering or emphatic. While audio is playing we blend in
+  // the real amplitude, sampled on a rAF outside React so it costs no renders.
+  const [liveLevel, setLiveLevel] = useState(0);
+  const [sayProgress, setSayProgress] = useState<number | undefined>(undefined);
+  useEffect(() => {
+    if (!speaking) { setLiveLevel(0); setSayProgress(undefined); return; }
+    let raf = 0, smoothed = 0;
+    const tick = () => {
+      // ease toward the reading: raw amplitude jitters far too fast to look real
+      smoothed += (readAmplitude() - smoothed) * 0.35;
+      setLiveLevel(smoothed);
+      setSayProgress(speechHasProgress() ? speechProgress() : undefined);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [speaking]);
+
+  // Someone is talking to him — the ears say so the moment they start.
+  // ── Gaze ───────────────────────────────────────────────────────────────────
+  // He should look at what he is talking about. Anything that appears on screen
+  // (a QR card, a name, a trick) nudges his eyes toward it for a beat, then they
+  // come back to you. Cheap, and it reads as attention rather than animation.
+  const [gaze, setGaze] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const gazeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const glanceAt = useCallback((x: number, y: number, ms = 1400) => {
+    setGaze({ x, y });
+    if (gazeTimer.current) clearTimeout(gazeTimer.current);
+    gazeTimer.current = setTimeout(() => setGaze({ x: 0, y: 0 }), ms);
+  }, []);
+  useEffect(() => { if (overlay) glanceAt(0, 0.35, 2200); }, [overlay, glanceAt]);
+  useEffect(() => { if (caption) glanceAt(0, 0.22, 900); }, [caption, glanceAt]);
+
+  const listeningEv = useLatestEvent("voice.listening");
+  const [earsOpen, setEarsOpen] = useState(false);
+  const earsOffTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!listeningEv) return;
+    const on = (listeningEv.payload as { on?: boolean } | undefined)?.on !== false;
+    setEarsOpen(on);
+    if (earsOffTimer.current) clearTimeout(earsOffTimer.current);
+    if (on) earsOffTimer.current = setTimeout(() => setEarsOpen(false), 6000);
+  }, [listeningEv]);
+
+  // NOTE: the face engine already reads the live TTS amplitude itself (see
+  // AtlasFace → readAmplitude) and drives the talking bounce from it, so this
+  // stays the plain per-state hint. Blending amplitude in here pushed activity
+  // over the engine's 0.65 auto-morph threshold and replaced his eyes with the
+  // neural cluster mid-sentence.
   const activity = activityFor(faceState);
   const canSend = input.trim().length > 0 && !busy;
   const hint = listening
@@ -1003,11 +1061,11 @@ export function PetShell({
         <div className="absolute inset-0 z-[1]"
           onPointerDown={startHold} onPointerUp={endHold} onPointerLeave={endHold}>
           <div className="absolute inset-0 flex items-center justify-center">
-            <AtlasFace mode="auto" state={faceState} size={faceFill} bare activity={activity}
+            <AtlasFace mode="auto" state={faceState} size={faceFill} bare activity={activity} gaze={gaze}
               eyeColorOverride={eyeColor} discTint={discTint} emoji={emoji} />
           </div>
           <div className="pointer-events-none absolute inset-x-0 top-[63%] flex justify-center px-10">
-            <FaceCaption text={caption} hint={hint} busy={busy} />
+            <FaceCaption text={caption} hint={hint} busy={busy} progress={sayProgress} listening={earsOpen} />
           </div>
         </div>
       ) : (

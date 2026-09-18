@@ -185,6 +185,22 @@ export function buildDemoScript(bot: string, p: Persona): ShowBeat[] {
   ];
 }
 
+/**
+ * Being interrupted is not an error, it is a conversation. He stops, says one
+ * short thing that shows he noticed, and hands the floor over — rather than
+ * going abruptly silent, which reads as a crash.
+ */
+export const INTERRUPTED: Record<Persona, string[]> = {
+  rocky:  ["Yes?", "I stop. You talk.", "Go ahead.", "Listening.", "Say it."],
+  jarvis: ["Yes?", "Do go on.", "I'll wait.", "You were saying?", "Of course."],
+  friday: ["Yeah?", "Go on then.", "All yours.", "What's up?", "Listening!"],
+  alfred: ["Yes?", "Please, go ahead.", "I shall wait.", "You were saying?", "Of course."],
+};
+export function interruptedLine(p: Persona): string {
+  const bank = INTERRUPTED[p] ?? INTERRUPTED.rocky;
+  return bank[Math.floor(Math.random() * bank.length)]!;
+}
+
 /** The rainbow trick: rapid moods + rainbow ring + confetti, then a "ta-da". */
 export const TRICK_MOODS: Array<[string, string]> = [["dizzy", MISCHIEF], ["shocked", "#C9DCF0"], ["mindblown", "#F5B83D"], ["love", LOVE], ["starstruck", "#C9DCF0"], ["laughing", "#FFC820"]];
 export const TRICK_TADA: Lines = { rocky: "Ta-da. Good good good.", jarvis: "Ta-da. Modest, but effective.", friday: "Ta-da! Nailed it.", alfred: "Ta-da. Restrained, I trust." };

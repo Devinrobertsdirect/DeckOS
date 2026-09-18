@@ -96,6 +96,15 @@ router.post("/voice/interrupt", (req, res) => {
   res.json({ ok: true });
 });
 
+// POST /api/voice/listening — { on }. Loopback only. The ears fire this the
+// instant a person STARTS talking, so the face can light up while they speak
+// instead of after the transcript lands. Pure UI signal; nothing depends on it.
+router.post("/voice/listening", (req, res) => {
+  if (!isLoopback(req)) { res.status(403).json({ error: "local only" }); return; }
+  broadcast({ type: "voice.listening", source: "voice", payload: { on: req.body?.on !== false }, timestamp: new Date().toISOString() });
+  res.json({ ok: true });
+});
+
 // POST /api/voice/mute — { on }. Loopback only. The PetShell raises this when a
 // turn/TTS starts and lowers it when the queue drains, so incoming utterances are
 // dropped for as long as Nobi is talking.

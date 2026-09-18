@@ -94,6 +94,8 @@ interface AtlasFaceProps {
   size?: number;
   /** 0..1 hint of how hard the brain is working (drives the cluster). */
   activity?: number;
+  /** Where to look, -1..1 of the face radius (see engine opts). */
+  gaze?: { x: number; y: number };
   /** Momentary eye-colour override "r,g,b" (mood shifts — red anger, etc.). */
   eyeColorOverride?: string | null;
   /** Momentary disc tint "r,g,b" — the face literally reddens when angry. */
@@ -114,6 +116,7 @@ export function AtlasFace({
   state = "idle",
   size = 120,
   activity = 0,
+  gaze,
   eyeColorOverride = null,
   discTint = null,
   emoji = null,
@@ -125,8 +128,8 @@ export function AtlasFace({
   const theme = useFaceTheme();
 
   // Keep latest props in refs so the RAF loop never restarts.
-  const propsRef = useRef({ mode, state, activity, theme, eyeColorOverride, discTint, emoji, bare });
-  propsRef.current = { mode, state, activity, theme, eyeColorOverride, discTint, emoji, bare };
+  const propsRef = useRef({ mode, state, activity, theme, eyeColorOverride, discTint, emoji, bare, gaze });
+  propsRef.current = { mode, state, activity, theme, eyeColorOverride, discTint, emoji, bare, gaze };
 
   useEffect(() => {
     if (!engineRef.current) engineRef.current = new AtlasFaceEngine();
@@ -145,12 +148,13 @@ export function AtlasFace({
       const canvas = canvasRef.current;
       const ctx = canvas?.getContext("2d");
       if (canvas && ctx) {
-        const { mode: m, state: s, activity: a, theme: th, eyeColorOverride: eco, discTint: dt, emoji: em, bare: br } = propsRef.current;
+        const { mode: m, state: s, activity: a, theme: th, eyeColorOverride: eco, discTint: dt, emoji: em, bare: br, gaze: gz } = propsRef.current;
         engine.setMode(m);
         engine.setState(s, now);
         engine.draw(ctx, now, {
           size: canvas.width,
           amplitude: readAmplitude(),
+          gaze: gz,
           activity: a,
           eyeRgb: eco ?? th.eyeRgb ?? accent,
           tintRgb: dt ?? undefined,

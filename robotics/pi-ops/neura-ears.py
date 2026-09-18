@@ -81,15 +81,28 @@ INTERRUPT_URL = BASE + "/api/voice/interrupt"
 # still watch for a LOUD utterance and, if it contains one of these, cut him off.
 # "nobi" alone is not enough — he says his own name constantly.
 BARGE_IN = os.environ.get("NEURA_BARGE_IN", "1") != "0"
-BARGE_MULT = float(os.environ.get("NEURA_BARGE_MULT", "2.2"))
+BARGE_MULT = float(os.environ.get("NEURA_BARGE_MULT", "1.8"))
+# Anything this far above the level of his OWN voice in the mic counts as a
+# person cutting in, whatever they say. Keywords are no longer required: being
+# talked over is itself the signal to stop. (Keywords still stop him instantly,
+# without waiting for the phrase to finish.)
+BARGE_ANY = os.environ.get("NEURA_BARGE_ANY", "1") != "0"
+BARGE_MIN_MS = int(os.environ.get("NEURA_BARGE_MIN_MS", "420"))
+LISTENING_URL = BASE + "/api/voice/listening"
+# The noise floor must not run away in a loud hall: it rises slowly, falls
+# quickly, and the margin it can add to the threshold is capped, so a room full
+# of chatter can never raise the bar past a person speaking to him at arm-length.
+FLOOR_RISE = float(os.environ.get("NEURA_FLOOR_RISE", "0.0015"))
+FLOOR_FALL = float(os.environ.get("NEURA_FLOOR_FALL", "0.08"))
+FLOOR_MARGIN_MAX = float(os.environ.get("NEURA_FLOOR_MARGIN_MAX", "1400"))
 INTERRUPT_RE = re.compile(r"\b(stop|wait|hold on|hang on|hold up|pause|quiet|shut up|enough|okay okay|ok ok|hey (nobi|nobee|noby|nobby|noble|nova|novi|no bee|robot)|nobi stop|shush|excuse me)\b")
 HEARD_URL = BASE + "/api/voice/heard"
 STATE_URL = BASE + "/api/voice/state"
 
 # ── VAD tuning ───────────────────────────────────────────────────────────────
 START_RMS = float(os.environ.get("NEURA_VAD_START_RMS", "600"))
-VAD_MULT = float(os.environ.get("NEURA_VAD_MULT", "3.0"))
-SILENCE_MS = int(os.environ.get("NEURA_SILENCE_MS", "1000"))
+VAD_MULT = float(os.environ.get("NEURA_VAD_MULT", "2.2"))
+SILENCE_MS = int(os.environ.get("NEURA_SILENCE_MS", "800"))
 START_MS = int(os.environ.get("NEURA_START_MS", "120"))
 PREROLL_MS = int(os.environ.get("NEURA_PREROLL_MS", "300"))
 MIN_UTTER_MS = int(os.environ.get("NEURA_MIN_UTTER_MS", "350"))
@@ -101,10 +114,10 @@ PREROLL_FRAMES = max(1, PREROLL_MS // FRAME_MS)
 
 # ── Wake gate ────────────────────────────────────────────────────────────────
 REQUIRE_WAKE = os.environ.get("NEURA_REQUIRE_WAKE", "1") != "0"
-ARM_SECONDS = float(os.environ.get("NEURA_ARM_SECONDS", "12"))
+ARM_SECONDS = float(os.environ.get("NEURA_ARM_SECONDS", "20"))
 # The moment Nobi FINISHES speaking, keep listening this long for a reply so the
 # user can answer without saying her name again (Devin's steer: 7s after speech).
-ARM_AFTER_REPLY = float(os.environ.get("NEURA_ARM_AFTER_S", "7"))
+ARM_AFTER_REPLY = float(os.environ.get("NEURA_ARM_AFTER_S", "10"))
 MUTE_POLL_MS = int(os.environ.get("NEURA_MUTE_POLL_MS", "200"))
 # ── His name ─────────────────────────────────────────────────────────────────
 # Spelled NOBI. Said "NO-bee". Nobody's speech-to-text agrees on how to write
@@ -387,6 +400,7 @@ def main() -> int:
     armed_until = 0.0
     muted = False                # is Nobi speaking right now?
     barge_run, barge_silence, barge_buf = 0, 0, bytearray()
+    talk_floor = START_RMS       # how loud his own voice reads in this mic
     last_mute_poll = 0.0
     last_target_check = 0.0
 
@@ -442,13 +456,31 @@ def main() -> int:
                 preroll.clear()
                 continue
             rms = frame_rms(data)
-            if rms >= max(START_RMS * BARGE_MULT, floor * VAD_MULT * BARGE_MULT):
+            # His own voice leaks into the mic; learn how loud that leak is while
+            # he talks, and treat only something clearly above it as a person.
+            talk_floor = (1 - 0.02) * talk_floor + 0.02 * rms if rms < talk_floor * 2.5 else talk_floor
+            bar = max(START_RMS * BARGE_MULT, talk_floor * BARGE_MULT, floor * VAD_MULT)
+            if rms >= bar:
                 barge_run += 1
                 barge_buf += data
             elif barge_run:
                 barge_silence += 1
                 barge_buf += data
-            if barge_run >= 4 and barge_silence >= 12:          # ~a word or two, then a beat of quiet
+            # Talked over for long enough? Stop immediately — do not wait for the
+            # sentence to end, and do not require a magic word.
+            if BARGE_ANY and barge_run * FRAME_MS >= BARGE_MIN_MS:
+                log(f"barge-in: talked over ({barge_run * FRAME_MS}ms) — stopping")
+                try: requests.post(INTERRUPT_URL, json={"text": ""}, timeout=2)
+                except requests.RequestException: pass
+                muted = False
+                armed_until = now + ARM_SECONDS
+                # keep what they have said so far; the phrase continues below as
+                # a normal utterance now that he is quiet
+                utter = bytearray(barge_buf); speaking = True; utter_start = now
+                speech_run, silence_run = START_FRAMES, 0
+                barge_run, barge_silence, barge_buf = 0, 0, bytearray()
+                continue
+            if barge_run >= 4 and barge_silence >= 12:          # a word or two, then a beat of quiet
                 clip = bytes(barge_buf)
                 barge_run, barge_silence, barge_buf = 0, 0, bytearray()
                 heard = transcribe_local(clip).lower()
@@ -467,7 +499,7 @@ def main() -> int:
             continue
 
         rms = frame_rms(data)
-        threshold = max(START_RMS, floor * VAD_MULT)
+        threshold = max(START_RMS, min(floor * VAD_MULT, floor + FLOOR_MARGIN_MAX))
         is_speech = rms >= threshold
 
         if not speaking:
@@ -476,14 +508,22 @@ def main() -> int:
                 speech_run += 1
                 if speech_run >= START_FRAMES:
                     speaking = True
+                    # The face should react NOW, not when the transcript lands —
+                    # a person needs to see they have been heard while they talk.
+                    if armed_until > now or not REQUIRE_WAKE:
+                        try: requests.post(LISTENING_URL, json={"on": True}, timeout=1)
+                        except requests.RequestException: pass
                     utter = bytearray(b"".join(preroll))   # keep the pre-roll
                     preroll.clear()
                     silence_run = 0
                     utter_start = now
             else:
                 speech_run = 0
-                # Track ambient level only while quiet, so the floor follows the room.
-                floor = 0.92 * floor + 0.08 * rms
+                # Track the ambient level while quiet. Asymmetric on purpose: it
+                # eases UP slowly (a burst of applause must not deafen him) and
+                # drops quickly (so he gets sensitive again the moment it calms).
+                a = FLOOR_RISE if rms > floor else FLOOR_FALL
+                floor = (1 - a) * floor + a * rms
             continue
 
         # ── speaking: accumulate until a long-enough pause (or the hard cap) ──

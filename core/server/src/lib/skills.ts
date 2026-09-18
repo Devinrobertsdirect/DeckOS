@@ -20,7 +20,7 @@ import { describeScreen } from "./screen-vision.js";
 import { FUN_SKILLS, EXTRA_ACTION_SKILLS } from "./skills-extra.js";
 import { READOUT_SKILLS } from "./skills-readouts.js";
 import { ACTION_SKILLS } from "./skills-actions.js";
-import { getOrCreatePairingCode } from "./pairing.js";
+import { getOrCreatePairingCode, resetPairingCode } from "./pairing.js";
 import { syncFromCloud } from "./cloud-sync.js";
 import { getConfig } from "./app-config.js";
 
@@ -861,6 +861,58 @@ const PORT = Number(process.env["PORT"] ?? 8080);
  * big type for anyone typing it by hand, and he reads it out for someone across
  * the table. Placed before phone-link so "remote" never lands on the app QR.
  */
+/**
+ * "Hey Nobi, get me a new code" — rotate the pairing code by voice.
+ *
+ * The code is the only thing in front of the remote, the games and the setup
+ * band, so being able to change it without a keyboard matters: if it has been
+ * seen by the wrong person, or printed on a QR that went further than intended,
+ * the fix should take one sentence.
+ *
+ * It asks first, on purpose. This is a spoken command on a robot that stands in
+ * public, so a passer-by saying "give me a new code" would otherwise cut off
+ * every phone already using the old one — at a stand, that is the demo gone
+ * while you work out what happened. One confirmation makes that impossible by
+ * accident, and costs the owner a single extra word.
+ *
+ * MUST be registered before `remoteSkill`, whose pattern also matches
+ * "give me ... code" and would otherwise just read the old code back.
+ */
+let pendingNewCodeAt = 0;
+/** How long the confirmation stays open. Long enough to think, short enough to forget. */
+const NEW_CODE_CONFIRM_MS = 60_000;
+
+const newCodeSkill: Skill = {
+  id: "new-code",
+  async handle({ lower }) {
+    const wantsNew =
+      /\b(new|fresh|another|different)\s+(pairing|remote|connection|access|bot)?\s*code\b/.test(lower)
+      || /\b(rotate|reset|regenerate|refresh|change)\s+(my |the |our |his |your )?(pairing|remote|connection|access|bot)?\s*code\b/.test(lower);
+    const confirms = /\b(confirm|yes|do it|go ahead|change it)\b/.test(lower)
+      && (/\bcode\b/.test(lower) || Date.now() - pendingNewCodeAt < NEW_CODE_CONFIRM_MS);
+
+    if (confirms && Date.now() - pendingNewCodeAt < NEW_CODE_CONFIRM_MS) {
+      pendingNewCodeAt = 0;
+      const code = await resetPairingCode();
+      const ip = lanIp();
+      const host = ip ? `${ip}:${PORT}` : `${os.hostname()}.local:${PORT}`;
+      const url = `http://${host}/api/remote?code=${encodeURIComponent(code)}`;
+      // Show it immediately: he has just cut off every paired phone, so the new
+      // code has to be on screen before anyone asks where the remote went.
+      return {
+        speak: `Done. Your new code is ${code.split("").join(" ")}. Old phones will need it again.`,
+        ui: { type: "showLink", title: "New remote code", url, code, hint: `Same Wi-Fi. ${host}/api/remote` },
+      };
+    }
+
+    if (!wantsNew) return null;
+    pendingNewCodeAt = Date.now();
+    return {
+      speak: "That will disconnect any phone using the old code. Say confirm new code, and I'll change it.",
+    };
+  },
+};
+
 const remoteSkill: Skill = {
   id: "remote",
   async handle({ lower }) {
@@ -1074,7 +1126,7 @@ const shopSkill: Skill = {
 };
 
 const SKILLS: Skill[] = [
-  meetSomeone, pitchShow, demoShow, orderShow, syncAccount, botNumberSkill, qrSkill, remoteSkill, phoneLink, wifiSetupSkill, myAddress, shopSkill,
+  meetSomeone, pitchShow, demoShow, orderShow, syncAccount, botNumberSkill, qrSkill, newCodeSkill, remoteSkill, phoneLink, wifiSetupSkill, myAddress, shopSkill,
   releaseEstop, emergencyStop, spinSkill, wanderSkill, setSpeedSkill, stopSkill,
   experienceModeSkill, uiModeSkill, describeScreenSkill, survivorSkill, videoControlSkill, playVideoSkill,
   closeSkill, openSkill, controlDevice, readSensor, listDevices,

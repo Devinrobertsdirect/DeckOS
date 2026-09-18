@@ -863,6 +863,10 @@ export function PetShell({
     pendingAnswerRef.current = null;
     stop();                            // cut the audio that is playing right now
     setShowcaseScene(null);
+    // And take down whatever card is up. A QR is as much "a thing he is doing"
+    // as a sentence is: STOP that leaves a code sitting on his face has not
+    // stopped the thing the person was looking at.
+    setOverlay(null);
     setCaption("");
     setFaceState("listening");
     void setEarsMuted(false);
@@ -1196,7 +1200,11 @@ export function PetShell({
     // An explicit Clear also stops whatever is mid-flight: a trick sets its own
     // scene and mood a beat later, which would otherwise land on top of the
     // reset and leave him wearing the thing you just asked him to drop.
-    if (p.scene === null) { cancelRef.current = true; window.setTimeout(() => { cancelRef.current = false; }, 250); }
+    if (p.scene === null) {
+      cancelRef.current = true;
+      setOverlay(null);   // "Clear" means the screen, not just the background
+      window.setTimeout(() => { cancelRef.current = false; }, 250);
+    }
     if (p.color !== undefined) setEyeColor(p.color ? toEyeRgb(p.color) : null);
     if (p.mood) setFaceState(p.mood as FaceState);
     if (p.gaze) glanceAt(p.gaze[0], p.gaze[1], 6000);

@@ -157,9 +157,13 @@ router.post("/remote/command", async (req, res) => {
       return;
     }
 
-    if (target === "speech" || target === "all" || target === "show") {
-      broadcast({ type: "voice.interrupt", source: "remote", payload: { text: "" }, timestamp: new Date().toISOString() });
-    }
+    // EVERY stop cuts the speech and takes down whatever card is on his face.
+    // Whichever thing you picked, "stop" means the screen goes quiet too — a
+    // STOP that leaves a QR code sitting there has not stopped what the person
+    // was actually looking at. The interrupt handler in the face clears the
+    // overlay, the caption and the scene together.
+    broadcast({ type: "voice.interrupt", source: "remote", payload: { text: "" }, timestamp: new Date().toISOString() });
+
     if (target === "show" || target === "all") {
       // The show lives in the face; the interrupt above is what actually stops
       // it. Clear our record so it does not linger in the chooser.

@@ -47,6 +47,7 @@ import diagRouter from "./diag";
 import voiceRouter from "./voice";
 import showsRouter from "./shows";
 import remoteRouter from "./remote";
+import gamesRouter from "./games";
 import provisionRouter from "./provision";
 import youtubeRouter from "./youtube";
 
@@ -100,6 +101,7 @@ router.use(diagRouter);
 router.use(voiceRouter);
 router.use(showsRouter);
 router.use(remoteRouter);
+router.use(gamesRouter);
 router.use(provisionRouter);
 router.use(youtubeRouter);
 

@@ -194,6 +194,19 @@ router.get("/remote", async (_req, res) => {
   button .sw{width:13px;height:13px;border-radius:50%;flex:none;box-shadow:0 0 0 1px rgba(255,255,255,.25)}
   button:active{transform:scale(.95);background:#1b2740}
   button[disabled]{opacity:.45}
+  .gamebar{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+  .gamebar span{flex:1;font-size:15px;font-weight:600;letter-spacing:.04em}
+  .gamebar .back,.gamebar .endg{appearance:none;border:1px solid var(--line);background:var(--card);
+        color:var(--ink);border-radius:12px;padding:10px 14px;font:600 15px system-ui;cursor:pointer}
+  .gamebar .endg{font-size:13px;color:#8fa0bd}
+  .gcard{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:12px}
+  .gtitle{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--eye);margin-bottom:8px}
+  .gbody{font-size:16px;line-height:1.5;color:var(--ink)}
+  .gsecret{margin-top:12px;padding-top:12px;border-top:1px dashed var(--line);font-size:14px;color:var(--stop)}
+  .gsecret::before{content:"Only you know: ";color:#5d6b86}
+  .gplayers{margin-top:14px;font-size:12px;color:#5d6b86;text-align:center}
+  #gChoices button{min-height:62px;font-size:15px;flex-direction:column;gap:3px}
+  #gChoices button small{font-size:11px;color:#7d8ba6;font-weight:500}
   .setup{margin-top:18px;border-top:1px solid var(--line);padding-top:14px}
   .setup label{display:block;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#5d6b86;margin:14px 2px 6px}
   .setup .hint{letter-spacing:0;text-transform:none;color:#4a5878}
@@ -225,6 +238,11 @@ ${g.keys.map((k) => {
 </div></div>`).join("\n")}
 <button class="stop" data-cmd="stop">\u25A0 STOP</button>
 
+<div class="band" id="gamesBand">
+  <h2>Games</h2>
+  <div class="grid" id="gameList"><button class="b wide" disabled>Loading\u2026</button></div>
+</div>
+
 <div class="band setup">
   <h2>Setup</h2>
   <div class="row" id="cloudRow">Checking\u2026</div>
@@ -248,6 +266,25 @@ ${g.keys.map((k) => {
   <input id="keyVal" type="password" autocomplete="off" spellcheck="false" placeholder="paste the key, then Save">
   <p class="fine">Keys are written straight to this robot and never shown back.</p>
 </div>
+<div id="gameView" hidden>
+  <div class="gamebar">
+    <button class="back" id="gameBack">\u2190</button>
+    <span id="gameTitle">Game</span>
+    <button class="endg" id="gameEnd">End</button>
+  </div>
+  <div class="gcard">
+    <div class="gtitle" id="gTitle"></div>
+    <div class="gbody" id="gBody"></div>
+    <div class="gsecret" id="gSecret" hidden></div>
+  </div>
+  <div id="gChoices" class="grid"></div>
+  <div class="row2" id="gInputRow" hidden>
+    <input id="gInput" placeholder="\u2026">
+    <button class="b" id="gSend">Go</button>
+  </div>
+  <div class="gplayers" id="gPlayers"></div>
+</div>
+
 <div class="msg" id="msg">Tap a button. He does it on his own screen.</div>
 <div class="gate">
   <label for="code">Pairing code${/* prefilled when opened from the robot's own QR */ ""}</label>
@@ -327,6 +364,107 @@ ${g.keys.map((k) => {
     } catch (e) { msg.textContent = "Could not reach him."; }
     this.disabled = false;
   });
+  // ── Games ────────────────────────────────────────────────────────────────
+  // The robot owns the game; this is a view onto it. Back leaves the table
+  // exactly as it is (the robot keeps playing its own state), End clears it.
+  var PLAYER_KEY = "nobi_player_id";
+  var gamePoll = null, playerId = null, lastVersion = -1;
+  function code() { return input.value.trim(); }
+  function show(el, on) { document.getElementById(el).hidden = !on; }
+  function inGame(on) {
+    document.querySelectorAll(".band, .stop").forEach(function (n) { n.style.display = on ? "none" : ""; });
+    show("gameView", on);
+  }
+  async function loadGames() {
+    try {
+      var r = await fetch("/api/games?code=" + encodeURIComponent(code()));
+      if (!r.ok) return;
+      var j = await r.json();
+      var list = document.getElementById("gameList");
+      list.innerHTML = j.games.map(function (g) {
+        var live = j.session && j.session.gameId === g.id;
+        return '<button class="b wide" data-game="' + g.id + '">' + g.title + (live ? " \u00b7 in progress" : "") + "</button>";
+      }).join("");
+      list.querySelectorAll("[data-game]").forEach(function (b) {
+        b.addEventListener("click", function () { openGame(b.dataset.game, j.session && j.session.gameId === b.dataset.game); });
+      });
+    } catch (e) { /* offline */ }
+  }
+  async function openGame(id, resuming) {
+    msg.textContent = "";
+    if (!resuming) {
+      await fetch("/api/games/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: code(), gameId: id }) });
+      try { localStorage.removeItem(PLAYER_KEY); } catch (e) {}
+    } else {
+      await fetch("/api/games/resume", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: code() }) });
+    }
+    var name = localStorage.getItem("nobi_player_name") || "";
+    if (!name) {
+      name = (prompt("Your name for the table?") || "Player").slice(0, 16);
+      try { localStorage.setItem("nobi_player_name", name); } catch (e) {}
+    }
+    var jr = await fetch("/api/games/join", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: code(), name: name, playerId: localStorage.getItem(PLAYER_KEY) || undefined }) });
+    var jj = await jr.json();
+    if (jj.playerId) { playerId = jj.playerId; try { localStorage.setItem(PLAYER_KEY, playerId); } catch (e) {} }
+    else { msg.textContent = jj.error || "Could not join."; return; }
+    inGame(true);
+    lastVersion = -1;
+    pollGame();
+    gamePoll = setInterval(pollGame, 1200);
+  }
+  function leaveGame(end) {
+    if (gamePoll) { clearInterval(gamePoll); gamePoll = null; }
+    fetch("/api/games/" + (end ? "end" : "suspend"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: code() }) })
+      .catch(function () {});
+    inGame(false);
+    msg.textContent = end ? "Game ended." : "Saved. Pick it up any time.";
+    loadGames();
+  }
+  document.getElementById("gameBack").addEventListener("click", function () { leaveGame(false); });
+  document.getElementById("gameEnd").addEventListener("click", function () { leaveGame(true); });
+  async function act(action, value) {
+    await fetch("/api/games/act", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: code(), playerId: playerId, action: action, value: value }) }).catch(function () {});
+    pollGame();
+  }
+  async function pollGame() {
+    if (!playerId) return;
+    try {
+      var r = await fetch("/api/games/state?code=" + encodeURIComponent(code()) + "&playerId=" + playerId + "&since=" + lastVersion);
+      if (r.status === 204) return;
+      if (!r.ok) return;
+      var v = await r.json();
+      lastVersion = v.version;
+      document.getElementById("gameTitle").textContent = v.title;
+      var p = v.phone || {};
+      document.getElementById("gTitle").textContent = p.title || "";
+      document.getElementById("gBody").textContent = p.body || "";
+      var sec = document.getElementById("gSecret");
+      sec.hidden = !p.secret; sec.textContent = p.secret || "";
+      var ch = document.getElementById("gChoices");
+      ch.innerHTML = (p.choices || []).map(function (c, i) {
+        return '<button class="b' + ((p.choices.length % 2 && i === p.choices.length - 1) ? " wide" : "") + '" data-a="' + c.action +
+               '" data-v="' + (c.label || "").replace(/"/g, "&quot;") + '"' + (c.disabled ? " disabled" : "") + ">" +
+               c.label + (c.detail ? "<small>" + c.detail + "</small>" : "") + "</button>";
+      }).join("");
+      ch.querySelectorAll("[data-a]").forEach(function (b) {
+        b.addEventListener("click", function () { act(b.dataset.a, b.dataset.v); });
+      });
+      show("gInputRow", !!p.input);
+      if (p.input) {
+        document.getElementById("gInput").placeholder = p.input.placeholder || "";
+        document.getElementById("gSend").onclick = function () {
+          var el = document.getElementById("gInput");
+          if (el.value.trim()) { act(p.input.action, el.value.trim()); el.value = ""; }
+        };
+      }
+      document.getElementById("gPlayers").textContent = (v.players || []).map(function (x) { return x.name; }).join(" \u00b7 ");
+    } catch (e) { /* keep polling */ }
+  }
+
+  input.addEventListener("change", function () { loadState(); loadGames(); });
+  if (input.value.trim()) loadGames();
   input.addEventListener("change", loadState);
   if (input.value.trim()) loadState();
 

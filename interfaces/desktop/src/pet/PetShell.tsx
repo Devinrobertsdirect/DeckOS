@@ -1046,6 +1046,33 @@ export function PetShell({
     setShowOverrides((overridesEv.payload as { overrides?: Parameters<typeof setShowOverrides>[0] } | undefined)?.overrides);
   }, [overridesEv]);
 
+  // ── Games ──────────────────────────────────────────────────────────────────
+  // The robot runs the game; the face is its board. A frame arrives on every
+  // change and is drawn over the face until the game is put away.
+  const gameFrameEv = useLatestEvent("game.frame");
+  const [gameFace, setGameFace] = useState<null | {
+    title?: string; body?: string; big?: string; mood?: string; color?: string;
+    scene?: string | null; speak?: string; scores?: Array<{ name: string; score: number; active?: boolean }>;
+    canvas?: Record<string, unknown>;
+  }>(null);
+  const lastSpoken = useRef<string>("");
+  useEffect(() => {
+    if (!gameFrameEv) return;
+    const p = (gameFrameEv.payload ?? {}) as { face?: typeof gameFace };
+    setGameFace(p.face ?? null);
+    if (!p.face) { lastSpoken.current = ""; return; }
+    touched();
+    if (p.face.mood) setFaceState(p.face.mood as FaceState);
+    if (p.face.color) setEyeColor(toEyeRgb(p.face.color));
+    if (p.face.scene !== undefined) setShowcaseScene((p.face.scene as ShowcaseScene | null) ?? null);
+    // Narration is spoken once per line, never repeated on a re-render.
+    if (p.face.speak && p.face.speak !== lastSpoken.current) {
+      lastSpoken.current = p.face.speak;
+      setCaption(p.face.speak);
+      void speak(p.face.speak, { voiceId: personaVoiceId() });
+    }
+  }, [gameFrameEv]);
+
   // ── Direct face commands (the remote) ──────────────────────────────────────
   // Instant, no brain in the loop: a mood, an eye colour, where he looks, a
   // trick, a scene. Several of these have no spoken trigger at all, which is
@@ -1187,7 +1214,28 @@ export function PetShell({
               eyeColorOverride={eyeColor} discTint={discTint} emoji={emoji} />
           </div>
           <div className="pointer-events-none absolute inset-x-0 top-[63%] flex justify-center px-10">
-            <FaceCaption text={caption} hint={attracting ? "Say “Hey Nobi”" : hint} busy={busy} progress={sayProgress} listening={earsOpen} />
+            {/* The game board: a thin strip the room can read from across a
+                table. His eyes stay the star — the board never covers them. */}
+            {gameFace && (
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex flex-col items-center gap-1 px-6 pb-3">
+                {gameFace.title && (
+                  <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-primary/60">{gameFace.title}</div>
+                )}
+                {gameFace.big && (
+                  <div className="text-4xl font-bold tabular-nums text-foreground">{gameFace.big}</div>
+                )}
+                {!!gameFace.scores?.length && (
+                  <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-0.5">
+                    {gameFace.scores.map((s) => (
+                      <span key={s.name} className={"font-mono text-[11px] " + (s.active ? "text-primary" : "text-muted-foreground")}>
+                        {s.active ? "▸ " : ""}{s.name} {s.score}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            <FaceCaption text={gameFace?.body ?? caption} hint={attracting ? "Say “Hey Nobi”" : hint} busy={busy} progress={sayProgress} listening={earsOpen} />
           </div>
         </div>
       ) : (

@@ -433,6 +433,9 @@ export async function bootstrap(): Promise<void> {
     payload: { startedAt: new Date().toISOString() },
   });
 
+  // A game in progress survives a brain restart: the table is where you left it.
+  void import("./games/engine.js").then((m) => m.restoreSession()).catch(() => {});
+
   await refreshOllamaDetection().catch(() => {});
   // Auto-install a local model if a local runtime is present but empty, then
   // hook it — so Nobi always has a free local brain once Ollama is around.

@@ -1,0 +1,235 @@
+import { randomUUID } from "node:crypto";
+import { broadcast } from "../ws-server.js";
+import { getConfig, setConfig } from "../app-config.js";
+import { logger } from "../logger.js";
+import { runInference } from "../inference.js";
+import type { GameDefinition, GameSession, Player, GameContext } from "./types.js";
+import { devsDungeon } from "./devs-dungeon.js";
+import { samePage } from "./same-page.js";
+
+/**
+ * games/engine.ts — one live game at a time, owned by the robot.
+ *
+ * The robot holds the state, not the phones. That is what makes the back arrow
+ * safe: you leave a game, the game keeps playing in its own time, and when you
+ * come back it is exactly where it was. It is also what makes several phones a
+ * single table rather than several games.
+ *
+ * Sessions are saved to config after every change, so a brain restart mid-round
+ * does not lose the story. They are small (a few KB) and there is only ever one.
+ */
+
+const GAMES: Record<string, GameDefinition<never>> = {
+  [devsDungeon.id]: devsDungeon as unknown as GameDefinition<never>,
+  [samePage.id]: samePage as unknown as GameDefinition<never>,
+};
+
+const SAVE_KEY = "NOBI_GAME_SESSION";
+/**
+ * Bumped whenever a game's saved state changes shape. A save from an older
+ * build is discarded rather than fed to code that no longer understands it.
+ *
+ * This is not hypothetical: a Same Page save written before seats existed was
+ * restored into a build that reads `state.seats`, the ticker threw on every
+ * interval, and systemd restart-looped the brain. A game is entertainment; it
+ * must never be able to stop the robot from being a robot.
+ */
+const SAVE_VERSION = 2;
+
+let session: GameSession | null = null;
+let ticker: ReturnType<typeof setInterval> | null = null;
+
+export function listGames() {
+  return Object.values(GAMES).map((g) => ({
+    id: g.id, title: g.title, blurb: g.blurb, minPlayers: g.minPlayers, maxPlayers: g.maxPlayers,
+  }));
+}
+
+/** Restore whatever was in play when the brain last stopped. */
+export async function restoreSession(): Promise<void> {
+  try {
+    const raw = await getConfig(SAVE_KEY).catch(() => null);
+    if (!raw) return;
+    const saved = JSON.parse(raw) as GameSession & { schema?: number };
+    if (saved?.schema !== SAVE_VERSION) {
+      logger.info({ found: saved?.schema, want: SAVE_VERSION }, "games: dropping a save from an older build");
+      await setConfig(SAVE_KEY, "");
+      return;
+    }
+    if (saved.gameId && GAMES[saved.gameId]) {
+      session = saved;
+      startTicker();
+    }
+  } catch { /* a corrupt save is not worth a crash; start fresh */ }
+}
+
+async function save(): Promise<void> {
+  try {
+    await setConfig(SAVE_KEY, session ? JSON.stringify({ ...session, schema: SAVE_VERSION }) : "");
+  } catch { /* best effort */ }
+}
+
+/**
+ * Anything a game does is wrapped in this. If a game throws — bad saved state,
+ * a bug in a render, an option that no longer exists — the game is dropped and
+ * the robot carries on. Losing a round is a nuisance; losing the robot at a
+ * stand is the end of the demo.
+ */
+function guard<T>(what: string, fn: () => T, fallback: T): T {
+  try {
+    return fn();
+  } catch (err) {
+    logger.error({ err, what, gameId: session?.gameId }, "games: a game threw — ending it so the robot keeps running");
+    stopTicker();
+    session = null;
+    void setConfig(SAVE_KEY, "").catch(() => {});
+    try {
+      broadcast({ type: "game.frame", source: "games", payload: { gameId: null, version: 0, face: null }, timestamp: new Date().toISOString() });
+    } catch { /* the face will simply keep its last frame */ }
+    return fallback;
+  }
+}
+
+function def(): GameDefinition<never> | null {
+  return session ? (GAMES[session.gameId] ?? null) : null;
+}
+
+function context(): GameContext {
+  return {
+    now: Date.now(),
+    random: Math.random,
+    narrate: async (prompt: string, maxWords = 60) => {
+      // A narrator, not an assistant: the rules go in the prompt because
+      // runInference takes a single prompt, and a game that gets "Sure! Here's
+      // a story:" read aloud in Rocky's voice has lost the room.
+      const framed = [
+        "You are narrating a game aloud for a room of people.",
+        prompt,
+        "",
+        "Reply with the narration ONLY: no preamble, no commentary, no questions, " +
+          `no offers of help, no markdown, at most ${maxWords} words.`,
+      ].join("\n");
+      const out = await runInference({ prompt: framed, mode: "fast", task: "chat" });
+      return String(out?.response ?? "").trim();
+    },
+  };
+}
+
+/** Push the current frame to the face and bump the version phones poll on. */
+function publish(): void {
+  const d = def();
+  if (!session || !d) return;
+  session.version += 1;
+  const frame = guard("render", () => d.render(session!.state as never, session!.players), null);
+  if (!frame) return;
+  broadcast({
+    type: "game.frame",
+    source: "games",
+    payload: { gameId: session.gameId, version: session.version, face: frame.face },
+    timestamp: new Date().toISOString(),
+  });
+  void save();
+}
+
+function startTicker(): void {
+  stopTicker();
+  const d = def();
+  if (!d?.tick || !d.tickMs) return;
+  ticker = setInterval(() => {
+    if (!session || !d.tick) return;
+    const next = guard("tick", () => d.tick!(session!.state as never, context()) as unknown, null);
+    if (next === null) return;          // the guard has already ended the game
+    session.state = next;
+    publish();
+  }, d.tickMs);
+}
+
+function stopTicker(): void {
+  if (ticker) { clearInterval(ticker); ticker = null; }
+}
+
+export function currentSession(): { gameId: string; version: number; players: Array<{ id: string; name: string }> } | null {
+  return session ? { gameId: session.gameId, version: session.version, players: session.players.map((p) => ({ id: p.id, name: p.name })) } : null;
+}
+
+export async function startGame(gameId: string): Promise<{ ok: boolean; error?: string }> {
+  const d = GAMES[gameId];
+  if (!d) return { ok: false, error: "unknown game" };
+  stopTicker();
+  session = { gameId, startedAt: Date.now(), players: [], state: d.create({ players: [] }) as unknown, version: 0 };
+  startTicker();
+  publish();
+  return { ok: true };
+}
+
+/** Leave the game running but take it off the face (the back arrow). */
+export function suspendGame(): void {
+  if (!session) return;
+  broadcast({ type: "game.frame", source: "games", payload: { gameId: null, version: session.version, face: null }, timestamp: new Date().toISOString() });
+  void save();
+}
+
+/** Put a suspended game back on the face. */
+export function resumeGame(): boolean {
+  if (!session) return false;
+  publish();
+  return true;
+}
+
+export async function endGame(): Promise<void> {
+  stopTicker();
+  session = null;
+  broadcast({ type: "game.frame", source: "games", payload: { gameId: null, version: 0, face: null }, timestamp: new Date().toISOString() });
+  await save();
+}
+
+export function joinGame(name: string, existingId?: string): { playerId: string } | { error: string } {
+  const d = def();
+  if (!session || !d) return { error: "no game running" };
+  if (existingId) {
+    const known = session.players.find((p) => p.id === existingId);
+    if (known) return { playerId: known.id };
+  }
+  if (session.players.length >= d.maxPlayers) return { error: "table is full" };
+  const player: Player = {
+    id: randomUUID().slice(0, 8),
+    name: (name || `Player ${session.players.length + 1}`).slice(0, 16),
+    joinedAt: Date.now(),
+    seat: session.players.length,
+  };
+  session.players.push(player);
+  const joined = guard("join", () => d.join(session!.state as never, player) as unknown, null);
+  if (joined === null) return { error: "that game just ended" };
+  session.state = joined;
+  publish();
+  return { playerId: player.id };
+}
+
+export async function actInGame(playerId: string, action: string, value?: string): Promise<{ ok: boolean; error?: string }> {
+  const d = def();
+  if (!session || !d) return { ok: false, error: "no game running" };
+  const player = session.players.find((p) => p.id === playerId);
+  if (!player) return { ok: false, error: "not at this table" };
+  try {
+    session.state = (await d.act(session.state as never, player, action, value, context())) as unknown;
+  } catch {
+    return { ok: false, error: "that did not work" };
+  }
+  publish();
+  return { ok: true };
+}
+
+/** What this phone should show right now. */
+export function viewFor(playerId: string) {
+  const d = def();
+  if (!session || !d) return null;
+  const frame = guard("render", () => d.render(session!.state as never, session!.players), null);
+  if (!frame) return null;
+  return {
+    gameId: session.gameId,
+    title: d.title,
+    version: session.version,
+    phone: frame.phones[playerId] ?? { title: d.title, body: "Join to play." },
+    players: session.players.map((p) => ({ id: p.id, name: p.name })),
+  };
+}

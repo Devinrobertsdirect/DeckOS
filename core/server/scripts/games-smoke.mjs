@@ -129,6 +129,43 @@ async function main() {
     await api("/games/act", { playerId: a, action: "right" });
   });
 
+  await play("quick-colors", async () => {
+    const a = await join("Ann");
+    await tap(a, "Start");
+    // Wait for the flash, which is deliberately at a random moment.
+    for (let i = 0; i < 80 && (await phone(a)).title !== "GO"; i++) await wait(200);
+    const swatches = (await phone(a)).choices ?? [];
+    if (swatches.length < 2) throw new Error("no colours to tap");
+    await tap(a, swatches[0].label);
+    await wait(500);
+    // Right or wrong, the round has to resolve and offer the next one.
+    if (!(await labels(a)).some((l) => /Next colour|See the scores/.test(l))) throw new Error("round never resolved");
+  });
+
+  await play("would-you-rather", async () => {
+    const a = await join("Ann");
+    await tap(a, "Start");
+    await wait(600);
+    const opts = (await phone(a)).choices ?? [];
+    if (opts.length < 2) throw new Error("no options offered");
+    await tap(a, opts[0].label);
+    await wait(400);
+    if (!(await labels(a)).includes("Next one")) throw new Error("never reached the reveal");
+  });
+
+  await play("hot-potato", async () => {
+    const a = await join("Ann"), b = await join("Bob");
+    await tap(a, "Start");
+    await wait(700);
+    const holder = (await phone(a)).yourTurn ? a : b;
+    const victim = holder === a ? "Bob" : "Ann";
+    await type(holder, "Cheerios");
+    await tap(holder, `Pass to ${victim}`);
+    await wait(500);
+    const other = holder === a ? b : a;
+    if (!(await phone(other)).yourTurn) throw new Error("the bomb did not change hands");
+  });
+
   await play("devs-dungeon", async () => {
     const a = await join("Ann");
     await tap(a, (await labels(a))[0]);

@@ -10,6 +10,9 @@ import { samePage } from "./same-page.js";
 import { readTheRoom } from "./read-the-room.js";
 import { bizbot } from "./bizbot.js";
 import { meteor } from "./meteor.js";
+import { quickColors } from "./quick-colors.js";
+import { wouldYouRather } from "./would-you-rather.js";
+import { hotPotato } from "./hot-potato.js";
 
 /**
  * games/engine.ts — one live game at a time, owned by the robot.
@@ -29,6 +32,9 @@ const GAMES: Record<string, GameDefinition<never>> = {
   [readTheRoom.id]: readTheRoom as unknown as GameDefinition<never>,
   [bizbot.id]: bizbot as unknown as GameDefinition<never>,
   [meteor.id]: meteor as unknown as GameDefinition<never>,
+  [quickColors.id]: quickColors as unknown as GameDefinition<never>,
+  [wouldYouRather.id]: wouldYouRather as unknown as GameDefinition<never>,
+  [hotPotato.id]: hotPotato as unknown as GameDefinition<never>,
 };
 
 const SAVE_KEY = "NOBI_GAME_SESSION";

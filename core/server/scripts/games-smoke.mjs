@@ -21,7 +21,10 @@
  * the remote's click handler. If a game is unplayable by thumb, this fails.
  *
  *   node scripts/games-smoke.mjs [baseUrl] [pairingCode]
- *   node scripts/games-smoke.mjs http://nobi.local:8080 XJB-2777
+ *   node scripts/games-smoke.mjs http://nobi.local:8080 ABC-1234
+ *
+ * Pass a REAL pairing code on the command line, never in this file. Ask the
+ * robot for its own ("what is my pairing code") or read it off its screen.
  */
 
 const BASE = (process.argv[2] ?? process.env.NOBI_URL ?? "http://localhost:8080").replace(/\/+$/, "");

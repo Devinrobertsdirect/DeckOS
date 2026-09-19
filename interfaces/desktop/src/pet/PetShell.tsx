@@ -31,6 +31,7 @@ import { stripEmoji } from "@/lib/stripText";
 import { dockLines } from "@/genesis/dockGreetings";
 import MeteorCanvas, { type MeteorCanvasData } from "@/pet/MeteorCanvas";
 import WavelengthCanvas, { type WavelengthCanvasData } from "@/pet/WavelengthCanvas";
+import FocusCanvas, { type FocusCanvasData } from "@/pet/FocusCanvas";
 import { useHideCursor } from "@/pet/useHideCursor";
 import {
   appendTurn, ingestUserMessage, buildContext,
@@ -1325,6 +1326,12 @@ export function PetShell({
             )}
             {gameFace?.canvas?.["kind"] === "wavelength" && (
               <WavelengthCanvas data={gameFace.canvas as unknown as WavelengthCanvasData} />
+            )}
+            {/* Focus Companion runs its own 60fps clock off the absolute
+                timestamps in its payload, so unlike the two above it keeps
+                moving between server frames. */}
+            {gameFace?.canvas?.["kind"] === "focus" && (
+              <FocusCanvas data={gameFace.canvas as unknown as FocusCanvasData} />
             )}
             {/* The countdown sits under his eyes, big enough to read across a
                 room — the whole point is that someone notices in time. */}

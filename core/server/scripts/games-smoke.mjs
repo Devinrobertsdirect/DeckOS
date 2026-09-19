@@ -236,6 +236,38 @@ async function main() {
     if (!(await labels(a)).some((l) => /Next question|Final scores/.test(l))) throw new Error("question never resolved");
   });
 
+  await play("focus", async () => {
+    const a = await join("Ann");
+    // It is an app, not a game: the test is that every control is reachable and
+    // that nothing forces him to speak during a block.
+    const opts = await labels(a);
+    if (!opts.length) throw new Error("no controls at all on the idle screen");
+    const start = opts.find((l) => /focus|start/i.test(l));
+    if (!start) throw new Error(`no way to start a block (saw: ${opts.join(", ")})`);
+    await tap(a, start);
+    await wait(900);
+    const running = await labels(a);
+    if (!running.some((l) => /pause|stop|skip/i.test(l))) throw new Error(`a running block cannot be stopped (saw: ${running.join(", ")})`);
+    const stop = running.find((l) => /stop/i.test(l)) ?? running.find((l) => /pause/i.test(l));
+    await tap(a, stop);
+  });
+
+  await play("bodies", async () => {
+    // Four phones minimum — the roles do not deal below that.
+    const ids = [];
+    for (const n of ["Ann", "Bob", "Cal", "Dee"]) ids.push(await join(n));
+    const opener = (await labels(ids[0])).find((l) => /start|begin|deal/i.test(l));
+    if (!opener) throw new Error(`no way to start with four phones (saw: ${(await labels(ids[0])).join(", ")})`);
+    await tap(ids[0], opener);
+    await wait(1200);
+    // Night: every living phone must have SOMETHING to do — a target, or a way
+    // to pass. A phase where a player has neither is the bug that matters here.
+    for (const id of ids) {
+      const p = await phone(id);
+      if (!(p.choices?.length || p.input)) throw new Error(`a player has no way forward at night (title: ${p.title})`);
+    }
+  });
+
   await play("devs-dungeon", async () => {
     const a = await join("Ann");
     await tap(a, (await labels(a))[0]);

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getOrCreatePairingCode } from "../lib/pairing.js";
 import {
   listGames, startGame, joinGame, actInGame, viewFor,
-  currentSession, suspendGame, resumeGame, endGame, isPlayCode, currentPlayCode,
+  currentSession, suspendGame, resumeGame, endGame, isPlayCode, currentPlayCode, leaveGame,
 } from "../lib/games/engine.js";
 
 /**
@@ -69,6 +69,16 @@ router.post("/games/join", async (req, res) => {
   const r = joinGame(String(b.name ?? "").slice(0, 16), b.playerId);
   if ("error" in r) { res.status(409).json(r); return; }
   res.json(r);
+});
+
+/**
+ * One phone leaving — not the whole table. The engine also sweeps phones that
+ * simply stop polling, so this is the polite path rather than the only one.
+ */
+router.post("/games/leave", async (req, res) => {
+  if (!(await ok(req))) { res.status(403).json({ error: "bad code" }); return; }
+  const b = (req.body ?? {}) as { playerId?: string };
+  res.json(await leaveGame(String(b.playerId ?? "")));
 });
 
 router.post("/games/act", async (req, res) => {

@@ -253,6 +253,29 @@ const GROUPS: Array<{ title: string; keys: string[]; wide?: string[] }> = [
   { title: "Colour", keys: ["cIce", "cGold", "cMint", "cRose", "cViolet", "cEmber", "cRed", "cOrange", "cLime", "cGreen", "cCyan", "cBlue", "cIndigo", "cMagenta", "cWhite"] },
   { title: "Scenes", keys: ["sSpark", "sConf", "sCore", "sOrbit", "sWarp", "sHud", "sGears", "sLab", "sHelmet", "sBowl", "sDrive", "sFinale", "sync"] },
 ];
+/**
+ * The Apps tab, as a list of sections rather than one shelf.
+ *
+ * Games is the section with things in it today, but the robot is growing
+ * things that are apps and not games — a focus companion is being written now —
+ * and those should not have to be filed under "Games" or wait for a redesign.
+ * Adding a category is adding a line here.
+ *
+ * A `live` section owns only its shell: the robot is asked what is in it after
+ * the page loads (that is the games shelf). A static section lists tiles, and
+ * each tile is just a command key, so anything already reachable from the
+ * Control tab can be given an app tile without a second code path. A static
+ * section with nothing in it is not drawn at all.
+ */
+type AppTile = { cmd: string; icon: string; name: string; sub: string; color: string };
+const APP_SECTIONS: Array<{ title: string; id: string; live?: boolean; tiles?: AppTile[] }> = [
+  { title: "Games", id: "gameList", live: true },
+  // Waiting on the focus companion, which will land as:
+  // { title: "Tools", id: "toolList", tiles: [
+  //   { cmd: "focus", icon: "⏱", name: "Focus", sub: "Pomodoro with him", color: "#5ce0b8" },
+  // ] },
+];
+
 /** Swatches are read straight off the commands, so a new colour cannot be added without one. */
 const SWATCH: Record<string, string> = Object.fromEntries(
   Object.entries(COMMANDS).flatMap(([k, c]) => {
@@ -274,10 +297,34 @@ router.get("/remote", async (_req, res) => {
 <style>
   :root{--ink:#e8eefb;--bg:#080c16;--card:#121a2b;--line:#22304a;--eye:#c9dcf0;--stop:#f5b83d}
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  /* The bottom padding clears the fixed STOP bar. STOP is pinned so it is
+     reachable from every tab, which means every tab has to leave room for it
+     or its last row of buttons sits underneath and cannot be tapped. */
   body{background:var(--bg);color:var(--ink);font:500 16px/1.4 system-ui,-apple-system,'Segoe UI',sans-serif;
-       min-height:100dvh;padding:18px 16px calc(18px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:14px}
+       min-height:100dvh;padding:18px 16px calc(104px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:14px}
   h1{font-size:15px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:#7d8ba6;display:flex;align-items:center;gap:9px}
   h1 svg{flex:none}
+  /* Tabs. The remote outgrew one scroll: 55 command buttons and a games shelf
+     is a lot of thumb. Three tabs — what he DOES, what you can OPEN, and the
+     plumbing — and the one you were on is remembered, because this page is a
+     bookmark people reload constantly and landing back at the top of Control
+     when you were mid-game is its own small annoyance.
+     Flex rather than a three-column grid on purpose: a guest has only one tab,
+     and a hidden grid child leaves an empty track where its tab used to be.
+     The box-shadow is not a shadow: it paints the page background out to the
+     gutters around the pinned bar, so buttons scrolling underneath do not show
+     in the gap beside it. */
+  .tabs{display:flex;gap:6px;background:var(--card);border:1px solid var(--line);
+        border-radius:16px;padding:5px;position:sticky;top:0;z-index:20;
+        box-shadow:0 -10px 0 16px var(--bg)}
+  .tab{flex:1;min-height:46px;padding:11px 4px;border-color:transparent;background:transparent;
+       color:#7d8ba6;font:700 12px system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase}
+  .tab[aria-current="true"]{background:#1b2740;color:var(--ink);border-color:var(--line)}
+  .tab:active{transform:scale(.97)}
+  /* Same trap as the sheet below: a button is display:flex here, and that beats
+     the UA stylesheet's display:none for [hidden]. */
+  .tab[hidden],.panel[hidden],.stopbar[hidden]{display:none}
+  .panel{display:flex;flex-direction:column}
   .band h2{font-size:11px;font-weight:600;letter-spacing:.2em;text-transform:uppercase;color:#5d6b86;margin:0 2px 8px}
   .band+.band{margin-top:14px}
   .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
@@ -332,7 +379,9 @@ router.get("/remote", async (_req, res) => {
   .padhint{font:600 11px system-ui,sans-serif;color:#7d8ba6;text-align:center;white-space:nowrap}
   #gChoices button{min-height:62px;font-size:15px;flex-direction:column;gap:3px}
   #gChoices button small{font-size:11px;color:#7d8ba6;font-weight:500}
-  .setup{margin-top:18px;border-top:1px solid var(--line);padding-top:14px}
+  /* Setup owns its tab now, so it no longer needs the rule that used to divide
+     it from the bands above it. */
+  .setup{margin-top:2px}
   .setup label{display:block;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#5d6b86;margin:14px 2px 6px}
   .setup .hint{letter-spacing:0;text-transform:none;color:#4a5878}
   .setup .row{font-size:13px;color:#8fa0bd;padding:10px 12px;background:var(--card);border:1px solid var(--line);border-radius:12px}
@@ -343,7 +392,15 @@ router.get("/remote", async (_req, res) => {
   .setup button.b{min-height:0;padding:0 18px;font-size:14px}
   .setup button.full{width:100%;margin-top:10px;padding:16px}
   .fine{font-size:11px;color:#4a5878;margin-top:8px;line-height:1.5}
-  .stop{width:100%;margin-top:14px;background:var(--stop);color:#20160a;border-color:transparent;
+  /* STOP is the panic button at a live stand, so it is pinned to the bottom of
+     the screen rather than living on a tab. Whatever you are looking at, it is
+     under your thumb. The fade behind it keeps the buttons that scroll past
+     from reading as part of it, and the safe-area padding keeps it clear of
+     the home indicator. */
+  .stopbar{position:fixed;left:0;right:0;bottom:0;z-index:40;
+           padding:14px 16px calc(12px + env(safe-area-inset-bottom));
+           background:linear-gradient(180deg,rgba(8,12,22,0) 0,var(--bg) 38%)}
+  .stop{width:100%;margin:0;background:var(--stop);color:#20160a;border-color:transparent;
         padding:22px;font-size:17px;font-weight:700}
   .msg{min-height:22px;text-align:center;font-size:14px;color:#7d8ba6}
   .gate{margin-top:auto;border-top:1px solid var(--line);padding-top:14px}
@@ -352,8 +409,14 @@ router.get("/remote", async (_req, res) => {
               border-radius:12px;padding:13px;font:600 18px ui-monospace,Menlo,monospace;letter-spacing:.18em;text-align:center}
 </style></head><body>
 <h1><svg width="20" height="20" viewBox="0 0 48 48"><circle cx="24" cy="24" r="22" fill="#1e2a38"/><g fill="#c9dcf0"><rect x="13" y="15" width="7" height="18" rx="3.5"/><rect x="28" y="15" width="7" height="18" rx="3.5"/></g></svg>Nobi remote</h1>
-</div>
 
+<nav class="tabs" id="tabs">
+  <button class="tab" data-tab="control" aria-current="true">Control</button>
+  <button class="tab" data-tab="apps" aria-current="false">Apps</button>
+  <button class="tab" data-tab="setup" aria-current="false">Setup</button>
+</nav>
+
+<div class="panel" id="tab-control">
 ${GROUPS.map((g) => `<div class="band"><h2>${g.title}</h2><div class="grid">
 ${g.keys.map((k) => {
   const c = COMMANDS[k];
@@ -363,7 +426,24 @@ ${g.keys.map((k) => {
   return `  <button class="b${wide}" data-cmd="${k}">${sw}${c.label}</button>`;
 }).join("\n")}
 </div></div>`).join("\n")}
-<button class="stop" data-cmd="stop">\u25A0 STOP</button>
+</div>
+
+<div class="panel" id="tab-apps" hidden>
+  <div class="msg" id="modeNote" hidden>You're in with a game code \u2014 games only.</div>
+${APP_SECTIONS.map((s) => {
+  const tiles = s.tiles ?? [];
+  if (!s.live && !tiles.length) return "";
+  const body = s.live
+    ? `    <button class="b wide" disabled>Loading…</button>`
+    : tiles.map((t) => `    <button class="tile" data-cmd="${t.cmd}" style="--gc:${t.color}">` +
+        `<span class="ticon">${t.icon}</span><span class="tname">${t.name}</span>` +
+        `<span class="tsub">${t.sub}</span></button>`).join("\n");
+  return `  <div class="band"><h2>${s.title}</h2>
+  <div class="gamegrid" id="${s.id}">
+${body}
+  </div></div>`;
+}).join("\n")}
+</div>
 
 <!-- Shown only when more than one thing is running, so STOP has to ask. -->
 <div class="sheet" id="stopSheet" hidden>
@@ -374,11 +454,7 @@ ${g.keys.map((k) => {
   </div>
 </div>
 
-<div class="msg" id="modeNote" hidden>You're in with a game code — games only.</div>
-<div class="band" id="gamesBand">
-  <h2>Games</h2>
-  <div class="gamegrid" id="gameList"><button class="b wide" disabled>Loading\u2026</button></div>
-
+<div class="panel" id="tab-setup" hidden>
 <div class="band setup">
   <h2>Setup</h2>
   <div class="row" id="cloudRow">Checking\u2026</div>
@@ -402,6 +478,8 @@ ${g.keys.map((k) => {
   <input id="keyVal" type="password" autocomplete="off" spellcheck="false" placeholder="paste the key, then Save">
   <p class="fine">Keys are written straight to this robot and never shown back.</p>
 </div>
+</div>
+
 <div id="gameView" hidden>
   <div class="gamebar">
     <button class="back" id="gameBack">\u2190</button>
@@ -434,6 +512,11 @@ ${g.keys.map((k) => {
   <label for="code">Pairing code${/* prefilled when opened from the robot's own QR */ ""}</label>
   <input id="code" inputmode="latin" autocapitalize="characters" spellcheck="false" placeholder="XXX-0000">
 </div>
+
+<!-- Pinned, not tabbed. See .stopbar above for why. -->
+<div class="stopbar" id="stopBar">
+  <button class="stop" data-cmd="stop">■ STOP</button>
+</div>
 <script>
   var KEY = "nobi_remote_code";
   var params = new URLSearchParams(location.search);
@@ -441,6 +524,31 @@ ${g.keys.map((k) => {
   var msg = document.getElementById("msg");
   input.value = params.get("code") || localStorage.getItem(KEY) || "";
   input.addEventListener("change", function () { try { localStorage.setItem(KEY, input.value.trim()); } catch (e) {} });
+  // ── Tabs ─────────────────────────────────────────────────────────────────
+  // The tab you were on is remembered, because this page is a bookmark and gets
+  // reloaded constantly — being thrown back to the top of Control every time is
+  // exactly the friction the tabs were meant to remove. Only a deliberate tap
+  // is written down; a mode change that forces a tab (a guest landing on Apps)
+  // must not quietly overwrite what the owner of the phone had chosen.
+  var TAB_KEY = "nobi_remote_tab";
+  function setTab(name, persist) {
+    var btn = document.querySelector('.tab[data-tab="' + name + '"]');
+    if (!btn || btn.hidden) { name = "apps"; }
+    document.querySelectorAll(".tab").forEach(function (b) {
+      b.setAttribute("aria-current", b.dataset.tab === name ? "true" : "false");
+    });
+    document.querySelectorAll(".panel").forEach(function (p) {
+      p.hidden = p.id !== "tab-" + name;
+    });
+    if (persist) { try { localStorage.setItem(TAB_KEY, name); } catch (e) {} }
+  }
+  function wantedTab() {
+    try { return localStorage.getItem(TAB_KEY) || "control"; } catch (e) { return "control"; }
+  }
+  document.querySelectorAll(".tab").forEach(function (b) {
+    b.addEventListener("click", function () { setTab(b.dataset.tab, true); window.scrollTo(0, 0); });
+  });
+  setTab(wantedTab(), false);
   // ── Setup: what the robot currently has, and the three things you can change
   function setupBody(extra) {
     var o = { code: input.value.trim() };
@@ -516,7 +624,10 @@ ${g.keys.map((k) => {
   function code() { return input.value.trim(); }
   function show(el, on) { document.getElementById(el).hidden = !on; }
   function inGame(on) {
-    document.querySelectorAll(".band, .stop").forEach(function (n) { n.style.display = on ? "none" : ""; });
+    // A game takes the whole screen: the tabs, every panel and the STOP bar step
+    // out of the way. STOP is not lost — the game bar has its own End, and Back
+    // puts you straight back on the tab you were on, still pinned.
+    document.querySelectorAll(".tabs, .panel, .stopbar").forEach(function (n) { n.style.display = on ? "none" : ""; });
     show("gameView", on);
   }
   async function loadGames() {
@@ -676,14 +787,20 @@ ${g.keys.map((k) => {
       var r = await fetch("/api/remote/state?code=" + encodeURIComponent(code()));
       owner = r.ok;
     } catch (e) { /* offline: assume guest and show the least */ }
-    document.querySelectorAll(".band").forEach(function (b) {
-      if (b.id !== "gamesBand") b.hidden = !owner;
+    // A guest gets one tab. Hiding the Control and Setup tabs rather than their
+    // contents means there is nothing to wander into, and the tab bar collapses
+    // to the single thing they came for.
+    ["control", "setup"].forEach(function (t) {
+      var tab = document.querySelector('.tab[data-tab="' + t + '"]');
+      if (tab) tab.hidden = !owner;
     });
-    var stop = document.querySelector(".stop");
-    if (stop) stop.hidden = !owner;
+    // STOP belongs to whoever can actually drive him; a PLAY code would only be
+    // refused by the server, so a guest is not shown a button that cannot work.
+    document.getElementById("stopBar").hidden = !owner;
     var gate = document.querySelector(".gate");
     if (gate) gate.hidden = !owner && !!code();
     document.getElementById("modeNote").hidden = owner;
+    setTab(owner ? wantedTab() : "apps", false);
   }
 
   input.addEventListener("change", function () { applyMode(); loadState(); loadGames(); });

@@ -23,7 +23,14 @@ export interface Player {
   id: string;
   name: string;
   joinedAt: number;
-  /** Turn order, assigned on join. */
+  /**
+   * Turn order, assigned on join and never reused.
+   *
+   * Seats only ever go up, so a player who leaves does not hand their number to
+   * the next arrival. A game that remembered "seat 2 answered" would otherwise
+   * credit the answer to a stranger, and a seat is a person, not an index into
+   * the current roster.
+   */
   seat: number;
 }
 
@@ -124,6 +131,28 @@ export interface GameDefinition<S = unknown> {
   /** Fresh state for a new session. */
   create: (opts: { players: Player[] }) => S;
   join: (state: S, player: Player) => S;
+  /**
+   * Someone's phone has gone — pressed leave, or simply stopped polling long
+   * enough that the engine has given up on them. OPTIONAL: the engine already
+   * takes them off `session.players`, so every game's roster, render and score
+   * strip go right without a line of code here.
+   *
+   * Define it only when the game is holding that player in a POSITION that
+   * nobody else can take over: the bomb, the speaking turn, the die. Hand the
+   * position on and the table carries on; leave it and the table waits forever
+   * on a phone in a taxi.
+   *
+   * `ctx.players` is the roster AFTER the departure, so it is safe to pick a
+   * replacement from it — and it may be empty, which is the case worth
+   * remembering, because "give it to the next person" has no next person when
+   * the room has gone home.
+   *
+   * It must be pure and it must not throw: the same rules as act(). Scores and
+   * other id-keyed leftovers can stay exactly where they are; a stale entry in
+   * a record costs nothing and is what lets a phone that wandered off come back
+   * to the points it had.
+   */
+  leave?: (state: S, player: Player, ctx: GameContext) => S;
   /** A player acted. Return the new state; throw nothing — return state unchanged if the action is stale. */
   act: (state: S, player: Player, action: string, value: string | undefined, ctx: GameContext) => S | Promise<S>;
   /** Called on a timer when the game wants one (countdowns, moving targets). */
